@@ -7,6 +7,7 @@
 #include <IOKit/IOKitLib.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -45,10 +46,16 @@ static IOReportSubscriptionRef g_subscription = NULL;
 static CFMutableDictionaryRef g_channels = NULL;
 static io_connect_t g_smcConn = 0;
 
-static char g_cpu_keys[64][5];
+// SMC temperature key tables. Fixed at 64 entries; additional keys are
+// skipped with a stderr warning. In practice Apple Silicon chips expose
+// far fewer than 64 CPU or GPU temperature sensors.
+#define MAX_SMC_TEMP_KEYS 64
+static char g_cpu_keys[MAX_SMC_TEMP_KEYS][5];
 static int g_cpu_key_count = 0;
-static char g_gpu_keys[64][5];
+static char g_gpu_keys[MAX_SMC_TEMP_KEYS][5];
 static int g_gpu_key_count = 0;
+static int g_cpu_keys_truncated = 0;
+static int g_gpu_keys_truncated = 0;
 
 static pthread_mutex_t g_iokit_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -137,12 +144,18 @@ static void loadSMCTempKeys(void) {
 			continue;
 
 		if ((key[0] == 'T' && (key[1] == 'p' || key[1] == 'e'))) {
-			if (g_cpu_key_count < 64) {
+			if (g_cpu_key_count < MAX_SMC_TEMP_KEYS) {
 				strcpy(g_cpu_keys[g_cpu_key_count++], key);
+			} else if (!g_cpu_keys_truncated) {
+				g_cpu_keys_truncated = 1;
+				fprintf(stderr, "iokit: CPU temp key limit (%d) reached, skipping extra keys\n", MAX_SMC_TEMP_KEYS);
 			}
 		} else if (key[0] == 'T' && key[1] == 'g') {
-			if (g_gpu_key_count < 64) {
+			if (g_gpu_key_count < MAX_SMC_TEMP_KEYS) {
 				strcpy(g_gpu_keys[g_gpu_key_count++], key);
+			} else if (!g_gpu_keys_truncated) {
+				g_gpu_keys_truncated = 1;
+				fprintf(stderr, "iokit: GPU temp key limit (%d) reached, skipping extra keys\n", MAX_SMC_TEMP_KEYS);
 			}
 		}
 	}
@@ -351,6 +364,8 @@ void cleanupIOKit(void) {
 	}
 	g_cpu_key_count = 0;
 	g_gpu_key_count = 0;
+	g_cpu_keys_truncated = 0;
+	g_gpu_keys_truncated = 0;
 	if (g_smcConn) {
 		SMCClose(g_smcConn);
 		g_smcConn = 0;
