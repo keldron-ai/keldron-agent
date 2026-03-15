@@ -129,6 +129,84 @@ func TestPrometheus_Status(t *testing.T) {
 	}
 }
 
+func TestPrometheus_AppleSiliconReading(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "test-device", reg, nil)
+
+	// Simulate exactly what the Apple Silicon adapter produces after normalization.
+	readings := []normalizer.TelemetryPoint{
+		{
+			ID:          "01HAPPLE",
+			AgentID:     "agent-1",
+			AdapterName: "apple_silicon",
+			Source:      "macbook-pro",
+			RackID:      "unknown",
+			Timestamp:   time.Now(),
+			ReceivedAt:  time.Now(),
+			Metrics: map[string]float64{
+				"temperature_c":       0.0, // IOKit stub returns zeros
+				"power_usage_w":       0.0,
+				"gpu_utilization_pct": 0.0,
+				"mem_total_bytes":     38654705664,
+				"mem_used_bytes":      12884901888,
+				"swap_total_bytes":    0,
+				"swap_used_bytes":     0,
+				"throttled":           0,
+				"gpu_id":              0,
+			},
+			Tags: map[string]string{
+				"gpu_model":              "M4-Pro",
+				"thermal_pressure_state": "nominal",
+				"throttle_reason":        "none",
+			},
+		},
+	}
+	if err := p.Update(readings); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	srv := httptest.NewServer(p.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading response body: %v", err)
+	}
+	body := string(b)
+
+	// These metrics should appear even when values are zero.
+	wantMetrics := []string{
+		"keldron_gpu_temperature_celsius",
+		"keldron_gpu_power_watts",
+		"keldron_gpu_utilization_ratio",
+		"keldron_gpu_memory_used_bytes",
+		"keldron_gpu_memory_total_bytes",
+		"keldron_system_swap_total_bytes",
+		"keldron_system_swap_used_bytes",
+		"keldron_risk_composite",
+		"keldron_gpu_throttle_active",
+	}
+	for _, m := range wantMetrics {
+		if !strings.Contains(body, m) {
+			t.Errorf("missing metric %s in output:\n%s", m, body)
+		}
+	}
+
+	// Check that the device_model label is M4-Pro.
+	if !strings.Contains(body, `device_model="M4-Pro"`) {
+		t.Errorf("missing device_model=M4-Pro label in output:\n%s", body)
+	}
+	if !strings.Contains(body, `adapter="apple_silicon"`) {
+		t.Errorf("missing adapter=apple_silicon label in output:\n%s", body)
+	}
+}
+
 func TestStringsToLabels(t *testing.T) {
 	tests := []struct {
 		in   string

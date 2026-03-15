@@ -316,6 +316,7 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var batch []normalizer.TelemetryPoint
+	initialFlush := true // Flush on first reading for immediate metric visibility.
 	for {
 		select {
 		case pt, ok := <-ch:
@@ -324,6 +325,12 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				return
 			}
 			batch = append(batch, pt)
+			if initialFlush {
+				flushBatch(batch)
+				batch = batch[:0]
+				initialFlush = false
+				ticker.Reset(interval)
+			}
 		case <-ticker.C:
 			flushBatch(batch)
 			batch = batch[:0]
