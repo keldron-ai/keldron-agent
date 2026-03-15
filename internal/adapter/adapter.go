@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package adapter defines the interface all telemetry adapters must implement.
 // Implementations: DCGM (S-002), PDU/SNMP (S-046), Temperature (S-047), K8s (S-048), Slurm (S-080).
 package adapter

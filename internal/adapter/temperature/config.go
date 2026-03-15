@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package temperature implements a temperature sensor adapter that polls
 // inlet/outlet temperatures via SNMP or Modbus TCP (S-047).
 package temperature

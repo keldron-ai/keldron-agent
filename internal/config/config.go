@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package config handles loading and accessing the agent's YAML configuration.
 // OSS-004: Single-file YAML with env overrides, auto-detection, and validation.
 package config

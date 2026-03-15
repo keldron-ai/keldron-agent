@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // mock-server is a standalone gRPC server for testing the agent's telemetry pipeline.
 // It implements TelemetryService.StreamBatch, logs received batches, and sends BatchAck.
 package main

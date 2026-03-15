@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package config provides a file watcher for hot-reloading the agent config.
 package config
 

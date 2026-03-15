@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package normalizer transforms raw adapter readings into a canonical telemetry format.
 // It fans in from multiple adapter channels, validates readings, resolves rack IDs,
 // coerces metrics to float64, assigns ULIDs, and emits TelemetryPoint structs.

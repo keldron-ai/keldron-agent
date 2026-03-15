@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package normalizer tests cover:
 // - Validation rules (required fields, timestamp skew, boundary conditions)
 // - Metric type coercion (float64, float32, int, int64, uint64, uint32, bool, string)

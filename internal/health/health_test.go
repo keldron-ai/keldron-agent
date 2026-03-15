@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package health_test tests the health HTTP server including:
 // - Status determination (healthy, degraded, unhealthy)
 // - JSON response structure and round-trip

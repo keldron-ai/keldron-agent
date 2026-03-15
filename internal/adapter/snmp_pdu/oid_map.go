@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package snmp_pdu implements the PDU power monitoring adapter via SNMP v2c/v3.
 package snmp_pdu
 
