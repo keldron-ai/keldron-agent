@@ -18,6 +18,10 @@ func ComputeTimeToHotspot(thermalBuffer *RingBuffer, tCurrent float64, spec regi
 	}
 
 	values := thermalBuffer.Values()
+	// Always use the most recent 10 samples for a consistent 5-min window.
+	if len(values) > 10 {
+		values = values[len(values)-10:]
+	}
 	n := len(values)
 
 	// Least-squares linear regression

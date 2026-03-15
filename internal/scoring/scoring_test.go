@@ -199,12 +199,12 @@ func TestComputeVolatility_BurstyConsumer(t *testing.T) {
 
 	score, warmingUp := ComputeVolatility(rb, spec)
 	if !warmingUp {
-		t.Log("warmingUp = false (Len >= 10)")
+		t.Fatalf("warmingUp = false, want true (Len %d < 60)", rb.Len())
 	}
 	// cv = stdev/mean. With 10 values 40,43,46,...,67: mean ~53.5, stdev ~9.5, cv ~0.18
-	// S_vol = (cv/0.60)*100 = 30
-	if score > 50 {
-		t.Errorf("Bursty consumer S_vol = %v, should NOT peg at 100 (want ~36)", score)
+	// S_vol = (cv/0.60)*100 ≈ 30
+	if score < 25 || score > 40 {
+		t.Errorf("Bursty consumer S_vol = %v, want in [25, 40]", score)
 	}
 }
 
@@ -338,13 +338,25 @@ func TestComputeTimeToHotspot(t *testing.T) {
 
 func TestComputeTimeToHotspot_NotEnoughData(t *testing.T) {
 	spec := registry.GPUSpec{ThermalLimitC: 83}
+
+	// 2 samples — well below threshold
 	rb := NewRingBuffer(10)
 	rb.Add(70)
 	rb.Add(71)
 
 	got := ComputeTimeToHotspot(rb, 72, spec)
 	if got != nil {
-		t.Errorf("Len() < 10: got %v, want nil", got)
+		t.Errorf("2 samples: got %v, want nil", got)
+	}
+
+	// 9 samples — boundary just below the 10-sample minimum
+	rb9 := NewRingBuffer(10)
+	for i := 0; i < 9; i++ {
+		rb9.Add(60 + float64(i))
+	}
+	got = ComputeTimeToHotspot(rb9, 72, spec)
+	if got != nil {
+		t.Errorf("9 samples: got %v, want nil", got)
 	}
 }
 
