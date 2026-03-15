@@ -451,7 +451,10 @@ sender:
 	// Boolean env override
 	os.Setenv("KELDRON_OUTPUT_STDOUT", "true")
 	defer os.Unsetenv("KELDRON_OUTPUT_STDOUT")
-	cfg2, _ := Load(path)
+	cfg2, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load after KELDRON_OUTPUT_STDOUT override: %v", err)
+	}
 	if !cfg2.Output.Stdout {
 		t.Error("output.stdout should be true via env override")
 	}

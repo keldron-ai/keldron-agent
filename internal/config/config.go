@@ -630,6 +630,9 @@ func Validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("agent.log_level must be one of: debug, info, warn, error (got %q)", cfg.Agent.LogLevel)
 	}
+	// Agent-level poll interval is bounded to 5s–5m to prevent excessive or
+	// stale polling. Per-adapter intervals only enforce a ≥1s floor because
+	// individual adapters may legitimately poll faster than the agent cycle.
 	if cfg.Agent.PollInterval < 5*time.Second || cfg.Agent.PollInterval > 5*time.Minute {
 		return fmt.Errorf("agent.poll_interval must be between 5s and 5m (got %v)", cfg.Agent.PollInterval)
 	}

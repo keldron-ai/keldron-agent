@@ -117,7 +117,7 @@ hub:
 # --- Cloud streaming ---
 cloud:
   api_key: ""                    # KELDRON_CLOUD_API_KEY
-  endpoint: ""                    # Default: https://api.keldron.ai
+  endpoint: ""                    # When api_key is set and endpoint is empty, defaults to https://api.keldron.ai
 
 # --- Rack mapping (normalizer) ---
 rack_mapping:
