@@ -22,13 +22,11 @@ agent:
 adapters:
   apple_silicon:
     enabled: true
-  nvidia_consumer:
-    enabled: false
   dcgm:
     enabled: false
   rocm:
     enabled: false
-  linux_thermal:
+  temperature:
     enabled: false
 
 output:

@@ -208,13 +208,18 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 		metrics["mem_used_bytes"] = float64(memUsed)
 	}
 
-	// Temperature and power from powermetrics (requires root)
+	// Temperature and power from powermetrics (requires root).
+	// Always emit both keys so the metric schema is stable.
 	tempC, powerW := a.collectPowermetrics()
 	if tempC >= 0 {
 		metrics["temperature_c"] = tempC
+	} else {
+		metrics["temperature_c"] = 0.0
 	}
 	if powerW >= 0 {
 		metrics["power_usage_w"] = powerW
+	} else {
+		metrics["power_usage_w"] = 0.0
 	}
 
 	// GPU utilization: 0 (not available without root)
