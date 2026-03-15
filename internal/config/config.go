@@ -669,8 +669,10 @@ func Validate(cfg *Config) error {
 		}
 	}
 
-	if anyAdapterEnabled && cfg.Sender.Target == "" && cfg.Cloud.APIKey == "" {
-		return fmt.Errorf("sender.target or cloud.api_key must be set when adapters are enabled")
+	// When using local output (prometheus or stdout), sender/cloud are optional.
+	localOutputEnabled := cfg.Output.Prometheus || cfg.Output.Stdout
+	if anyAdapterEnabled && !localOutputEnabled && cfg.Sender.Target == "" && cfg.Cloud.APIKey == "" {
+		return fmt.Errorf("sender.target or cloud.api_key must be set when adapters are enabled (or enable output.prometheus or output.stdout for local mode)")
 	}
 
 	if cfg.Buffer.RingSize <= 0 {
