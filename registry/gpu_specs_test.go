@@ -5,6 +5,7 @@ package registry
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -174,20 +175,52 @@ func TestAllEntriesValidation(t *testing.T) {
 		t.Errorf("registry has %d entries, want at least 25", len(entries))
 	}
 
-	// Parse raw JSON to check for duplicate keys (case-insensitive)
-	var raw map[string]GPUSpec
-	if err := json.Unmarshal(gpuSpecsJSON, &raw); err != nil {
-		t.Fatalf("failed to parse gpu_specs.json: %v", err)
+	// Walk top-level JSON tokens to detect duplicate keys (case-insensitive)
+	// before any unmarshalling silently overwrites them.
+	dec := json.NewDecoder(strings.NewReader(string(gpuSpecsJSON)))
+	tok, err := dec.Token() // opening '{'
+	if err != nil || fmt.Sprintf("%v", tok) != "{" {
+		t.Fatalf("expected opening '{', got %v (err=%v)", tok, err)
 	}
-	lowerKeys := make(map[string]bool)
-	for k := range raw {
-		lower := strings.ToLower(k)
-		if lowerKeys[lower] {
-			t.Errorf("duplicate key (case-insensitive): %q", k)
+	lowerKeys := make(map[string]string) // lowercased → original key
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			t.Fatalf("reading key token: %v", err)
 		}
-		lowerKeys[lower] = true
+		key := keyTok.(string)
+		lower := strings.ToLower(key)
+		if prev, exists := lowerKeys[lower]; exists {
+			t.Errorf("duplicate key (case-insensitive): %q collides with %q", key, prev)
+		}
+		lowerKeys[lower] = key
+
+		// Skip the value object
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			t.Fatalf("skipping value for key %q: %v", key, err)
+		}
 	}
 
+	// Parse into raw field maps to verify required keys are present
+	requiredFields := []string{
+		"vendor", "architecture", "thermal_limit_c", "tdp_w",
+		"temp_measurement_type", "behavior_class", "cv_max",
+		"thermal_pressure_state_supported",
+	}
+	var rawFields map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(gpuSpecsJSON, &rawFields); err != nil {
+		t.Fatalf("failed to parse gpu_specs.json into raw fields: %v", err)
+	}
+	for key, fields := range rawFields {
+		for _, req := range requiredFields {
+			if _, ok := fields[req]; !ok {
+				t.Errorf("%s: missing required field %q", key, req)
+			}
+		}
+	}
+
+	// Validate decoded values
 	for key, spec := range entries {
 		if spec.ThermalLimitC <= 0 {
 			t.Errorf("%s: thermal_limit_c=%v, want > 0", key, spec.ThermalLimitC)
