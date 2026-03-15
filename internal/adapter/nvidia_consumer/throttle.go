@@ -22,7 +22,10 @@ const (
 // MapThrottleReason maps NVIDIA throttle bitmask to platform categories.
 // Returns (active, reason). Thermal check precedes power; GPU idle / none = not active.
 func MapThrottleReason(bitmask uint64) (active bool, reason string) {
-	if bitmask == nvThrottleNone || bitmask == nvThrottleGPUIdle {
+	if bitmask == nvThrottleNone {
+		return false, "none"
+	}
+	if (bitmask & nvThrottleGPUIdle) != 0 {
 		return false, "none"
 	}
 	if bitmask&(nvThrottleHwThermal|nvThrottleSwThermal|nvThrottleHwSlowdown) != 0 {

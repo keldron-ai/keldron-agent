@@ -174,9 +174,7 @@ func (a *NvidiaConsumerAdapter) Start(ctx context.Context) error {
 	a.poll(ctx)
 
 	for {
-		a.mu.Lock()
-		tickC := a.ticker.C
-		a.mu.Unlock()
+		tickC := a.getTickChan()
 
 		select {
 		case <-ctx.Done():
@@ -197,6 +195,15 @@ func (a *NvidiaConsumerAdapter) Start(ctx context.Context) error {
 			a.poll(ctx)
 		}
 	}
+}
+
+func (a *NvidiaConsumerAdapter) getTickChan() <-chan time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.ticker == nil {
+		return nil
+	}
+	return a.ticker.C
 }
 
 func (a *NvidiaConsumerAdapter) updatePollInterval(newInterval time.Duration) {
@@ -262,6 +269,7 @@ func (a *NvidiaConsumerAdapter) toRawReading(nr NvidiaReading) adapter.RawReadin
 		"device_model":        modelKey,
 		"device_vendor":       spec.Vendor,
 		"behavior_class":      spec.BehaviorClass,
+		"serial":              nr.Serial,
 		"pci_bus_id":          nr.PCIBusID,
 		"temperature_c":       nr.TemperatureC,
 		"power_usage_w":       nr.PowerDrawW,
@@ -270,6 +278,7 @@ func (a *NvidiaConsumerAdapter) toRawReading(nr NvidiaReading) adapter.RawReadin
 		"mem_total_bytes":     nr.MemTotalMB * 1024 * 1024,
 		"sm_clock_mhz":        nr.ClockSMMHz,
 		"sm_clock_max_mhz":    nr.ClockMaxMHz,
+		"fan_speed_pct":       nr.FanSpeedPct,
 	}
 
 	active, reason := MapThrottleReason(nr.ThrottleReason)

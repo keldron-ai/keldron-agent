@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -31,6 +32,8 @@ func resolveNvidiaSMIPath(path string) (string, error) {
 const (
 	collectTimeout = 5 * time.Second
 )
+
+var collectorLogger = slog.Default()
 
 // NvidiaCollector collects GPU metrics by executing nvidia-smi.
 type NvidiaCollector struct {
@@ -157,20 +160,20 @@ func parseNvidiaSmiCSV(data []byte) ([]NvidiaReading, error) {
 		}
 		r.Index = index
 		r.Name = strings.TrimSpace(rec[1])
-		r.TemperatureC = parseNAFloat(rec[2], 0)
-		r.TempLimitC = parseNAFloat(rec[3], 0)
-		r.GPUUtil = parseNAFloat(rec[4], 0)
-		r.MemUtil = parseNAFloat(rec[5], 0)
-		r.MemUsedMB = parseNAFloat(rec[6], 0)
-		r.MemTotalMB = parseNAFloat(rec[7], 0)
-		r.PowerDrawW = parseNAFloat(rec[8], 0)
-		r.PowerLimitW = parseNAFloat(rec[9], 0)
-		r.ClockSMMHz = parseNAFloat(rec[10], 0)
-		r.ClockMaxMHz = parseNAFloat(rec[11], 0)
-		r.FanSpeedPct = parseNAFloat(rec[12], 0)
+		r.TemperatureC = parseNAFloat(rec[2], 0, "temperature.gpu")
+		r.TempLimitC = parseNAFloat(rec[3], 0, "temperature.gpu.tlimit")
+		r.GPUUtil = parseNAFloat(rec[4], 0, "utilization.gpu")
+		r.MemUtil = parseNAFloat(rec[5], 0, "utilization.memory")
+		r.MemUsedMB = parseNAFloat(rec[6], 0, "memory.used")
+		r.MemTotalMB = parseNAFloat(rec[7], 0, "memory.total")
+		r.PowerDrawW = parseNAFloat(rec[8], 0, "power.draw")
+		r.PowerLimitW = parseNAFloat(rec[9], 0, "power.limit")
+		r.ClockSMMHz = parseNAFloat(rec[10], 0, "clocks.current.sm")
+		r.ClockMaxMHz = parseNAFloat(rec[11], 0, "clocks.max.sm")
+		r.FanSpeedPct = parseNAFloat(rec[12], 0, "fan.speed")
 		r.Serial = strings.TrimSpace(rec[13])
 		r.PCIBusID = strings.TrimSpace(rec[14])
-		r.ThrottleReason = parseNAThrottle(rec[15])
+		r.ThrottleReason = parseNAThrottle(rec[15], "clocks_throttle_reasons.active")
 
 		readings = append(readings, r)
 	}
@@ -178,19 +181,24 @@ func parseNvidiaSmiCSV(data []byte) ([]NvidiaReading, error) {
 	return readings, nil
 }
 
-func parseNAFloat(s string, defaultVal float64) float64 {
+func parseNAFloat(s string, defaultVal float64, field string) float64 {
 	s = strings.TrimSpace(s)
 	if s == "" || strings.EqualFold(s, "[N/A]") {
 		return defaultVal
 	}
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
+		collectorLogger.Debug("parseNAFloat input parse failed",
+			"field", field,
+			"input", s,
+			"error", err,
+		)
 		return defaultVal
 	}
 	return f
 }
 
-func parseNAThrottle(s string) uint64 {
+func parseNAThrottle(s string, field string) uint64 {
 	s = strings.TrimSpace(s)
 	if s == "" || strings.EqualFold(s, "[N/A]") {
 		return 0
@@ -198,6 +206,11 @@ func parseNAThrottle(s string) uint64 {
 	// Base 0 handles 0x prefix
 	u, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
+		collectorLogger.Debug("parseNAThrottle input parse failed",
+			"field", field,
+			"input", s,
+			"error", err,
+		)
 		return 0
 	}
 	return u
