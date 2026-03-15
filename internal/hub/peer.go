@@ -99,19 +99,23 @@ func (r *PeerRegistry) GetHealthyPeers() []*Peer {
 }
 
 // UpdatePeer updates a peer with fresh devices and marks it healthy.
-func (r *PeerRegistry) UpdatePeer(address string, peerID string, devices []PeerDevice) {
+// Returns false if the peer address is not in the registry.
+func (r *PeerRegistry) UpdatePeer(address string, peerID string, devices []PeerDevice) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.failureCount[address] = 0
-	if p, ok := r.peers[address]; ok {
-		p.Healthy = true
-		p.LastSeen = time.Now()
-		p.Devices = append([]PeerDevice(nil), devices...)
-		p.DeviceCount = len(devices)
-		if peerID != "" {
-			p.ID = peerID
-		}
+	p, ok := r.peers[address]
+	if !ok {
+		return false
 	}
+	r.failureCount[address] = 0
+	p.Healthy = true
+	p.LastSeen = time.Now()
+	p.Devices = append([]PeerDevice(nil), devices...)
+	p.DeviceCount = len(devices)
+	if peerID != "" {
+		p.ID = peerID
+	}
+	return true
 }
 
 // MarkUnhealthy marks a peer as unhealthy and increments failure count.

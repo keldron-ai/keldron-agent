@@ -21,6 +21,7 @@ import (
 const (
 	unhealthyLogThreshold = 5
 	maxResponseSize       = 10 * 1024 * 1024 // 10 MB
+	maxConcurrentScrapes  = 10
 )
 
 // PeerMetricsCallback is called when a peer is successfully scraped, with peerID and parsed MetricFamilies.
@@ -86,10 +87,13 @@ func (s *Scraper) scrapeAll(ctx context.Context) {
 	start := time.Now()
 	peers := s.registry.GetPeers()
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrentScrapes)
 	for _, p := range peers {
 		wg.Add(1)
 		go func(addr string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			devices, peerID, families, err := s.ScrapePeerWithMetrics(ctx, addr)
 			if err != nil {
 				s.mu.Lock()
@@ -158,6 +162,7 @@ func (s *Scraper) ScrapePeerWithMetrics(ctx context.Context, address string) ([]
 	}
 	families, err := parseToMetricFamiliesWithPeerLabel(bytes.NewReader(body), peerID)
 	if err != nil {
+		s.logger.Debug("failed to parse metric families for peer label injection", "peer", peerID, "error", err)
 		return devices, peerID, nil, nil // devices still valid
 	}
 	return devices, peerID, families, nil

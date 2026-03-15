@@ -681,6 +681,9 @@ func Validate(cfg *Config) error {
 	if cfg.Hub.Enabled && cfg.Hub.ListenPort <= 0 {
 		return fmt.Errorf("hub.listen_port must be > 0 when hub.enabled is true")
 	}
+	if cfg.Hub.Enabled && cfg.Hub.ScrapeInterval <= 0 {
+		return fmt.Errorf("hub.scrape_interval must be > 0 when hub.enabled is true")
+	}
 
 	for name, acfg := range cfg.Adapters {
 		if acfg.Enabled && acfg.PollInterval < time.Second {

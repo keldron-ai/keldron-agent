@@ -56,7 +56,7 @@ health:
 EOF
 fi
 
-HUB_PORT=$(grep 'listen_port' keldron-agent.dev.yaml 2>/dev/null | head -1 | awk '{print $2}')
+HUB_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'listen_port' | head -1 | awk '{print $2}' || true)
 HUB_PORT="${HUB_PORT:-9200}"
 
 echo ""

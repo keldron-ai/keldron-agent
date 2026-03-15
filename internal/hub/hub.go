@@ -37,6 +37,7 @@ type Hub struct {
 	hubRegistry      prometheus.Gatherer
 	lastScrapeErrors int64
 	lastScrapeMu     sync.Mutex
+	shutdownOnce     sync.Once
 }
 
 type hubSummaryMetrics struct {
@@ -117,7 +118,8 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 	return h
 }
 
-// Start implements output.Output. Starts the HTTP server (non-blocking via goroutine).
+// Start implements output.Output. It blocks on http.Server.ListenAndServe;
+// callers should run it in a goroutine if non-blocking behavior is required.
 func (h *Hub) Start(ctx context.Context) error {
 	// Add static peers
 	for _, addr := range h.config.StaticPeers {
@@ -149,9 +151,11 @@ func (h *Hub) Start(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = h.httpServer.Shutdown(shutdownCtx)
+		h.shutdownOnce.Do(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = h.httpServer.Shutdown(shutdownCtx)
+		})
 	}()
 
 	h.logger.Info("Hub mode active — fleet API at http://localhost:"+strconv.Itoa(h.config.ListenPort)+"/api/v1/fleet",
@@ -164,19 +168,41 @@ func (h *Hub) Start(ctx context.Context) error {
 
 func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 	return prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+		merged := make(map[string]*dto.MetricFamily)
+
+		mergeInto := func(families []*dto.MetricFamily) {
+			for _, mf := range families {
+				if mf == nil {
+					continue
+				}
+				name := mf.GetName()
+				if existing, ok := merged[name]; ok {
+					existing.Metric = append(existing.Metric, mf.Metric...)
+					if existing.Help == nil && mf.Help != nil {
+						existing.Help = mf.Help
+					}
+					if existing.Type == nil && mf.Type != nil {
+						existing.Type = mf.Type
+					}
+				} else {
+					merged[name] = mf
+				}
+			}
+		}
+
 		// Gather local metrics from default registry
 		local, err := prometheus.DefaultGatherer.Gather()
 		if err != nil {
-			return nil, err
+			h.logger.Warn("failed to gather local metrics, continuing with peer/hub metrics", "error", err)
 		}
+		mergeInto(local)
 
 		// Gather peer metrics from cache
 		h.peerMetricsMu.RLock()
-		peerFamilies := make([]*dto.MetricFamily, 0)
 		for _, families := range h.peerMetrics {
 			for _, mf := range families {
 				if mf != nil {
-					peerFamilies = append(peerFamilies, mf)
+					mergeInto([]*dto.MetricFamily{mf})
 				}
 			}
 		}
@@ -216,12 +242,12 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		if err != nil {
 			return nil, err
 		}
+		mergeInto(hubFamilies)
 
-		// Combine
-		out := make([]*dto.MetricFamily, 0, len(local)+len(peerFamilies)+len(hubFamilies))
-		out = append(out, local...)
-		out = append(out, peerFamilies...)
-		out = append(out, hubFamilies...)
+		out := make([]*dto.MetricFamily, 0, len(merged))
+		for _, mf := range merged {
+			out = append(out, mf)
+		}
 		return out, nil
 	})
 }
@@ -240,9 +266,13 @@ func (h *Hub) Close() error {
 	if h.httpServer == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return h.httpServer.Shutdown(ctx)
+	var shutdownErr error
+	h.shutdownOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		shutdownErr = h.httpServer.Shutdown(ctx)
+	})
+	return shutdownErr
 }
 
 // telemetryToPeerDevices converts TelemetryPoint + RiskScoreOutput to PeerDevice.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 )
 
 // FleetStateProvider returns the current fleet state.
@@ -18,7 +19,13 @@ type FleetAPI struct {
 }
 
 // NewFleetAPI creates a FleetAPI that uses the given provider for state.
+// If getState is nil, a safe fallback returning an empty FleetState is used.
 func NewFleetAPI(getState FleetStateProvider) *FleetAPI {
+	if getState == nil {
+		getState = func() FleetState {
+			return FleetState{Timestamp: time.Now()}
+		}
+	}
 	return &FleetAPI{getState: getState}
 }
 
@@ -65,6 +72,22 @@ type summaryResponse struct {
 	HealthyPeers int `json:"healthy_peers"`
 }
 
+// writeJSON marshals v to JSON and writes it to w. If marshaling fails, it
+// returns an HTTP 500 error instead of sending a 200 with a broken body.
+func writeJSON(w http.ResponseWriter, r *http.Request, v interface{}) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		log.Printf("fleet: failed to marshal response for %s: %v", r.URL.Path, err)
+		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("fleet: failed to write response for %s: %v", r.URL.Path, err)
+	}
+}
+
 // buildPeerList constructs the peer list from a FleetState (local + registry peers).
 func buildPeerList(state FleetState) []peerResponse {
 	peerList := make([]peerResponse, 0, 1+len(state.Peers))
@@ -109,11 +132,7 @@ func (a *FleetAPI) handleFleet(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
-	}
+	writeJSON(w, r, resp)
 }
 
 func devicesToResponse(devices []PeerDevice) []deviceResponse {
@@ -135,21 +154,13 @@ func devicesToResponse(devices []PeerDevice) []deviceResponse {
 func (a *FleetAPI) handleFleetDevices(w http.ResponseWriter, r *http.Request) {
 	state := a.getState()
 	devices := devicesToResponse(state.AllDevices)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(devices); err != nil {
-		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
-	}
+	writeJSON(w, r, devices)
 }
 
 func (a *FleetAPI) handleFleetPeers(w http.ResponseWriter, r *http.Request) {
 	state := a.getState()
 	peerList := buildPeerList(state)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(peerList); err != nil {
-		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
-	}
+	writeJSON(w, r, peerList)
 }
 
 func (a *FleetAPI) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -177,9 +188,5 @@ func (a *FleetAPI) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		resp["issues"] = issues
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
-	}
+	writeJSON(w, r, resp)
 }
