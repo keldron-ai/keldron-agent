@@ -49,9 +49,6 @@ type Prometheus struct {
 	httpServer *http.Server
 	mu         sync.Mutex
 
-	// Track previously seen devices for stale metric cleanup
-	previousDeviceIDs map[string]bool
-
 	// Raw telemetry
 	gpuTempC             *prometheus.GaugeVec
 	gpuHotspotTempC      *prometheus.GaugeVec
@@ -116,7 +113,6 @@ func NewPrometheusWithRegistry(port int, version, deviceName string, reg prometh
 		logger:                logger,
 		gatherer:              gatherer,
 		electricityRatePerKWh: 0.12,
-		previousDeviceIDs:     make(map[string]bool),
 	}
 	p.registerMetricsWith(reg)
 	return p
@@ -353,13 +349,7 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Build set of current device IDs.
-	currentDeviceIDs := make(map[string]bool, len(readings))
-	for _, pt := range readings {
-		currentDeviceIDs[p.deviceID(pt)] = true
-	}
-
-	// Reset all per-device GaugeVecs to clear stale label combinations.
+	// Reset all per-device GaugeVecs to clear stale label combinations. to clear stale label combinations.
 	p.gpuTempC.Reset()
 	p.gpuHotspotTempC.Reset()
 	p.gpuPowerW.Reset()
@@ -388,8 +378,6 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 
 	p.deviceCount = len(readings)
 	p.agentInfo.WithLabelValues(p.version, p.deviceName).Set(1)
-	p.previousDeviceIDs = currentDeviceIDs
-
 	for _, pt := range readings {
 		p.updatePoint(pt)
 	}
