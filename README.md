@@ -47,7 +47,7 @@ curl localhost:9100/metrics | grep keldron_gpu_temperature
 
 Example Prometheus output (real data from Apple Silicon):
 
-```
+```text
 keldron_gpu_temperature_celsius{adapter="apple_silicon",behavior_class="soc_integrated",device_id="hostname:0",device_model="M4-Pro",device_vendor="apple"} 52.3
 keldron_risk_composite{behavior_class="soc_integrated",device_id="hostname:0"} 12.4
 keldron_risk_severity{device_id="hostname:0"} 0
@@ -128,7 +128,7 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 
 ## Architecture
 
-```
+```text
 Adapters → Normalizer → Risk Engine → Prometheus /metrics
 (IOKit, NVML,                          Stdout JSON
  ROCm, hwmon)                          (future: Cloud API)
