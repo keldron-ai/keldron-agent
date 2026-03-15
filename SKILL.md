@@ -9,6 +9,7 @@ metadata:
     requires:
       bins:
         - curl
+        - bc
       anyBins:
         - go
         - docker
@@ -146,7 +147,7 @@ Run:
 curl -s localhost:9100/metrics | grep -E 'keldron_(gpu_temperature|gpu_utilization|risk_composite|risk_severity|power_cost_monthly|gpu_memory_pressure)' | grep -v '^#'
 ```
 Format as:
-```
+```text
 🌡️ Temperature: XX°C
 ⚡ Utilization: XX%
 🎯 Risk Score: XX/100 (severity)
@@ -277,7 +278,7 @@ curl -s localhost:9100/metrics | grep -E '^keldron_' | grep -v '^#'
 ```
 
 Parse and format as:
-```
+```text
 ╔══════════════════════════════════════════╗
 ║  🖥️  {device_model} Dashboard            ║
 ╠══════════════════════════════════════════╣
@@ -356,7 +357,7 @@ curl -s localhost:9200/api/v1/fleet
 ```
 
 Format as:
-```
+```text
 ╔══════════════════════════════════════════════════╗
 ║  🌐 Fleet Dashboard — {count} machines           ║
 ╠══════════════════════════════════════════════════╣
@@ -372,10 +373,23 @@ Format as:
 
 #### "Change my electricity rate to $0.15"
 
-Find and update the config:
+Find and update the config (pick the command for your OS):
+
+**macOS (BSD sed):**
 ```bash
 sed -i '' 's/electricity_rate:.*/electricity_rate: 0.15/' ~/.config/keldron/keldron-agent.yaml
 ```
+
+**Linux (GNU sed):**
+```bash
+sed -i 's/electricity_rate:.*/electricity_rate: 0.15/' ~/.config/keldron/keldron-agent.yaml
+```
+
+**OS-agnostic (yq):**
+```bash
+yq -i '.electricity_rate = 0.15' ~/.config/keldron/keldron-agent.yaml
+```
+
 If config not found, check `./keldron-agent.dev.yaml` or create one.
 Tell the user: "Updated. Cost estimates will refresh in ~30 seconds."
 
