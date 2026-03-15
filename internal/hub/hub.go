@@ -237,10 +237,11 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		}
 		h.lastScrapeMu.Unlock()
 
-		// Gather hub summary metrics
+		// Gather hub summary metrics — log and continue on error (same
+		// policy as local gather) so /metrics serves partial results.
 		hubFamilies, err := h.hubRegistry.Gather()
 		if err != nil {
-			return nil, err
+			h.logger.Warn("failed to gather hub summary metrics, continuing with collected metrics", "error", err)
 		}
 		mergeInto(hubFamilies)
 
