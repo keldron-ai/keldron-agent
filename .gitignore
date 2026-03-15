@@ -1,6 +1,7 @@
 keldron-agent
 keldron-agent-*
 keldron-agent.yaml
+keldron-agent.dev.yaml
 /agent
 /mock-server
 *.exe
