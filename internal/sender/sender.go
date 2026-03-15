@@ -38,13 +38,13 @@ type Sender struct {
 	dialOpts     []grpc.DialOption
 	onConnChange func(bool)
 
-	seqNum       atomic.Uint64
-	batchesSent  atomic.Uint64
-	pointsSent   atomic.Uint64
-	errors       atomic.Uint64
-	connected    atomic.Bool
-	lastSendAt   atomic.Value // time.Time
-	lastError    atomic.Value // string
+	seqNum      atomic.Uint64
+	batchesSent atomic.Uint64
+	pointsSent  atomic.Uint64
+	errors      atomic.Uint64
+	connected   atomic.Bool
+	lastSendAt  atomic.Value // time.Time
+	lastError   atomic.Value // string
 }
 
 // New is an alias for NewGRPC for backward compatibility with tests.

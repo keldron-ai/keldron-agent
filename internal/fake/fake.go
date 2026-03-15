@@ -137,7 +137,7 @@ func New(cfg config.AdapterConfig, holder *config.Holder, logger *slog.Logger) (
 	}, nil
 }
 
-func (f *FakeAdapter) Name() string                    { return "fake" }
+func (f *FakeAdapter) Name() string                        { return "fake" }
 func (f *FakeAdapter) Readings() <-chan adapter.RawReading { return f.readings }
 
 // IsRunning returns true if the adapter's Start loop is active (for health.AdapterProvider).
@@ -297,18 +297,18 @@ func (f *FakeAdapter) toReading(gpu *fakeGPU, now time.Time) adapter.RawReading 
 	// Extras: inlet_temp_c, outlet_temp_c, delta_t_c, nvlink_* for richer simulation.
 	metrics := map[string]interface{}{
 		"temperature_c":         round1(gpu.temp),
-		"gpu_utilization_pct":  round1(gpu.util),
-		"mem_used_bytes":       memFrac * memTotalBytes,
-		"mem_total_bytes":      memTotalBytes,
-		"power_usage_w":        round1(power),
-		"power_limit_w":        f.fakeCfg.PowerLimitW,
-		"inlet_temp_c":         round1(inlet),
-		"outlet_temp_c":        round1(outlet),
-		"delta_t_c":            round1(outlet - inlet),
-		"throttle_reason":      throttleReason,
-		"throttled":            throttled,
+		"gpu_utilization_pct":   round1(gpu.util),
+		"mem_used_bytes":        memFrac * memTotalBytes,
+		"mem_total_bytes":       memTotalBytes,
+		"power_usage_w":         round1(power),
+		"power_limit_w":         f.fakeCfg.PowerLimitW,
+		"inlet_temp_c":          round1(inlet),
+		"outlet_temp_c":         round1(outlet),
+		"delta_t_c":             round1(outlet - inlet),
+		"throttle_reason":       throttleReason,
+		"throttled":             throttled,
 		"nvlink_bandwidth_gbps": round1(nvlinkBW),
-		"nvlink_error_count":   nvlinkErrors,
+		"nvlink_error_count":    nvlinkErrors,
 	}
 
 	return adapter.RawReading{

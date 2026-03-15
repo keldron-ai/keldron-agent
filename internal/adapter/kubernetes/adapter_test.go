@@ -311,7 +311,7 @@ func TestAdapter_WithFakeClient(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	cfg := KubernetesConfig{
 		ResyncInterval:   100 * time.Millisecond,
-		GPUResourceNames:  []string{"nvidia.com/gpu"},
+		GPUResourceNames: []string{"nvidia.com/gpu"},
 		NodeToRackMap:    map[string]string{"gpu-node-01": "rack-01"},
 	}
 	cfg.ApplyDefaults()

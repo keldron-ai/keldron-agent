@@ -194,9 +194,9 @@ func (s *Server) isReady() bool {
 func (s *Server) collectHealth() *Response {
 	resp := &Response{
 		Status:    StatusHealthy,
-		AgentID:  s.agentID,
-		Version:  s.version,
-		Uptime:   time.Since(s.startedAt).Round(time.Second).String(),
+		AgentID:   s.agentID,
+		Version:   s.version,
+		Uptime:    time.Since(s.startedAt).Round(time.Second).String(),
 		StartedAt: s.startedAt,
 		Timestamp: time.Now(),
 		Adapters:  make(map[string]AdapterStatus),
@@ -266,14 +266,14 @@ func (s *Server) collectHealth() *Response {
 	if s.sender != nil {
 		batchesSent, pointsSent, errs := s.sender.Stats()
 		resp.Sender = SenderStatus{
-			Connected:    s.sender.IsConnected(),
-			Target:       s.sender.Target(),
-			BatchesSent:  batchesSent,
-			PointsSent:   pointsSent,
-			Errors:       errs,
-			LastSendAt:   s.sender.LastSendAt(),
-			LastError:    s.sender.LastError(),
-			SeqNumber:    s.sender.SeqNumber(),
+			Connected:   s.sender.IsConnected(),
+			Target:      s.sender.Target(),
+			BatchesSent: batchesSent,
+			PointsSent:  pointsSent,
+			Errors:      errs,
+			LastSendAt:  s.sender.LastSendAt(),
+			LastError:   s.sender.LastError(),
+			SeqNumber:   s.sender.SeqNumber(),
 		}
 	}
 

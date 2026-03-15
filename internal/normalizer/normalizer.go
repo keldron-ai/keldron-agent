@@ -25,14 +25,14 @@ const (
 // Normalizer consumes RawReadings from multiple adapters,
 // validates, transforms, and outputs TelemetryPoints.
 type Normalizer struct {
-	agentID       string
-	rackMapping   atomic.Pointer[map[string]string]
-	maxSkew       time.Duration
-	inputs        []<-chan adapter.RawReading
-	output        chan TelemetryPoint
-	logger        *slog.Logger
-	entropy       *ulid.MonotonicEntropy
-	configHolder  *config.Holder
+	agentID      string
+	rackMapping  atomic.Pointer[map[string]string]
+	maxSkew      time.Duration
+	inputs       []<-chan adapter.RawReading
+	output       chan TelemetryPoint
+	logger       *slog.Logger
+	entropy      *ulid.MonotonicEntropy
+	configHolder *config.Holder
 
 	processed atomic.Uint64
 	rejected  atomic.Uint64

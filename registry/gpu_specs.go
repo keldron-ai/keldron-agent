@@ -27,14 +27,14 @@ var (
 
 // GPUSpec holds physical characteristics for a GPU model.
 type GPUSpec struct {
-	Vendor                       string  `json:"vendor"`
-	Architecture                 string  `json:"architecture"`
-	ThermalLimitC                float64 `json:"thermal_limit_c"`
-	TDPW                         float64 `json:"tdp_w"`
-	TempMeasurementType          string  `json:"temp_measurement_type"`
-	BehaviorClass                string  `json:"behavior_class"`
-	CVMax                        float64 `json:"cv_max"`
-	ThermalPressureStateSupported bool   `json:"thermal_pressure_state_supported"`
+	Vendor                        string  `json:"vendor"`
+	Architecture                  string  `json:"architecture"`
+	ThermalLimitC                 float64 `json:"thermal_limit_c"`
+	TDPW                          float64 `json:"tdp_w"`
+	TempMeasurementType           string  `json:"temp_measurement_type"`
+	BehaviorClass                 string  `json:"behavior_class"`
+	CVMax                         float64 `json:"cv_max"`
+	ThermalPressureStateSupported bool    `json:"thermal_pressure_state_supported"`
 }
 
 // initRegistry loads and parses the embedded JSON, building a case-insensitive lookup map.

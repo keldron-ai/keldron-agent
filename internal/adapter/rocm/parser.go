@@ -15,22 +15,22 @@ import (
 
 // GPUReading holds normalized metrics for a single GPU.
 type GPUReading struct {
-	GPUID             int
-	GPUTemp           float64  // Celsius
-	GPUUtilization    float64  // 0-100
-	GPUMemoryUsed     float64  // bytes
-	GPUMemoryTotal    float64  // bytes
-	GPUPowerW         float64  // watts
-	ThrottleReason    string   // "none", "thermal_throttle", "power_throttle"
+	GPUID              int
+	GPUTemp            float64 // Celsius
+	GPUUtilization     float64 // 0-100
+	GPUMemoryUsed      float64 // bytes
+	GPUMemoryTotal     float64 // bytes
+	GPUPowerW          float64 // watts
+	ThrottleReason     string  // "none", "thermal_throttle", "power_throttle"
 	ThrottleReasonCode float64 // 0=none, 1=thermal, 2=power
-	GPUModel          string   // e.g., "MI300X", "MI355X"
+	GPUModel           string  // e.g., "MI300X", "MI355X"
 }
 
 // Throttle reason codes for platform compatibility.
 const (
-	ThrottleNone   = 0
+	ThrottleNone    = 0
 	ThrottleThermal = 1
-	ThrottlePower  = 2
+	ThrottlePower   = 2
 )
 
 // rocm6Format is the ROCm 6.x JSON structure.
@@ -39,7 +39,7 @@ type rocm6Format struct {
 }
 
 type rocm6GPU struct {
-	GPUID           int     `json:"gpu_id"`
+	GPUID           int      `json:"gpu_id"`
 	TemperatureEdge *float64 `json:"temperature_edge"`
 	GPUUsePercent   *float64 `json:"gpu_use_percent"`
 	VRAMUsed        *float64 `json:"vram_used_mb"`
@@ -284,16 +284,16 @@ func detectGPUModel(name string) string {
 
 // Canonical metric keys for vendor-neutral telemetry (same schema as DCGM).
 const (
-	MetricGPUTemp          = "gpu_temp"
-	MetricGPUUtilization   = "gpu_utilization"
-	MetricGPUMemoryUsed    = "gpu_memory_used"
-	MetricGPUMemoryTotal   = "gpu_memory_total"
-	MetricGPUPowerW        = "gpu_power_w"
-	MetricThrottleReason   = "throttle_reason"
+	MetricGPUTemp            = "gpu_temp"
+	MetricGPUUtilization     = "gpu_utilization"
+	MetricGPUMemoryUsed      = "gpu_memory_used"
+	MetricGPUMemoryTotal     = "gpu_memory_total"
+	MetricGPUPowerW          = "gpu_power_w"
+	MetricThrottleReason     = "throttle_reason"
 	MetricThrottleReasonCode = "throttle_reason_code"
-	MetricGPUID            = "gpu_id"
-	MetricGPUVendor        = "gpu_vendor"
-	MetricGPUModel         = "gpu_model"
+	MetricGPUID              = "gpu_id"
+	MetricGPUVendor          = "gpu_vendor"
+	MetricGPUModel           = "gpu_model"
 )
 
 // ToRawReading converts a GPUReading to an adapter.RawReading with canonical metric keys.

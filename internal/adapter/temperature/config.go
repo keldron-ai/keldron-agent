@@ -9,9 +9,9 @@ import (
 // TemperatureConfig holds temperature adapter-specific configuration decoded from the adapter's Raw YAML node.
 type TemperatureConfig struct {
 	Enabled        bool           `yaml:"enabled"`
-	PollInterval  time.Duration  `yaml:"poll_interval"`
+	PollInterval   time.Duration  `yaml:"poll_interval"`
 	StaleThreshold int            `yaml:"stale_threshold"`
-	Sensors       []SensorConfig `yaml:"sensors"`
+	Sensors        []SensorConfig `yaml:"sensors"`
 }
 
 // SensorConfig holds per-sensor configuration.

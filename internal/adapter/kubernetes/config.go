@@ -4,11 +4,11 @@ import "time"
 
 // KubernetesConfig holds K8s adapter-specific configuration decoded from the adapter's Raw YAML node.
 type KubernetesConfig struct {
-	Kubeconfig        string            `yaml:"kubeconfig"`
-	Namespace         string            `yaml:"namespace"`
-	ResyncInterval    time.Duration     `yaml:"resync_interval"`
-	GPUResourceNames  []string          `yaml:"gpu_resource_names"`
-	NodeToRackMap     map[string]string `yaml:"node_to_rack_map"`
+	Kubeconfig       string            `yaml:"kubeconfig"`
+	Namespace        string            `yaml:"namespace"`
+	ResyncInterval   time.Duration     `yaml:"resync_interval"`
+	GPUResourceNames []string          `yaml:"gpu_resource_names"`
+	NodeToRackMap    map[string]string `yaml:"node_to_rack_map"`
 }
 
 // DefaultGPUResourceNames returns the default GPU resource names if not configured.

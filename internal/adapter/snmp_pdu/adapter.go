@@ -18,16 +18,16 @@ const (
 
 // SNMPPDUAdapter implements the Adapter interface for PDU power monitoring via SNMP.
 type SNMPPDUAdapter struct {
-	cfg         config.AdapterConfig
-	snmpCfg     *SNMPPDUConfig
-	pollers     []*SNMPPoller
-	readings    chan adapter.RawReading
-	logger      *slog.Logger
-	holder      *config.Holder
-	mu          sync.Mutex
-	closeOnce   sync.Once
+	cfg          config.AdapterConfig
+	snmpCfg      *SNMPPDUConfig
+	pollers      []*SNMPPoller
+	readings     chan adapter.RawReading
+	logger       *slog.Logger
+	holder       *config.Holder
+	mu           sync.Mutex
+	closeOnce    sync.Once
 	pollInterval time.Duration
-	ticker      *time.Ticker
+	ticker       *time.Ticker
 
 	unsubscribeConfig func()
 	cancel            context.CancelFunc

@@ -3,7 +3,7 @@ package registry
 // Metric key constants for normalized stress values.
 const (
 	MetricThermalStress = "thermal_stress"
-	MetricPowerStress  = "power_stress"
+	MetricPowerStress   = "power_stress"
 )
 
 // NormalizeThermal converts raw temperature (°C) to 0.0-1.0 thermal stress ratio.

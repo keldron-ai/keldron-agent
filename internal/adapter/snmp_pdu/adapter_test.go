@@ -140,7 +140,6 @@ func TestGetVendorOIDMap(t *testing.T) {
 	}
 }
 
-
 func TestTargetsEqual(t *testing.T) {
 	t.Parallel()
 	a := []PDUTarget{
@@ -226,7 +225,6 @@ func TestAdapter_NameReadingsStats(t *testing.T) {
 		t.Errorf("Stats = %d, %d; want 0, 0", pc, ec)
 	}
 }
-
 
 func TestNew_NoTargetsError(t *testing.T) {
 	t.Parallel()

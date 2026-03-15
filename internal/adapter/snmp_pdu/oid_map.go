@@ -61,10 +61,10 @@ func GetVendorOIDMap(vendor string) VendorOIDMap {
 // Ref: https://www.servertech.com/support/sentry-mib-oid-tree-downloads/
 // Power in watts -> kW: /1000. Current in deciamps -> amps: /10.
 var OIDMapServerTech = VendorOIDMap{
-	TotalPowerKW:     "1.3.6.1.4.1.1718.3.2.2.1.11.0",
-	PowerMultiplier:  1000,
-	VoltageV:         "1.3.6.1.4.1.1718.3.2.2.1.7.0",
-	CurrentA:         "1.3.6.1.4.1.1718.3.2.2.1.8.0",
+	TotalPowerKW:      "1.3.6.1.4.1.1718.3.2.2.1.11.0",
+	PowerMultiplier:   1000,
+	VoltageV:          "1.3.6.1.4.1.1718.3.2.2.1.7.0",
+	CurrentA:          "1.3.6.1.4.1.1718.3.2.2.1.8.0",
 	CurrentMultiplier: 10,
 	PhaseCurrentA: []string{
 		"1.3.6.1.4.1.1718.3.2.2.1.9.1.0",
@@ -78,10 +78,10 @@ var OIDMapServerTech = VendorOIDMap{
 // OIDMapRaritan is for Raritan PX3/PDU2 PDUs.
 // MIB: RARITAN-PX2-PDU2-MIB, PDU2-MIB. Power in watts, current in amps.
 var OIDMapRaritan = VendorOIDMap{
-	TotalPowerKW:     "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.5.1",
-	PowerMultiplier:  1000,
-	VoltageV:         "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.4.1",
-	CurrentA:         "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.3.1",
+	TotalPowerKW:      "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.5.1",
+	PowerMultiplier:   1000,
+	VoltageV:          "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.4.1",
+	CurrentA:          "1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.3.1",
 	CurrentMultiplier: 1,
 	PhaseCurrentA: []string{
 		"1.3.6.1.4.1.13742.6.5.2.3.1.4.1.1.3.1",
@@ -95,10 +95,10 @@ var OIDMapRaritan = VendorOIDMap{
 // OIDMapAPC is for APC PowerNet Rack PDU 2G devices.
 // MIB: PowerNet-MIB. Power in hundredths of kW (500=5kW), current in tenths of A.
 var OIDMapAPC = VendorOIDMap{
-	TotalPowerKW:     "1.3.6.1.4.1.318.1.1.26.4.3.1.5.1",
-	PowerMultiplier:  100,
-	VoltageV:         "1.3.6.1.4.1.318.1.1.26.4.3.1.2.1",
-	CurrentA:         "1.3.6.1.4.1.318.1.1.26.8.3.1.5.1",
+	TotalPowerKW:      "1.3.6.1.4.1.318.1.1.26.4.3.1.5.1",
+	PowerMultiplier:   100,
+	VoltageV:          "1.3.6.1.4.1.318.1.1.26.4.3.1.2.1",
+	CurrentA:          "1.3.6.1.4.1.318.1.1.26.8.3.1.5.1",
 	CurrentMultiplier: 10,
 	PhaseCurrentA: []string{
 		"1.3.6.1.4.1.318.1.1.26.8.3.1.5.1",
@@ -112,10 +112,10 @@ var OIDMapAPC = VendorOIDMap{
 // OIDMapGeneric is the RFC 1628 UPS-MIB fallback for basic power/voltage/current.
 // MIB: UPS-MIB (RFC 1628). Power in watts, current in amps.
 var OIDMapGeneric = VendorOIDMap{
-	TotalPowerKW:     "1.3.6.1.2.1.33.1.4.4.1.2.1",
-	PowerMultiplier:  1000,
-	VoltageV:         "1.3.6.1.2.1.33.1.3.3.1.3.1",
-	CurrentA:         "1.3.6.1.2.1.33.1.3.3.1.4.1",
+	TotalPowerKW:      "1.3.6.1.2.1.33.1.4.4.1.2.1",
+	PowerMultiplier:   1000,
+	VoltageV:          "1.3.6.1.2.1.33.1.3.3.1.3.1",
+	CurrentA:          "1.3.6.1.2.1.33.1.3.3.1.4.1",
 	CurrentMultiplier: 1,
 	PhaseCurrentA: []string{
 		"1.3.6.1.2.1.33.1.3.3.1.4.1",

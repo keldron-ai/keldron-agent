@@ -94,7 +94,7 @@ func TestTemperatureModbus_Integration(t *testing.T) {
 		UnitID:          1,
 		RegisterAddress: 99, // 0-based PDU address; pymodbus maps to data-block address 100
 		RegisterType:    "holding",
-		ScaleFactor:    0.1,
+		ScaleFactor:     0.1,
 	}
 
 	reading, err := temperature.PollModbus(cfg)
@@ -206,7 +206,7 @@ func TestModbus_SimulatorDown(t *testing.T) {
 		SensorID:        "down",
 		RegisterAddress: 100,
 		RegisterType:    "holding",
-		ScaleFactor:    0.1,
+		ScaleFactor:     0.1,
 	}
 	_, err := temperature.PollModbus(cfg)
 	if err == nil {

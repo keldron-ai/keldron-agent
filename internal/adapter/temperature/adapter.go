@@ -31,12 +31,12 @@ type TemperatureAdapter struct {
 	holder       *config.Holder
 	pollInterval time.Duration
 	intervalMu   sync.RWMutex
-	intervalChMu  sync.Mutex         // protects intervalCh close-and-replace
-	intervalCh   chan struct{}       // closed to broadcast interval changes
-	unsubOnce    sync.Once           // ensures unsubscribe runs exactly once
-	unsubscribe  func()             // removes config subscription
+	intervalChMu sync.Mutex    // protects intervalCh close-and-replace
+	intervalCh   chan struct{} // closed to broadcast interval changes
+	unsubOnce    sync.Once     // ensures unsubscribe runs exactly once
+	unsubscribe  func()        // removes config subscription
 	closeOnce    sync.Once
-	startedOnce  atomic.Bool        // true after first Start; prevents reuse after shutdown
+	startedOnce  atomic.Bool // true after first Start; prevents reuse after shutdown
 
 	running     atomic.Bool
 	pollCount   atomic.Uint64

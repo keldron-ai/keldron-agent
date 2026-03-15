@@ -189,7 +189,6 @@ func TestPollModbus_ConnectError(t *testing.T) {
 	}
 }
 
-
 func TestStaleDetector_FiveIdentical(t *testing.T) {
 	d := NewStaleDetector(5)
 	sensorID := "test-sensor"
@@ -481,10 +480,10 @@ func TestParseSNMPValue_UnsupportedType(t *testing.T) {
 
 func TestParseSNMPValue_AllIntegerTypes(t *testing.T) {
 	tests := []struct {
-		name  string
-		val   interface{}
-		want  float64
-		enc   string
+		name string
+		val  interface{}
+		want float64
+		enc  string
 	}{
 		{"int32 tenths", int32(235), 23.5, "tenths"},
 		{"int64 tenths", int64(235), 23.5, ""},

@@ -12,18 +12,18 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
 	"github.com/keldron-ai/keldron-agent/internal/fake"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
 )
 
 // Set at build time via -ldflags.

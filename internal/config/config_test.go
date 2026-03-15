@@ -257,29 +257,29 @@ func TestValidate(t *testing.T) {
 			wantErr: "",
 		},
 		{
-			name:   "empty agent id",
-			modify: func(c *Config) { c.Agent.ID = "" },
+			name:    "empty agent id",
+			modify:  func(c *Config) { c.Agent.ID = "" },
 			wantErr: "agent.id",
 		},
 		{
-			name:   "invalid log level",
-			modify: func(c *Config) { c.Agent.LogLevel = "verbose" },
+			name:    "invalid log level",
+			modify:  func(c *Config) { c.Agent.LogLevel = "verbose" },
 			wantErr: "log_level",
 		},
 		{
-			name:   "shutdown timeout zero",
-			modify: func(c *Config) { c.Agent.ShutdownTimeout = 0 },
+			name:    "shutdown timeout zero",
+			modify:  func(c *Config) { c.Agent.ShutdownTimeout = 0 },
 			wantErr: "shutdown_timeout",
 		},
 		{
-			name:   "poll interval below 1s when enabled",
+			name: "poll interval below 1s when enabled",
 			modify: func(c *Config) {
 				c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 500 * time.Millisecond}
 			},
 			wantErr: "poll_interval",
 		},
 		{
-			name:   "empty sender target and cloud key when adapter enabled",
+			name: "empty sender target and cloud key when adapter enabled",
 			modify: func(c *Config) {
 				c.Sender.Target = ""
 				c.Cloud.APIKey = ""
@@ -288,8 +288,8 @@ func TestValidate(t *testing.T) {
 			wantErr: "sender.target",
 		},
 		{
-			name:   "zero ring size",
-			modify: func(c *Config) { c.Buffer.RingSize = 0 },
+			name:    "zero ring size",
+			modify:  func(c *Config) { c.Buffer.RingSize = 0 },
 			wantErr: "ring_size",
 		},
 	}
@@ -383,8 +383,8 @@ sender:
 
 	// Verify we can decode adapter-specific config from the Raw node.
 	var specific struct {
-		UseStub bool   `yaml:"use_stub"`
-		GPUIDs  []int  `yaml:"gpu_ids"`
+		UseStub bool  `yaml:"use_stub"`
+		GPUIDs  []int `yaml:"gpu_ids"`
 		Collect struct {
 			Temperature bool `yaml:"temperature"`
 			Power       bool `yaml:"power"`

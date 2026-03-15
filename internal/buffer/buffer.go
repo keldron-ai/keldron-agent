@@ -24,7 +24,7 @@ type Manager struct {
 	input      <-chan normalizer.TelemetryPoint
 	output     chan normalizer.TelemetryPoint
 	connected  atomic.Bool
-	connMu     sync.Mutex   // serializes disconnect transitions with ingress writes
+	connMu     sync.Mutex    // serializes disconnect transitions with ingress writes
 	connNotify chan struct{} // wake egress on reconnect
 	dataNotify chan struct{} // wake egress on new data
 	logger     *slog.Logger

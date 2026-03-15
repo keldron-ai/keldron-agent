@@ -18,7 +18,7 @@ import (
 // Config is the top-level configuration for the collector agent (runtime representation).
 type Config struct {
 	Agent       AgentConfig              `yaml:"agent"`
-	Adapters    map[string]AdapterConfig  `yaml:"-"` // Populated from AdaptersConfig for registry
+	Adapters    map[string]AdapterConfig `yaml:"-"` // Populated from AdaptersConfig for registry
 	Output      OutputConfig             `yaml:"output"`
 	Hub         HubConfig                `yaml:"hub"`
 	Cloud       CloudConfig              `yaml:"cloud"`
@@ -30,15 +30,15 @@ type Config struct {
 
 // configLoad is the YAML parsing structure (OSS schema).
 type configLoad struct {
-	Agent       AgentConfig    `yaml:"agent"`
-	Adapters    AdaptersConfig `yaml:"adapters"`
-	Output      OutputConfig   `yaml:"output"`
-	Hub         HubConfig      `yaml:"hub"`
-	Cloud       CloudConfig    `yaml:"cloud"`
+	Agent       AgentConfig       `yaml:"agent"`
+	Adapters    AdaptersConfig    `yaml:"adapters"`
+	Output      OutputConfig      `yaml:"output"`
+	Hub         HubConfig         `yaml:"hub"`
+	Cloud       CloudConfig       `yaml:"cloud"`
 	RackMapping map[string]string `yaml:"rack_mapping"`
-	Sender      SenderConfig   `yaml:"sender"`
-	Buffer      BufferConfig   `yaml:"buffer"`
-	Health      HealthConfig   `yaml:"health"`
+	Sender      SenderConfig      `yaml:"sender"`
+	Buffer      BufferConfig      `yaml:"buffer"`
+	Health      HealthConfig      `yaml:"health"`
 }
 
 // AgentConfig holds core agent settings.
@@ -60,7 +60,7 @@ type AdaptersConfig struct {
 	LinuxThermal   LinuxThermalConfig   `yaml:"linux_thermal"`
 	SNMPPDU        SNMPPDUConfig        `yaml:"snmp_pdu"`
 	Temperature    TemperatureConfig    `yaml:"temperature"`
-	Kubernetes     KubernetesConfig    `yaml:"kubernetes"`
+	Kubernetes     KubernetesConfig     `yaml:"kubernetes"`
 	Slurm          SlurmConfig          `yaml:"slurm"`
 }
 
@@ -160,9 +160,9 @@ func (s *SlurmConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // OutputConfig holds output mode settings.
 type OutputConfig struct {
-	Stdout        bool `yaml:"stdout"`
-	Prometheus    bool `yaml:"prometheus"`
-	PrometheusPort int `yaml:"prometheus_port"`
+	Stdout         bool `yaml:"stdout"`
+	Prometheus     bool `yaml:"prometheus"`
+	PrometheusPort int  `yaml:"prometheus_port"`
 }
 
 // HubConfig holds hub aggregator settings.
@@ -240,8 +240,8 @@ func Defaults() *Config {
 		Adapters:    make(map[string]AdapterConfig),
 		RackMapping: make(map[string]string),
 		Output: OutputConfig{
-			Stdout:        false,
-			Prometheus:    true,
+			Stdout:         false,
+			Prometheus:     true,
 			PrometheusPort: 9100,
 		},
 		Hub: HubConfig{
@@ -278,7 +278,7 @@ func defaultConfigLoad() *configLoad {
 			ShutdownTimeout: 30 * time.Second,
 		},
 		Output: OutputConfig{
-			Prometheus:    true,
+			Prometheus:     true,
 			PrometheusPort: 9100,
 		},
 		Hub: HubConfig{
