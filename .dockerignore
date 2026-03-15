@@ -1,0 +1,14 @@
+.git
+.github
+*.md
+LICENSE
+NOTICE
+.gitignore
+.githooks
+keldron-agent
+keldron-agent-*
+*.yaml
+!configs/keldron-agent.example.yaml
+dev.sh
+dev-test.sh
+diagnose.sh

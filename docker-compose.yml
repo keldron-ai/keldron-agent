@@ -1,0 +1,17 @@
+services:
+  keldron-agent:
+    build: .
+    ports:
+      - "9100:9100"
+      - "8081:8081"
+    volumes:
+      - ./configs/keldron-agent.example.yaml:/etc/keldron/keldron-agent.yaml:ro
+    restart: unless-stopped
+    # For NVIDIA GPU access (requires nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
