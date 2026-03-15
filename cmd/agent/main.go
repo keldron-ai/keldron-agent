@@ -26,6 +26,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/fake"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
+	"github.com/keldron-ai/keldron-agent/internal/output"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
 )
 
@@ -128,18 +129,10 @@ func run() int {
 		}
 	}()
 
-	// Buffer manager between normalizer and sender.
-	bufMgr, err := buffer.NewManager(cfg.Buffer, norm.Output(), logger.With("component", "buffer"))
-	if err != nil {
-		slog.Error("failed to create buffer manager", "error", err)
-		return 1
-	}
-	bufferDone := make(chan error, 1)
-	go func() {
-		bufferDone <- bufMgr.Start(ctx)
-	}()
+	// Local mode: --local flag OR no cloud and (prometheus or stdout) enabled
+	isLocalMode := *localMode || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
 
-	// Create and start sender (gRPC or local) to consume buffer output.
+	var bufMgr *buffer.Manager
 	var sndr interface {
 		Start(context.Context) error
 		SetOnConnChange(func(bool))
@@ -150,16 +143,64 @@ func run() int {
 		LastError() string
 		Target() string
 	}
-	if *localMode {
-		sndr = sender.NewLocal(cfg.Agent.ID, bufMgr.Output(), logger.With("component", "sender"))
+	var outputs []output.Output
+	var outputBridgeDone chan struct{}
+	var senderDone chan error
+	var bufferDone chan error
+
+	if isLocalMode {
+		if cfg.Output.Prometheus {
+			slog.Info("running in local mode — metrics available at http://localhost:" + fmt.Sprintf("%d", cfg.Output.PrometheusPort) + "/metrics")
+		} else {
+			slog.Info("running in local mode — Prometheus metrics disabled, stdout output only")
+		}
+
+		// Build adapter name list once for all outputs.
+		activeAdapters := make([]string, 0, len(running))
+		for _, a := range running {
+			activeAdapters = append(activeAdapters, a.Name())
+		}
+
+		// Build outputs
+		if cfg.Output.Prometheus {
+			prom := output.NewPrometheus(cfg.Output.PrometheusPort, version, cfg.Agent.DeviceName, logger.With("component", "prometheus"))
+			prom.SetElectricityRate(cfg.Agent.ElectricityRate)
+			prom.SetActiveAdapters(activeAdapters)
+			outputs = append(outputs, prom)
+			go func() {
+				if err := prom.Start(ctx); err != nil && err != http.ErrServerClosed {
+					logger.Error("Prometheus server stopped", "error", err)
+				}
+			}()
+		}
+		if cfg.Output.Stdout {
+			std := output.NewStdout(os.Stdout, version, activeAdapters)
+			outputs = append(outputs, std)
+		}
+
+		// Output bridge: read from normalizer, batch by poll interval, update outputs
+		outputBridgeDone = make(chan struct{})
+		go runOutputBridge(ctx, norm.Output(), outputs, cfg.Agent.PollInterval, outputBridgeDone, logger)
 	} else {
+		// Cloud mode: buffer + sender
+		var err error
+		bufMgr, err = buffer.NewManager(cfg.Buffer, norm.Output(), logger.With("component", "buffer"))
+		if err != nil {
+			slog.Error("failed to create buffer manager", "error", err)
+			return 1
+		}
+		bufferDone = make(chan error, 1)
+		go func() {
+			bufferDone <- bufMgr.Start(ctx)
+		}()
+
 		sndr = sender.NewGRPC(cfg.Sender, cfg.Agent.ID, bufMgr.Output(), logger.With("component", "sender"))
+		sndr.SetOnConnChange(bufMgr.OnConnChange)
+		senderDone = make(chan error, 1)
+		go func() {
+			senderDone <- sndr.Start(ctx)
+		}()
 	}
-	sndr.SetOnConnChange(bufMgr.OnConnChange)
-	senderDone := make(chan error, 1)
-	go func() {
-		senderDone <- sndr.Start(ctx)
-	}()
 
 	// Create and start health server.
 	healthSrv := health.New(cfg.Health.Bind, cfg.Agent.ID, version, logger.With("component", "health"))
@@ -169,8 +210,13 @@ func run() int {
 		}
 	}
 	healthSrv.RegisterNormalizer(norm)
-	healthSrv.RegisterBuffer(bufMgr)
-	healthSrv.RegisterSender(sndr)
+	healthSrv.SetLocalMode(isLocalMode)
+	if bufMgr != nil {
+		healthSrv.RegisterBuffer(bufMgr)
+	}
+	if sndr != nil {
+		healthSrv.RegisterSender(sndr)
+	}
 	healthSrv.RegisterConfig(watcher)
 	enabledAdapters := make(map[string]bool)
 	for name, acfg := range cfg.Adapters {
@@ -213,31 +259,85 @@ func run() int {
 	processed, rejected := norm.Stats()
 	slog.Info("normalizer stats", "processed", processed, "rejected", rejected)
 
-	// Wait for sender to flush remaining batches and close its stream.
-	if err := <-senderDone; err != nil {
-		slog.Error("sender stopped with error", "error", err)
-	}
-	batchesSent, pointsSent, senderErrors := sndr.Stats()
-	slog.Info("sender stats",
-		"batches_sent", batchesSent,
-		"points_sent", pointsSent,
-		"errors", senderErrors,
-	)
+	if isLocalMode {
+		// Wait for output bridge to finish
+		<-outputBridgeDone
+		for _, out := range outputs {
+			if err := out.Close(); err != nil {
+				logger.Error("output close error", "error", err)
+			}
+		}
+	} else {
+		// Wait for sender to flush remaining batches and close its stream.
+		if err := <-senderDone; err != nil {
+			slog.Error("sender stopped with error", "error", err)
+		}
+		batchesSent, pointsSent, senderErrors := sndr.Stats()
+		slog.Info("sender stats",
+			"batches_sent", batchesSent,
+			"points_sent", pointsSent,
+			"errors", senderErrors,
+		)
 
-	// Wait for buffer manager to close WAL.
-	if err := <-bufferDone; err != nil {
-		slog.Error("buffer manager stopped with error", "error", err)
+		// Wait for buffer manager to close WAL.
+		if err := <-bufferDone; err != nil {
+			slog.Error("buffer manager stopped with error", "error", err)
+		}
+		ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
+		slog.Info("buffer stats",
+			"ring_pushes", ringPushes,
+			"wal_spills", walSpills,
+			"wal_drained", walDrained,
+			"dropped", dropped,
+		)
 	}
-	ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
-	slog.Info("buffer stats",
-		"ring_pushes", ringPushes,
-		"wal_spills", walSpills,
-		"wal_drained", walDrained,
-		"dropped", dropped,
-	)
 
 	slog.Info("shutdown complete")
 	return 0
+}
+
+// runOutputBridge reads from the normalizer output channel, batches by poll interval,
+// and calls Update on all outputs. Closes done when finished.
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+	defer close(done)
+
+	flushBatch := func(batch []normalizer.TelemetryPoint) {
+		if len(batch) == 0 || len(outputs) == 0 {
+			return
+		}
+		for _, out := range outputs {
+			if err := out.Update(batch); err != nil {
+				logger.Error("output update error", "error", err)
+			}
+		}
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	var batch []normalizer.TelemetryPoint
+	for {
+		select {
+		case pt, ok := <-ch:
+			if !ok {
+				flushBatch(batch)
+				return
+			}
+			batch = append(batch, pt)
+		case <-ticker.C:
+			flushBatch(batch)
+			batch = batch[:0]
+		case <-ctx.Done():
+			// Context cancelled — flush current batch then drain ch until closed.
+			flushBatch(batch)
+			batch = batch[:0]
+			ticker.Stop()
+			for pt := range ch {
+				batch = append(batch, pt)
+			}
+			flushBatch(batch)
+			return
+		}
+	}
 }
 
 func initLogger(level string) *slog.Logger {

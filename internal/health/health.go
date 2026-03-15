@@ -70,6 +70,10 @@ type Server struct {
 	// enabledAdapters maps adapter name -> enabled for config-aware status
 	enabledAdapters map[string]bool
 	adaptersMu      sync.RWMutex
+
+	// localMode when true, ready/healthy does not require sender connection
+	localMode bool
+	localMu   sync.RWMutex
 }
 
 // New creates a health Server. Call Register* to wire components, then Start.
@@ -93,6 +97,14 @@ func (s *Server) RegisterAdapter(p AdapterProvider) {
 	s.adaptersMu.Lock()
 	defer s.adaptersMu.Unlock()
 	s.adapters = append(s.adapters, p)
+}
+
+// SetLocalMode sets whether the agent runs in local-only mode (no cloud sender).
+// When true, isReady and determineStatus do not require sender connection.
+func (s *Server) SetLocalMode(local bool) {
+	s.localMu.Lock()
+	defer s.localMu.Unlock()
+	s.localMode = local
 }
 
 // SetEnabledAdapters sets which adapters are enabled (from config). Used for status determination.
@@ -187,6 +199,12 @@ func (s *Server) isReady() bool {
 	}
 	if !anyAdapterRunning {
 		return false
+	}
+	s.localMu.RLock()
+	local := s.localMode
+	s.localMu.RUnlock()
+	if local {
+		return true
 	}
 	if s.sender != nil && s.sender.IsConnected() {
 		return true
@@ -305,6 +323,18 @@ func (s *Server) determineStatus(resp *Response) Status {
 	}
 	if !anyAdapterRunning {
 		return StatusUnhealthy
+	}
+
+	s.localMu.RLock()
+	local := s.localMode
+	s.localMu.RUnlock()
+	if local {
+		for _, a := range resp.Adapters {
+			if a.Enabled && !a.LastErrorAt.IsZero() && a.LastErrorAt.After(time.Now().Add(-5*time.Minute)) {
+				return StatusDegraded
+			}
+		}
+		return StatusHealthy
 	}
 
 	senderDisconnected := s.sender != nil && !resp.Sender.Connected

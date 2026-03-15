@@ -15,4 +15,5 @@ type TelemetryPoint struct {
 	Timestamp   time.Time          // Validated original timestamp
 	ReceivedAt  time.Time          // When normalizer processed it
 	Metrics     map[string]float64 // Normalized to float64 values
+	Tags        map[string]string  // String metadata preserved from adapters (e.g., gpu_name, gpu_model)
 }

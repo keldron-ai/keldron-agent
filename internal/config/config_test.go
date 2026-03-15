@@ -286,9 +286,21 @@ func TestValidate(t *testing.T) {
 			modify: func(c *Config) {
 				c.Sender.Target = ""
 				c.Cloud.APIKey = ""
+				c.Output.Prometheus = false
+				c.Output.Stdout = false
 				c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 			},
-			wantErr: "sender.target",
+			wantErr: "output", // "at least one output must be enabled" or "sender.target"
+		},
+		{
+			name: "local output (prometheus) allows empty sender and cloud",
+			modify: func(c *Config) {
+				c.Sender.Target = ""
+				c.Cloud.APIKey = ""
+				c.Output.Prometheus = true
+				c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+			},
+			wantErr: "",
 		},
 		{
 			name:    "zero ring size",
