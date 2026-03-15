@@ -46,6 +46,10 @@ type AppleSiliconAdapter struct {
 	lastPoll    atomic.Value // time.Time
 	lastError   atomic.Value // string
 	lastErrorAt atomic.Value // time.Time
+
+	// Cached powermetrics values, updated by a background goroutine.
+	cachedTempC  atomic.Value // float64
+	cachedPowerW atomic.Value // float64
 }
 
 // New creates an AppleSiliconAdapter. Returns an error if not running on darwin.
@@ -133,6 +137,13 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 
 	a.logger.Info("apple_silicon adapter started", "interval", interval)
 
+	// Initialize cached powermetrics values.
+	a.cachedTempC.Store(float64(-1))
+	a.cachedPowerW.Store(float64(-1))
+
+	// Background goroutine to refresh powermetrics cache without blocking poll.
+	go a.refreshPowermetricsLoop(ctx)
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -163,8 +174,8 @@ func (a *AppleSiliconAdapter) Stop(_ context.Context) error {
 
 func (a *AppleSiliconAdapter) poll() {
 	a.pollCount.Add(1)
-	a.lastPoll.Store(time.Now())
 	now := time.Now()
+	a.lastPoll.Store(now)
 
 	reading, err := a.collect(now)
 	if err != nil {
@@ -224,13 +235,6 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 
 	// GPU utilization: 0 (not available without root)
 	metrics["gpu_utilization_pct"] = 0.0
-
-	// Ensure we have at least one metric for normalizer validation
-	if len(metrics) == 0 {
-		metrics["gpu_utilization_pct"] = 0.0
-		metrics["mem_total_bytes"] = 0.0
-		metrics["mem_used_bytes"] = 0.0
-	}
 
 	// gpu_id for device_id in Prometheus (hostname:0)
 	metrics["gpu_id"] = 0.0
@@ -310,24 +314,48 @@ func parseUint64(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
 
-// collectPowermetrics tries to get temperature and power from powermetrics.
-// Requires root. Returns (-1, -1) if unavailable.
+// collectPowermetrics returns the latest cached temperature and power values.
+// Returns (-1, -1) if no data has been collected yet.
 func (a *AppleSiliconAdapter) collectPowermetrics() (tempC, powerW float64) {
-	tempC = -1
-	powerW = -1
+	tempC = a.cachedTempC.Load().(float64)
+	powerW = a.cachedPowerW.Load().(float64)
+	return tempC, powerW
+}
 
+// refreshPowermetricsLoop runs powermetrics in the background and updates
+// cached values. Requires root; returns silently if unavailable.
+func (a *AppleSiliconAdapter) refreshPowermetricsLoop(ctx context.Context) {
+	// Sample slightly faster than the default poll interval so fresh data
+	// is usually available by the time poll() reads the cache.
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	a.samplePowermetrics()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.samplePowermetrics()
+		}
+	}
+}
+
+func (a *AppleSiliconAdapter) samplePowermetrics() {
 	out, err := exec.Command("powermetrics", "-i", "1000", "-n", "1").Output()
 	if err != nil {
-		return tempC, powerW
+		return
 	}
 
-	// Parse temperature (e.g. "CPU die temperature: 45 C" or "GPU die temperature: 50 C")
+	tempC := float64(-1)
+	powerW := float64(-1)
+
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.Contains(line, "temperature") && strings.Contains(line, "C") {
 			if v := parseTemperatureLine(line); v >= 0 {
-				// Prefer GPU temp if available, else CPU
 				if strings.Contains(strings.ToLower(line), "gpu") {
 					tempC = v
 					break
@@ -344,7 +372,8 @@ func (a *AppleSiliconAdapter) collectPowermetrics() (tempC, powerW float64) {
 		}
 	}
 
-	return tempC, powerW
+	a.cachedTempC.Store(tempC)
+	a.cachedPowerW.Store(powerW)
 }
 
 func parseTemperatureLine(line string) float64 {
