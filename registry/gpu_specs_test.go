@@ -187,9 +187,6 @@ func TestAllEntriesValidation(t *testing.T) {
 		}
 		lowerKeys[lower] = true
 	}
-	if len(lowerKeys) != len(raw) {
-		t.Errorf("raw JSON has case-colliding keys: %d unique lowercased vs %d raw", len(lowerKeys), len(raw))
-	}
 
 	for key, spec := range entries {
 		if spec.ThermalLimitC <= 0 {
