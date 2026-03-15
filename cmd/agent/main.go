@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/apple_silicon"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
@@ -88,6 +89,7 @@ func run() int {
 
 	// Build adapter registry.
 	registry := adapter.NewRegistry()
+	registry.Register("apple_silicon", apple_silicon.New)
 	registry.Register("dcgm", dcgm.New)
 	registry.Register("rocm", rocm.New)
 	registry.Register("fake", fake.New)
