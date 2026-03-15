@@ -33,7 +33,12 @@ go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
 agent --local
 
 # or
-docker run -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
+docker run -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest --local
+
+# or with a config file
+docker run -p 9100:9100 \
+  -v $(pwd)/keldron-agent.yaml:/app/keldron-agent.yaml \
+  ghcr.io/keldron-ai/keldron-agent:latest
 ```
 
 ### Verify
@@ -140,11 +145,13 @@ Import our example dashboard:
 
 *(Screenshot placeholder — dashboard JSON in [configs/](configs/) coming soon)*
 
-## Fleet Monitoring
+## Fleet Monitoring *(planned)*
 
-Hub mode aggregates metrics from multiple machines. Enable in config:
+Hub mode is not yet implemented. The following config block shows the planned
+interface for inter-machine aggregation:
 
 ```yaml
+# planned — not yet functional
 hub:
   enabled: true
   static_peers: ["192.168.1.10:9100", "192.168.1.11:9100"]
