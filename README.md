@@ -21,7 +21,7 @@ One binary. Every GPU. Real risk scores — not just dashboards.
 ```bash
 # brew install keldron-ai/tap/keldron-agent  # future — for now use go install
 go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
-keldron-agent --local
+agent --local
 # → Prometheus metrics at http://localhost:9100/metrics
 ```
 
@@ -30,7 +30,7 @@ keldron-agent --local
 ```bash
 # curl -sfL https://get.keldron.ai | sh  # future — for now use go install
 go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
-keldron-agent --local
+agent --local
 
 # or
 docker run -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
