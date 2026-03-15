@@ -280,7 +280,7 @@ func (p *Prometheus) Handler() http.Handler {
 // Start starts the HTTP server. Blocks until ctx is cancelled.
 func (p *Prometheus) Start(ctx context.Context) error {
 	addr := ":" + strconv.Itoa(p.port)
-	p.httpServer = &http.Server{
+	srv := &http.Server{
 		Addr:         addr,
 		Handler:      p.Handler(),
 		ReadTimeout:  5 * time.Second,
@@ -288,15 +288,19 @@ func (p *Prometheus) Start(ctx context.Context) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	p.mu.Lock()
+	p.httpServer = srv
+	p.mu.Unlock()
+
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = p.httpServer.Shutdown(shutdownCtx)
+		_ = srv.Shutdown(shutdownCtx)
 	}()
 
 	p.logger.Info("Prometheus server starting", "addr", addr)
-	err := p.httpServer.ListenAndServe()
+	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
@@ -330,9 +334,14 @@ func (p *Prometheus) handleStatus(w http.ResponseWriter, _ *http.Request) {
 }
 
 // SetElectricityRate overrides the default electricity rate ($/kWh) used for power cost estimates.
+// Negative values are clamped to 0.
 func (p *Prometheus) SetElectricityRate(ratePerKWh float64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if ratePerKWh < 0 {
+		p.logger.Warn("negative electricity rate clamped to 0", "input", ratePerKWh)
+		ratePerKWh = 0
+	}
 	p.electricityRatePerKWh = ratePerKWh
 }
 
@@ -539,10 +548,13 @@ func (p *Prometheus) deviceModel(pt normalizer.TelemetryPoint) string {
 
 // Close shuts down the HTTP server.
 func (p *Prometheus) Close() error {
-	if p.httpServer == nil {
+	p.mu.Lock()
+	srv := p.httpServer
+	p.mu.Unlock()
+	if srv == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return p.httpServer.Shutdown(ctx)
+	return srv.Shutdown(ctx)
 }

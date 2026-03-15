@@ -300,52 +300,42 @@ func run() int {
 // and calls Update on all outputs. Closes done when finished.
 func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, interval time.Duration, done chan struct{}, logger *slog.Logger) {
 	defer close(done)
-	if len(outputs) == 0 {
-		return
+
+	flushBatch := func(batch []normalizer.TelemetryPoint) {
+		if len(batch) == 0 || len(outputs) == 0 {
+			return
+		}
+		for _, out := range outputs {
+			if err := out.Update(batch); err != nil {
+				logger.Error("output update error", "error", err)
+			}
+		}
 	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var batch []normalizer.TelemetryPoint
-	draining := false
 	for {
 		select {
 		case pt, ok := <-ch:
 			if !ok {
-				// Channel closed, flush remaining
-				if len(batch) > 0 {
-					for _, out := range outputs {
-						if err := out.Update(batch); err != nil {
-							logger.Error("output update error on channel close", "error", err)
-						}
-					}
-				}
+				flushBatch(batch)
 				return
 			}
 			batch = append(batch, pt)
 		case <-ticker.C:
-			if len(batch) > 0 {
-				for _, out := range outputs {
-					if err := out.Update(batch); err != nil {
-						logger.Error("output update error", "error", err)
-					}
-				}
-				batch = batch[:0]
-			}
+			flushBatch(batch)
+			batch = batch[:0]
 		case <-ctx.Done():
-			if draining {
-				continue
-			}
-			draining = true
-			// Flush current batch but keep draining ch until it closes.
-			if len(batch) > 0 {
-				for _, out := range outputs {
-					if err := out.Update(batch); err != nil {
-						logger.Error("output update error on shutdown", "error", err)
-					}
-				}
-				batch = batch[:0]
-			}
+			// Context cancelled — flush current batch then drain ch until closed.
+			flushBatch(batch)
+			batch = batch[:0]
 			ticker.Stop()
+			for pt := range ch {
+				batch = append(batch, pt)
+			}
+			flushBatch(batch)
+			return
 		}
 	}
 }
