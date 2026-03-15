@@ -6,3 +6,4 @@ keldron-agent.yaml
 *.exe
 .env
 .DS_Store
+coverage.out
