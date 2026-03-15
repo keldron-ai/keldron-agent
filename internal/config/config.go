@@ -74,7 +74,15 @@ type AppleSiliconConfig struct {
 
 // NVIDIAConsumerConfig holds NVIDIA consumer (nvidia-smi) adapter settings.
 type NVIDIAConsumerConfig struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled *bool     `yaml:"enabled"`
+	Raw     yaml.Node `yaml:"-"`
+}
+
+// UnmarshalYAML preserves the full YAML node for adapter-specific decoding.
+func (n *NVIDIAConsumerConfig) UnmarshalYAML(value *yaml.Node) error {
+	n.Raw = *value
+	type plain NVIDIAConsumerConfig
+	return value.Decode((*plain)(n))
 }
 
 // DCGMConfig holds DCGM adapter settings.
@@ -448,7 +456,7 @@ func ToAdapterMap(a *AdaptersConfig, pollInterval time.Duration) map[string]Adap
 		add("apple_silicon", true, yaml.Node{})
 	}
 	if v := a.NVIDIAConsumer.Enabled; v != nil && *v {
-		add("nvidia_consumer", true, yaml.Node{})
+		add("nvidia_consumer", true, a.NVIDIAConsumer.Raw)
 	}
 	if v := a.DCGM.Enabled; v != nil && *v {
 		add("dcgm", true, a.DCGM.Raw)
@@ -577,8 +585,11 @@ func ApplyAutoDetection(load *configLoad) {
 		load.Adapters.AppleSilicon.Enabled = &v
 	}
 	if load.Adapters.NVIDIAConsumer.Enabled == nil {
-		_, err := exec.LookPath("nvidia-smi")
-		v := err == nil
+		v := false
+		if runtime.GOOS != "darwin" {
+			_, err := exec.LookPath("nvidia-smi")
+			v = err == nil
+		}
 		load.Adapters.NVIDIAConsumer.Enabled = &v
 	}
 	if load.Adapters.DCGM.Enabled == nil {

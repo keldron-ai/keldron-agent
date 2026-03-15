@@ -90,6 +90,7 @@ func run() int {
 	// Build adapter registry.
 	registry := adapter.NewRegistry()
 	registerPlatformAdapters(registry)
+	registerNvidia(registry)
 	registry.Register("dcgm", dcgm.New)
 	registry.Register("rocm", rocm.New)
 	registry.Register("fake", fake.New)
