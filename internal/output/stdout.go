@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
+	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
 
 // StdoutLine is the JSON schema for one line of stdout output.
@@ -69,16 +70,21 @@ func (s *Stdout) Start(_ context.Context) error {
 }
 
 // Update prints one JSON line with all devices and agent info.
-func (s *Stdout) Update(readings []normalizer.TelemetryPoint) error {
+func (s *Stdout) Update(readings []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	scoresByDevice := make(map[string]scoring.RiskScoreOutput, len(scores))
+	for _, sc := range scores {
+		scoresByDevice[sc.DeviceID] = sc
+	}
 
 	devices := make([]StdoutDevice, 0, len(readings))
 	seenAdapters := make(map[string]bool)
 
 	for _, pt := range readings {
 		seenAdapters[pt.AdapterName] = true
-		dev := s.pointToDevice(pt)
+		dev := s.pointToDevice(pt, scoresByDevice)
 		devices = append(devices, dev)
 	}
 
@@ -112,7 +118,7 @@ func float64Ptr(v float64) *float64 {
 	return &v
 }
 
-func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint) StdoutDevice {
+func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint, scoresByDevice map[string]scoring.RiskScoreOutput) StdoutDevice {
 	deviceID := deviceIDFromPoint(pt)
 	deviceModel := deviceModelFromPoint(pt)
 
@@ -131,7 +137,13 @@ func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint) StdoutDevice {
 		if v, ok := m["gpu_utilization_pct"]; ok {
 			dev.Utilization = float64Ptr(v / 100)
 		}
-		// Risk placeholders (OSS-003 fills in)
+	}
+
+	// Risk scores from scoring engine when available
+	if sc, ok := scoresByDevice[deviceID]; ok {
+		dev.RiskComposite = float64Ptr(sc.Composite)
+		dev.RiskSeverity = sc.Severity
+	} else if m := pt.Metrics; m != nil {
 		if v, ok := m["risk_composite"]; ok {
 			dev.RiskComposite = float64Ptr(v)
 		}
