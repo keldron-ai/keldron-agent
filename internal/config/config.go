@@ -390,6 +390,9 @@ func toConfig(load *configLoad) *Config {
 	if cfg.RackMapping == nil {
 		cfg.RackMapping = make(map[string]string)
 	}
+	if cfg.Cloud.APIKey != "" && cfg.Cloud.Endpoint == "" {
+		cfg.Cloud.Endpoint = defaultCloudEndpoint
+	}
 	// Derive Agent.ID from DeviceName or hostname
 	if cfg.Agent.ID == "" {
 		cfg.Agent.ID = cfg.Agent.DeviceName
@@ -498,7 +501,12 @@ func ApplyEnvOverrides(load *configLoad) {
 		b := parseBool(v)
 		load.Adapters.DCGM.Enabled = &b
 	}
-	if v := os.Getenv("KELDRON_ADAPTERS_ROCm_ENABLED"); v != "" {
+	if v := os.Getenv("KELDRON_ADAPTERS_ROCM_ENABLED"); v == "" {
+		if v = os.Getenv("KELDRON_ADAPTERS_ROCm_ENABLED"); v != "" {
+			b := parseBool(v)
+			load.Adapters.ROCm.Enabled = &b
+		}
+	} else {
 		b := parseBool(v)
 		load.Adapters.ROCm.Enabled = &b
 	}
@@ -647,10 +655,6 @@ func Validate(cfg *Config) error {
 
 	if cfg.Hub.Enabled && cfg.Hub.ListenPort <= 0 {
 		return fmt.Errorf("hub.listen_port must be > 0 when hub.enabled is true")
-	}
-
-	if cfg.Cloud.APIKey != "" && cfg.Cloud.Endpoint == "" {
-		cfg.Cloud.Endpoint = defaultCloudEndpoint
 	}
 
 	for name, acfg := range cfg.Adapters {
