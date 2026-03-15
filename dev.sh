@@ -61,6 +61,7 @@ echo "🚀 Starting agent..."
 echo "   Prometheus metrics: http://localhost:9100/metrics"
 echo "   Health check:       http://localhost:8081/healthz"
 echo "   Verify: curl localhost:9100/metrics | grep keldron_gpu_temperature"
+echo "   With hub enabled:   Fleet API at http://localhost:9200/api/v1/fleet"
 echo "   Press Ctrl+C to stop"
 echo ""
 

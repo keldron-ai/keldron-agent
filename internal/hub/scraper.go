@@ -15,6 +15,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -185,7 +186,7 @@ func severityFromFloat(v float64) string {
 
 // parseToMetricFamiliesWithPeerLabel parses Prometheus text and adds peer label to each metric.
 func parseToMetricFamiliesWithPeerLabel(r io.Reader, peerID string) (map[string]*dto.MetricFamily, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.LegacyValidation)
 	families, err := parser.TextToMetricFamilies(r)
 	if err != nil {
 		return nil, err
@@ -214,7 +215,7 @@ func strPtr(s string) *string { return &s }
 // ParseMetricsToPeerDevices parses Prometheus exposition format and extracts keldron_* metrics into PeerDevices.
 // Returns devices, peer ID (from keldron_agent_info device_name), and error.
 func ParseMetricsToPeerDevices(r io.Reader) ([]PeerDevice, string, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.LegacyValidation)
 	families, err := parser.TextToMetricFamilies(r)
 	if err != nil {
 		return nil, "", err
