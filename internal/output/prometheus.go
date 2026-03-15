@@ -349,7 +349,7 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Reset all per-device GaugeVecs to clear stale label combinations. to clear stale label combinations.
+	// Reset all per-device GaugeVecs to clear stale label combinations.
 	p.gpuTempC.Reset()
 	p.gpuHotspotTempC.Reset()
 	p.gpuPowerW.Reset()
