@@ -164,6 +164,7 @@ func run() int {
 		// Build outputs
 		if cfg.Output.Prometheus {
 			prom := output.NewPrometheus(cfg.Output.PrometheusPort, version, cfg.Agent.DeviceName, logger.With("component", "prometheus"))
+			prom.SetElectricityRate(cfg.Agent.ElectricityRate)
 			prom.SetActiveAdapters(activeAdapters)
 			outputs = append(outputs, prom)
 			go func() {

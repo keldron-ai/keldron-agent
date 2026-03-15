@@ -36,14 +36,15 @@ const (
 // Prometheus implements Output by exposing a Prometheus /metrics endpoint
 // and updating gauges from TelemetryPoints.
 type Prometheus struct {
-	port           int
-	version        string
-	deviceName     string
-	startedAt      time.Time
-	logger         *slog.Logger
-	activeAdapters []string
-	deviceCount    int
-	gatherer       prometheus.Gatherer
+	port                  int
+	version               string
+	deviceName            string
+	startedAt             time.Time
+	logger                *slog.Logger
+	activeAdapters        []string
+	deviceCount           int
+	gatherer              prometheus.Gatherer
+	electricityRatePerKWh float64
 
 	httpServer *http.Server
 	mu         sync.Mutex
@@ -108,13 +109,14 @@ func NewPrometheusWithRegistry(port int, version, deviceName string, reg prometh
 	}
 
 	p := &Prometheus{
-		port:              port,
-		version:           version,
-		deviceName:        deviceName,
-		startedAt:         time.Now(),
-		logger:            logger,
-		gatherer:          gatherer,
-		previousDeviceIDs: make(map[string]bool),
+		port:                  port,
+		version:               version,
+		deviceName:            deviceName,
+		startedAt:             time.Now(),
+		logger:                logger,
+		gatherer:              gatherer,
+		electricityRatePerKWh: 0.12,
+		previousDeviceIDs:     make(map[string]bool),
 	}
 	p.registerMetricsWith(reg)
 	return p
@@ -331,6 +333,13 @@ func (p *Prometheus) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// SetElectricityRate overrides the default electricity rate ($/kWh) used for power cost estimates.
+func (p *Prometheus) SetElectricityRate(ratePerKWh float64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.electricityRatePerKWh = ratePerKWh
+}
+
 // SetActiveAdapters sets the list of active adapters for /api/v1/status.
 func (p *Prometheus) SetActiveAdapters(adapters []string) {
 	p.mu.Lock()
@@ -490,8 +499,7 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 		}
 	}
 	if power, ok := m["power_usage_w"]; ok {
-		// Assume 0.12 $/kWh
-		rate := 0.12 / 1000
+		rate := p.electricityRatePerKWh / 1000
 		hourly := power * rate
 		p.powerCostHourly.With(deviceIDLbls).Set(hourly)
 		p.powerCostDaily.With(deviceIDLbls).Set(hourly * 24)
