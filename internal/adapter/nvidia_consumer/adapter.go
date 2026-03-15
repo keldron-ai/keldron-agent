@@ -284,7 +284,6 @@ func (a *NvidiaConsumerAdapter) toRawReading(nr NvidiaReading) adapter.RawReadin
 		"mem_total_bytes":     nr.MemTotalMB * 1024 * 1024,
 		"sm_clock_mhz":        nr.ClockSMMHz,
 		"sm_clock_max_mhz":    nr.ClockMaxMHz,
-		"fan_speed_pct":       nr.FanSpeedPct,
 	}
 
 	active, reason := MapThrottleReason(nr.ThrottleReason)
