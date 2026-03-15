@@ -43,7 +43,7 @@ func TestPrometheus_UpdateAndScrape(t *testing.T) {
 			},
 		},
 	}
-	if err := p.Update(readings); err != nil {
+	if err := p.Update(readings, nil); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
@@ -97,10 +97,10 @@ func TestPrometheus_UpdateWithEmptyReadings(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "test", reg, nil)
 
-	if err := p.Update(nil); err != nil {
+	if err := p.Update(nil, nil); err != nil {
 		t.Errorf("Update(nil) = %v", err)
 	}
-	if err := p.Update([]normalizer.TelemetryPoint{}); err != nil {
+	if err := p.Update([]normalizer.TelemetryPoint{}, nil); err != nil {
 		t.Errorf("Update([]) = %v", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestPrometheus_AppleSiliconReading(t *testing.T) {
 			},
 		},
 	}
-	if err := p.Update(readings); err != nil {
+	if err := p.Update(readings, nil); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
