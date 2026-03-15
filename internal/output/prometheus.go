@@ -404,6 +404,15 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 	spec := registry.Lookup(registry.NormalizeModelName(deviceModel))
 	deviceVendor := spec.Vendor
 	behaviorClass := spec.BehaviorClass
+	// Prefer adapter-provided Tags when present
+	if pt.Tags != nil {
+		if v, ok := pt.Tags["device_vendor"]; ok && v != "" {
+			deviceVendor = v
+		}
+		if v, ok := pt.Tags["behavior_class"]; ok && v != "" {
+			behaviorClass = v
+		}
+	}
 	adapter := pt.AdapterName
 
 	gpuLbls := prometheus.Labels{
@@ -528,8 +537,9 @@ func (p *Prometheus) deviceID(pt normalizer.TelemetryPoint) string {
 
 func (p *Prometheus) deviceModel(pt normalizer.TelemetryPoint) string {
 	// Check Tags for string metadata preserved from adapters.
+	// Prefer device_model and gpu_model (adapter-provided) over gpu_name (raw system string).
 	if pt.Tags != nil {
-		for _, k := range []string{"gpu_name", "gpu_model", "model", "device_model"} {
+		for _, k := range []string{"device_model", "gpu_model", "gpu_name", "model"} {
 			if v, ok := pt.Tags[k]; ok && v != "" {
 				return v
 			}

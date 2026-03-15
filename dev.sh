@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/scripts/common.sh"
+
+cleanup_stale_agent
+
 echo "═══════════════════════════════════════════"
 echo "  Keldron Agent — Local Dev Runner"
 echo "═══════════════════════════════════════════"
@@ -8,6 +13,11 @@ echo "════════════════════════�
 # Build
 echo "📦 Building agent..."
 go build -o keldron-agent ./cmd/agent
+
+# Apple Silicon detection
+if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+  echo "🍎 Apple Silicon: IOKit adapter active, no sudo required"
+fi
 
 # Create dev config if it doesn't exist
 if [ ! -f keldron-agent.dev.yaml ]; then
@@ -50,6 +60,7 @@ echo ""
 echo "🚀 Starting agent..."
 echo "   Prometheus metrics: http://localhost:9100/metrics"
 echo "   Health check:       http://localhost:8081/healthz"
+echo "   Verify: curl localhost:9100/metrics | grep keldron_gpu_temperature"
 echo "   Press Ctrl+C to stop"
 echo ""
 

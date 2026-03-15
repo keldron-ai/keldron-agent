@@ -288,5 +288,35 @@
     "behavior_class": "soc_integrated",
     "cv_max": 0.50,
     "thermal_pressure_state_supported": true
+  },
+  "M5": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 25,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M5-Pro": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 40,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M5-Max": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 55,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
   }
 }

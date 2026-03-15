@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/apple_silicon"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
@@ -89,7 +88,7 @@ func run() int {
 
 	// Build adapter registry.
 	registry := adapter.NewRegistry()
-	registry.Register("apple_silicon", apple_silicon.New)
+	registerPlatformAdapters(registry)
 	registry.Register("dcgm", dcgm.New)
 	registry.Register("rocm", rocm.New)
 	registry.Register("fake", fake.New)
@@ -317,6 +316,7 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var batch []normalizer.TelemetryPoint
+	initialFlush := true // Flush on first reading for immediate metric visibility.
 	for {
 		select {
 		case pt, ok := <-ch:
@@ -325,6 +325,12 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				return
 			}
 			batch = append(batch, pt)
+			if initialFlush {
+				flushBatch(batch)
+				batch = batch[:0]
+				initialFlush = false
+				ticker.Reset(interval)
+			}
 		case <-ticker.C:
 			flushBatch(batch)
 			batch = batch[:0]

@@ -1,20 +1,18 @@
+//go:build darwin && arm64
+
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Keldron (keldron.ai)
 
 // Package apple_silicon implements a telemetry adapter for Apple Silicon Macs.
-// It collects GPU/system metrics via system_profiler, vm_stat, and optionally
-// powermetrics (requires root for temperature/power).
+// It collects GPU/system metrics via IOKit/IOReport, thermal pressure via notifyd,
+// and memory/swap via sysctl. Runs entirely unprivileged — no sudo required.
 package apple_silicon
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os/exec"
-	"regexp"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,13 +20,10 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/health"
+	"github.com/keldron-ai/keldron-agent/registry"
 )
 
 const channelBuffer = 256
-
-var (
-	chipRe = regexp.MustCompile(`(?m)^\s*Chip:\s*(.+)$`)
-)
 
 // AppleSiliconAdapter collects telemetry from Apple Silicon Macs.
 type AppleSiliconAdapter struct {
@@ -40,22 +35,22 @@ type AppleSiliconAdapter struct {
 	intervalMu   sync.RWMutex
 	closeOnce    sync.Once
 
+	// Cached at startup
+	chipName string
+	spec     registry.GPUSpec
+
 	running     atomic.Bool
 	pollCount   atomic.Uint64
 	errorCount  atomic.Uint64
 	lastPoll    atomic.Value // time.Time
 	lastError   atomic.Value // string
 	lastErrorAt atomic.Value // time.Time
-
-	// Cached powermetrics values, updated by a background goroutine.
-	cachedTempC  atomic.Value // float64
-	cachedPowerW atomic.Value // float64
 }
 
-// New creates an AppleSiliconAdapter. Returns an error if not running on darwin.
+// New creates an AppleSiliconAdapter. Returns an error if not running on darwin/arm64.
 func New(cfg config.AdapterConfig, holder *config.Holder, logger *slog.Logger) (adapter.Adapter, error) {
-	if runtime.GOOS != "darwin" {
-		return nil, fmt.Errorf("apple_silicon adapter only supports darwin (got %s)", runtime.GOOS)
+	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
+		return nil, fmt.Errorf("apple_silicon adapter only supports darwin/arm64 (got %s/%s)", runtime.GOOS, runtime.GOARCH)
 	}
 
 	interval := cfg.PollInterval
@@ -67,12 +62,30 @@ func New(cfg config.AdapterConfig, holder *config.Holder, logger *slog.Logger) (
 		logger = slog.Default()
 	}
 
+	chipName, err := DetectChip()
+	if err != nil {
+		chipName = "Apple Silicon"
+		logger.Warn("chip detection failed, using fallback", "error", err)
+	}
+	spec := registry.Lookup(chipName)
+	if spec.BehaviorClass != "soc_integrated" {
+		// Fallback for unknown Apple Silicon: use soc_integrated defaults
+		spec = registry.LookupWithFallback("M1", 105, 25)
+	}
+
+	logger.Info("Detected Apple Silicon — using soc_integrated behavior class, no sudo required",
+		"chip", chipName,
+		"behavior_class", spec.BehaviorClass,
+	)
+
 	return &AppleSiliconAdapter{
 		cfg:          cfg,
 		readings:     make(chan adapter.RawReading, channelBuffer),
 		logger:       logger,
 		holder:       holder,
 		pollInterval: interval,
+		chipName:     chipName,
+		spec:         spec,
 	}, nil
 }
 
@@ -137,13 +150,6 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 
 	a.logger.Info("apple_silicon adapter started", "interval", interval)
 
-	// Initialize cached powermetrics values.
-	a.cachedTempC.Store(float64(-1))
-	a.cachedPowerW.Store(float64(-1))
-
-	// Background goroutine to refresh powermetrics cache without blocking poll.
-	go a.refreshPowermetricsLoop(ctx)
-
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -169,6 +175,7 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 // Stop gracefully shuts down the adapter.
 func (a *AppleSiliconAdapter) Stop(_ context.Context) error {
 	a.logger.Info("apple_silicon adapter shutting down")
+	CleanupIOKit()
 	return nil
 }
 
@@ -201,43 +208,60 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 
 	metrics := make(map[string]interface{})
 
-	// Device model from system_profiler (string becomes tag in normalizer)
-	chip, err := a.runSystemProfiler()
-	if err != nil {
-		a.logger.Debug("system_profiler failed", "error", err)
-		metrics["gpu_model"] = "Apple Silicon"
-	} else {
-		metrics["gpu_model"] = strings.TrimSpace(chip)
+	// Device model (string becomes tag in normalizer)
+	metrics["gpu_model"] = a.chipName
+	// Device metadata (strings -> Tags) for Prometheus labels
+	metrics["device_model"] = a.chipName
+	metrics["behavior_class"] = a.spec.BehaviorClass
+	metrics["device_vendor"] = a.spec.Vendor
+	metrics["gpu_id"] = 0.0
+
+	// IOKit metrics (GPU util, power, SoC temp)
+	iokit := ReadIOKit(a.logger)
+	metrics["temperature_c"] = iokit.SoCTempC
+	metrics["power_usage_w"] = iokit.GPUPowerW
+	metrics["gpu_utilization_pct"] = iokit.GPUUtilization * 100
+
+	// Thermal pressure state
+	thermalState, _ := ReadThermalPressure()
+	if thermalState != "" {
+		metrics["thermal_pressure_state"] = thermalState
 	}
 
-	// Memory from vm_stat and sysctl
-	memTotal, memUsed, err := a.collectMemory()
+	// Throttle derived from thermal pressure
+	throttleActive := 0.0
+	throttleReason := "none"
+	if IsThrottled(thermalState) {
+		throttleActive = 1.0
+		throttleReason = "thermal"
+	}
+	metrics["throttled"] = throttleActive
+	metrics["throttle_reason"] = throttleReason
+
+	// Memory and swap
+	mem, err := ReadMemoryInfo()
 	if err != nil {
 		a.logger.Debug("memory collection failed", "error", err)
 	} else {
-		metrics["mem_total_bytes"] = float64(memTotal)
-		metrics["mem_used_bytes"] = float64(memUsed)
+		metrics["mem_total_bytes"] = float64(mem.PhysicalTotalBytes)
+		metrics["mem_used_bytes"] = float64(mem.PhysicalUsedBytes)
+		metrics["swap_total_bytes"] = float64(mem.SwapTotalBytes)
+		metrics["swap_used_bytes"] = float64(mem.SwapUsedBytes)
 	}
 
-	// Temperature and power from powermetrics (requires root).
-	// Always emit both keys so the metric schema is stable.
-	tempC, powerW := a.collectPowermetrics()
-	if tempC >= 0 {
-		metrics["temperature_c"] = tempC
-	} else {
-		metrics["temperature_c"] = 0.0
+	// Ensure schema stability for missing metrics (memory keys may be absent on error)
+	if _, ok := metrics["mem_total_bytes"]; !ok {
+		metrics["mem_total_bytes"] = 0.0
 	}
-	if powerW >= 0 {
-		metrics["power_usage_w"] = powerW
-	} else {
-		metrics["power_usage_w"] = 0.0
+	if _, ok := metrics["mem_used_bytes"]; !ok {
+		metrics["mem_used_bytes"] = 0.0
 	}
-
-	// GPU utilization: 0 (not available without root)
-	metrics["gpu_utilization_pct"] = 0.0
-
-	// gpu_id for device_id in Prometheus (hostname:0)
-	metrics["gpu_id"] = 0.0
+	if _, ok := metrics["swap_total_bytes"]; !ok {
+		metrics["swap_total_bytes"] = 0.0
+	}
+	if _, ok := metrics["swap_used_bytes"]; !ok {
+		metrics["swap_used_bytes"] = 0.0
+	}
 
 	return adapter.RawReading{
 		AdapterName: "apple_silicon",
@@ -245,174 +269,6 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 		Timestamp:   now,
 		Metrics:     metrics,
 	}, nil
-}
-
-func (a *AppleSiliconAdapter) runSystemProfiler() (string, error) {
-	out, err := exec.Command("system_profiler", "SPHardwareDataType").Output()
-	if err != nil {
-		return "", err
-	}
-	m := chipRe.FindSubmatch(out)
-	if len(m) < 2 {
-		return "", fmt.Errorf("chip not found in system_profiler output")
-	}
-	return string(m[1]), nil
-}
-
-func (a *AppleSiliconAdapter) collectMemory() (total, used uint64, err error) {
-	// Total memory from sysctl
-	totalOut, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-	if err != nil {
-		return 0, 0, err
-	}
-	total, err = parseUint64(strings.TrimSpace(string(totalOut)))
-	if err != nil {
-		return 0, 0, err
-	}
-
-	// Used memory from vm_stat (active + wired + compressed)
-	vmOut, err := exec.Command("vm_stat").Output()
-	if err != nil {
-		return total, 0, err
-	}
-
-	pageSize := uint64(16384) // Apple Silicon page size
-	active, _ := parseVMStatPage(string(vmOut), "Pages active")
-	inactive, _ := parseVMStatPage(string(vmOut), "Pages inactive")
-	wired, _ := parseVMStatPage(string(vmOut), "Pages wired down")
-	speculative, _ := parseVMStatPage(string(vmOut), "Pages speculative")
-	compressed, _ := parseVMStatPage(string(vmOut), "Pages occupied by compressor")
-
-	used = (active + inactive + wired + speculative + compressed) * pageSize
-	if used > total {
-		used = total
-	}
-
-	return total, used, nil
-}
-
-func parseVMStatPage(s, key string) (uint64, error) {
-	idx := strings.Index(s, key)
-	if idx < 0 {
-		return 0, fmt.Errorf("key %q not found", key)
-	}
-	rest := s[idx:]
-	// Isolate the single line containing the key.
-	if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
-		rest = rest[:nl]
-	}
-	colon := strings.Index(rest, ":")
-	if colon < 0 {
-		return 0, fmt.Errorf("malformed line")
-	}
-	val := strings.TrimSpace(rest[colon+1:])
-	val = strings.TrimSuffix(val, ".")
-	return parseUint64(val)
-}
-
-func parseUint64(s string) (uint64, error) {
-	return strconv.ParseUint(s, 10, 64)
-}
-
-// collectPowermetrics returns the latest cached temperature and power values.
-// Returns (-1, -1) if no data has been collected yet.
-func (a *AppleSiliconAdapter) collectPowermetrics() (tempC, powerW float64) {
-	tempC = -1
-	powerW = -1
-	if v := a.cachedTempC.Load(); v != nil {
-		tempC = v.(float64)
-	}
-	if v := a.cachedPowerW.Load(); v != nil {
-		powerW = v.(float64)
-	}
-	return tempC, powerW
-}
-
-// refreshPowermetricsLoop runs powermetrics in the background and updates
-// cached values. Requires root; returns silently if unavailable.
-func (a *AppleSiliconAdapter) refreshPowermetricsLoop(ctx context.Context) {
-	a.samplePowermetrics(ctx)
-
-	for {
-		a.intervalMu.RLock()
-		interval := a.pollInterval
-		a.intervalMu.RUnlock()
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(interval):
-			a.samplePowermetrics(ctx)
-		}
-	}
-}
-
-const powermetricsTimeout = 3 * time.Second
-
-func (a *AppleSiliconAdapter) samplePowermetrics(ctx context.Context) {
-	cmdCtx, cancel := context.WithTimeout(ctx, powermetricsTimeout)
-	defer cancel()
-
-	out, err := exec.CommandContext(cmdCtx, "powermetrics", "-i", "1000", "-n", "1").Output()
-	if err != nil {
-		return
-	}
-
-	tempC := float64(-1)
-	powerW := float64(-1)
-
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.Contains(line, "temperature") && strings.Contains(line, "C") {
-			if v := parseTemperatureLine(line); v >= 0 {
-				if strings.Contains(strings.ToLower(line), "gpu") {
-					tempC = v
-					break
-				}
-				if tempC < 0 {
-					tempC = v
-				}
-			}
-		}
-		if strings.Contains(line, "GPU Power") || strings.Contains(line, "GPU power") {
-			if v := parsePowerLine(line); v >= 0 {
-				powerW = v
-			}
-		}
-	}
-
-	a.cachedTempC.Store(tempC)
-	a.cachedPowerW.Store(powerW)
-}
-
-func parseTemperatureLine(line string) float64 {
-	// "CPU die temperature: 45 C" or "GPU die temperature: 50 C"
-	parts := strings.Fields(line)
-	for i, p := range parts {
-		if p == "C" && i > 0 {
-			if v, err := strconv.ParseFloat(parts[i-1], 64); err == nil {
-				return v
-			}
-		}
-	}
-	return -1
-}
-
-func parsePowerLine(line string) float64 {
-	// "GPU Power: 0.12 W" or similar
-	parts := strings.Fields(line)
-	for i, p := range parts {
-		if (p == "W" || p == "mW") && i > 0 {
-			if v, err := strconv.ParseFloat(parts[i-1], 64); err == nil {
-				if p == "mW" {
-					return v / 1000
-				}
-				return v
-			}
-		}
-	}
-	return -1
 }
 
 // Ensure AppleSiliconAdapter implements health.AdapterProvider.
