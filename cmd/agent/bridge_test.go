@@ -15,6 +15,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
+	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
 
 // TestOutputBridge_FlushesToPrometheus verifies that TelemetryPoints
@@ -59,7 +60,8 @@ func TestOutputBridge_FlushesToPrometheus(t *testing.T) {
 	done := make(chan struct{})
 
 	// Use a very short flush interval for the test.
-	go runOutputBridge(ctx, ch, outputs, 50*time.Millisecond, done, logger)
+	scoreEngine := scoring.NewScoreEngine(0.12)
+	go runOutputBridge(ctx, ch, outputs, scoreEngine, 50*time.Millisecond, done, logger)
 
 	// Wait for at least one flush.
 	time.Sleep(200 * time.Millisecond)
@@ -135,8 +137,9 @@ func TestFullPipeline_AdapterToPrometheus(t *testing.T) {
 	go func() { _ = norm.Start(ctx) }()
 
 	// Start output bridge with short interval.
+	scoreEngine := scoring.NewScoreEngine(0.12)
 	done := make(chan struct{})
-	go runOutputBridge(ctx, norm.Output(), outputs, 50*time.Millisecond, done, logger)
+	go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, 50*time.Millisecond, done, logger)
 
 	// Send a raw reading (as the Apple Silicon adapter would).
 	adapterCh <- adapter.RawReading{

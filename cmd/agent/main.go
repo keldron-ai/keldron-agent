@@ -27,6 +27,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
+	"github.com/keldron-ai/keldron-agent/internal/scoring"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
 )
 
@@ -179,9 +180,10 @@ func run() int {
 			outputs = append(outputs, std)
 		}
 
-		// Output bridge: read from normalizer, batch by poll interval, update outputs
+		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
+		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
 	} else {
 		// Cloud mode: buffer + sender
 		var err error
@@ -298,16 +300,17 @@ func run() int {
 }
 
 // runOutputBridge reads from the normalizer output channel, batches by poll interval,
-// and calls Update on all outputs. Closes done when finished.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+// computes risk scores, and calls Update on all outputs. Closes done when finished.
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
 	defer close(done)
 
 	flushBatch := func(batch []normalizer.TelemetryPoint) {
 		if len(batch) == 0 || len(outputs) == 0 {
 			return
 		}
+		scores := scoreEngine.Score(batch)
 		for _, out := range outputs {
-			if err := out.Update(batch); err != nil {
+			if err := out.Update(batch, scores); err != nil {
 				logger.Error("output update error", "error", err)
 			}
 		}

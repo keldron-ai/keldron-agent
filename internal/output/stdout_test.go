@@ -35,7 +35,7 @@ func TestStdout_Update_JSONSchema(t *testing.T) {
 		},
 	}
 
-	if err := std.Update(readings); err != nil {
+	if err := std.Update(readings, nil); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
@@ -72,10 +72,10 @@ func TestStdout_Update_EmptyReadings(t *testing.T) {
 	var buf bytes.Buffer
 	std := NewStdout(&buf, "0.1.0-dev", nil)
 
-	if err := std.Update(nil); err != nil {
+	if err := std.Update(nil, nil); err != nil {
 		t.Errorf("Update(nil) = %v", err)
 	}
-	if err := std.Update([]normalizer.TelemetryPoint{}); err != nil {
+	if err := std.Update([]normalizer.TelemetryPoint{}, nil); err != nil {
 		t.Errorf("Update([]) = %v", err)
 	}
 
@@ -103,7 +103,7 @@ func TestStdout_SeverityString(t *testing.T) {
 		{Source: "gpu-1", Metrics: map[string]float64{"risk_severity": 1}},
 		{Source: "gpu-2", Metrics: map[string]float64{"risk_severity": 0}},
 	}
-	if err := std.Update(readings); err != nil {
+	if err := std.Update(readings, nil); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
@@ -130,7 +130,7 @@ func TestStdout_SetActiveAdapters(t *testing.T) {
 	var buf bytes.Buffer
 	std := NewStdout(&buf, "0.1.0-dev", nil)
 	std.SetActiveAdapters([]string{"dcgm"})
-	if err := std.Update([]normalizer.TelemetryPoint{}); err != nil {
+	if err := std.Update([]normalizer.TelemetryPoint{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	var out StdoutLine
@@ -158,7 +158,7 @@ func TestStdout_ZeroValuesPreserved(t *testing.T) {
 			},
 		},
 	}
-	if err := std.Update(readings); err != nil {
+	if err := std.Update(readings, nil); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestStdout_DeviceModelFromTags(t *testing.T) {
 			Metrics:     map[string]float64{"temperature_c": 55},
 		},
 	}
-	if err := std.Update(readings); err != nil {
+	if err := std.Update(readings, nil); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 

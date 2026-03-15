@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
+	"github.com/keldron-ai/keldron-agent/internal/scoring"
 	"github.com/keldron-ai/keldron-agent/registry"
 )
 
@@ -352,9 +353,10 @@ func (p *Prometheus) SetActiveAdapters(adapters []string) {
 	p.activeAdapters = append([]string(nil), adapters...)
 }
 
-// Update applies telemetry points to Prometheus gauges.
+// Update applies telemetry points and risk scores to Prometheus gauges.
 // Clears stale metrics for devices no longer present.
-func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
+// Scores may be nil; risk gauges use placeholders when nil.
+func (p *Prometheus) Update(readings []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -385,6 +387,11 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.powerCostMonthly.Reset()
 	p.gpuHotspotDeltaC.Reset()
 
+	scoresByDevice := make(map[string]scoring.RiskScoreOutput, len(scores))
+	for _, s := range scores {
+		scoresByDevice[s.DeviceID] = s
+	}
+
 	// Count unique devices (multiple readings may share a device ID).
 	uniqueDevices := make(map[string]bool, len(readings))
 	for _, pt := range readings {
@@ -393,12 +400,16 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.deviceCount = len(uniqueDevices)
 	p.agentInfo.WithLabelValues(p.version, p.deviceName).Set(1)
 	for _, pt := range readings {
-		p.updatePoint(pt)
+		var score *scoring.RiskScoreOutput
+		if sc, ok := scoresByDevice[p.deviceID(pt)]; ok {
+			score = &sc
+		}
+		p.updatePoint(pt, score)
 	}
 	return nil
 }
 
-func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
+func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint, score *scoring.RiskScoreOutput) {
 	deviceID := p.deviceID(pt)
 	deviceModel := p.deviceModel(pt)
 	spec := registry.Lookup(registry.NormalizeModelName(deviceModel))
@@ -489,42 +500,72 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 		p.deviceUptimeSeconds.With(deviceIDLbls).Set(v)
 	}
 
-	// Risk placeholders (OSS-003 fills in)
-	p.riskComposite.With(deviceBehaviorLbls).Set(0)
-	p.riskThermal.With(deviceIDLbls).Set(0)
-	p.riskPower.With(deviceIDLbls).Set(0)
-	p.riskVolatility.With(deviceIDLbls).Set(0)
-	p.riskFleetPenalty.With(deviceIDLbls).Set(0)
-	p.riskSeverity.With(deviceIDLbls).Set(0)
-	p.riskWarmingUp.With(deviceIDLbls).Set(0)
-
-	// Bonus — use full GPU labels for joinability
-	if used, ok1 := m["mem_used_bytes"]; ok1 {
-		if total, ok2 := m["mem_total_bytes"]; ok2 && total > 0 {
-			p.gpuMemPressureRatio.With(gpuLbls).Set(used / total)
+	// Risk scores — from scoring engine when available
+	if score != nil {
+		p.riskComposite.With(deviceBehaviorLbls).Set(score.Composite)
+		p.riskThermal.With(deviceIDLbls).Set(score.Thermal)
+		p.riskPower.With(deviceIDLbls).Set(score.Power)
+		p.riskVolatility.With(deviceIDLbls).Set(score.Volatility)
+		p.riskFleetPenalty.With(deviceIDLbls).Set(score.FleetPenalty)
+		sev := 0.0
+		switch score.Severity {
+		case scoring.SeverityWarning:
+			sev = 1
+		case scoring.SeverityCritical:
+			sev = 2
 		}
-	}
-	if sm, ok1 := m["sm_clock_mhz"]; ok1 {
-		if max, ok2 := m["sm_clock_max_mhz"]; ok2 && max > 0 {
-			p.gpuClockEfficiency.With(gpuLbls).Set(sm / max)
+		p.riskSeverity.With(deviceIDLbls).Set(sev)
+		warm := 0.0
+		if score.WarmingUp {
+			warm = 1
 		}
-	}
-	if power, ok := m["power_usage_w"]; ok {
-		rate := p.electricityRatePerKWh / 1000
-		hourly := power * rate
-		p.powerCostHourly.With(deviceIDLbls).Set(hourly)
-		p.powerCostDaily.With(deviceIDLbls).Set(hourly * 24)
-		p.powerCostMonthly.With(deviceIDLbls).Set(hourly * 24 * 30)
-	}
-	// Hotspot delta: junction - edge if both available, -1 otherwise
-	if j, ok1 := m["temperature_junction_c"]; ok1 {
-		if e, ok2 := m["temperature_edge"]; ok2 {
-			p.gpuHotspotDeltaC.With(gpuLbls).Set(j - e)
+		p.riskWarmingUp.With(deviceIDLbls).Set(warm)
+		p.gpuMemPressureRatio.With(gpuLbls).Set(score.MemoryPressure)
+		p.gpuClockEfficiency.With(gpuLbls).Set(score.ClockEfficiency)
+		p.powerCostHourly.With(deviceIDLbls).Set(score.PowerCostHourly)
+		p.powerCostDaily.With(deviceIDLbls).Set(score.PowerCostDaily)
+		p.powerCostMonthly.With(deviceIDLbls).Set(score.PowerCostMonthly)
+		p.gpuHotspotDeltaC.With(gpuLbls).Set(score.HotspotDeltaC)
+		throttle := 0.0
+		if score.ThrottleActive {
+			throttle = 1
+		}
+		p.gpuThrottleActive.With(gpuLbls).Set(throttle)
+	} else {
+		p.riskComposite.With(deviceBehaviorLbls).Set(0)
+		p.riskThermal.With(deviceIDLbls).Set(0)
+		p.riskPower.With(deviceIDLbls).Set(0)
+		p.riskVolatility.With(deviceIDLbls).Set(0)
+		p.riskFleetPenalty.With(deviceIDLbls).Set(0)
+		p.riskSeverity.With(deviceIDLbls).Set(0)
+		p.riskWarmingUp.With(deviceIDLbls).Set(0)
+		// Bonus fallbacks from metrics
+		if used, ok1 := m["mem_used_bytes"]; ok1 {
+			if total, ok2 := m["mem_total_bytes"]; ok2 && total > 0 {
+				p.gpuMemPressureRatio.With(gpuLbls).Set(used / total)
+			}
+		}
+		if sm, ok1 := m["sm_clock_mhz"]; ok1 {
+			if max, ok2 := m["sm_clock_max_mhz"]; ok2 && max > 0 {
+				p.gpuClockEfficiency.With(gpuLbls).Set(sm / max)
+			}
+		}
+		if power, ok := m["power_usage_w"]; ok {
+			rate := p.electricityRatePerKWh / 1000
+			hourly := power * rate
+			p.powerCostHourly.With(deviceIDLbls).Set(hourly)
+			p.powerCostDaily.With(deviceIDLbls).Set(hourly * 24)
+			p.powerCostMonthly.With(deviceIDLbls).Set(hourly * 24 * 30)
+		}
+		if j, ok1 := m["temperature_junction_c"]; ok1 {
+			if e, ok2 := m["temperature_edge"]; ok2 {
+				p.gpuHotspotDeltaC.With(gpuLbls).Set(j - e)
+			} else {
+				p.gpuHotspotDeltaC.With(gpuLbls).Set(-1)
+			}
 		} else {
 			p.gpuHotspotDeltaC.With(gpuLbls).Set(-1)
 		}
-	} else {
-		p.gpuHotspotDeltaC.With(gpuLbls).Set(-1)
 	}
 }
 
