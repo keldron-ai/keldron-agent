@@ -210,6 +210,10 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 
 	// Device model (string becomes tag in normalizer)
 	metrics["gpu_model"] = a.chipName
+	// Device metadata (strings -> Tags) for Prometheus labels
+	metrics["device_model"] = a.chipName
+	metrics["behavior_class"] = a.spec.BehaviorClass
+	metrics["device_vendor"] = a.spec.Vendor
 	metrics["gpu_id"] = 0.0
 
 	// IOKit metrics (GPU util, power, SoC temp)
