@@ -294,7 +294,6 @@ func telemetryToPeerDevices(readings []normalizer.TelemetryPoint, scores []scori
 				DeviceModel:   model,
 				DeviceVendor:  "",
 				BehaviorClass: "",
-				LastUpdated:   time.Now(),
 			}
 			if pt.Tags != nil {
 				if v, ok := pt.Tags["device_vendor"]; ok {
@@ -306,6 +305,7 @@ func telemetryToPeerDevices(readings []normalizer.TelemetryPoint, scores []scori
 			}
 			devicesByID[deviceID] = d
 		}
+		d.LastUpdated = time.Now()
 
 		m := pt.Metrics
 		if m == nil {
