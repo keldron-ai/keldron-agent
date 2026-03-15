@@ -231,6 +231,9 @@ int initIOKit(void) {
 	CFMutableDictionaryRef subsystem = NULL;
 	g_subscription = IOReportCreateSubscription(NULL, g_channels, &subsystem, 0, NULL);
 
+	if (subsystem != NULL)
+		CFRelease(subsystem);
+
 	if (g_subscription == NULL) {
 		CFRelease(g_channels);
 		g_channels = NULL;

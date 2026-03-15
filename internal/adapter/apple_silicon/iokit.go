@@ -41,9 +41,10 @@ type IOKitReading struct {
 }
 
 var (
-	initOnce    sync.Once
-	initOk      bool
-	cleanupOnce sync.Once
+	initOnce sync.Once
+	initOk   bool
+	mu       sync.Mutex
+	cleaned  bool
 )
 
 // ReadIOKit reads GPU utilization, power, and SoC temperature via IOKit/IOReport.
@@ -84,9 +85,16 @@ func ReadIOKit(logger *slog.Logger) *IOKitReading {
 }
 
 // CleanupIOKit releases the IOReport subscription and SMC connection.
-// Call from adapter Stop() for graceful shutdown. Idempotent.
+// Call from adapter Stop() for graceful shutdown. Safe to call multiple
+// times; resets initOnce so a subsequent ReadIOKit can re-initialize.
 func CleanupIOKit() {
-	cleanupOnce.Do(func() {
-		C.cleanupIOKit()
-	})
+	mu.Lock()
+	defer mu.Unlock()
+	if !initOk && !cleaned {
+		return
+	}
+	C.cleanupIOKit()
+	initOk = false
+	initOnce = sync.Once{}
+	cleaned = true
 }

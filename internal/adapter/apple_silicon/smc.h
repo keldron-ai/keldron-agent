@@ -5,7 +5,11 @@
 #ifndef SMC_H
 #define SMC_H
 
+#ifdef __APPLE__
 #include <IOKit/IOKitLib.h>
+#else
+#error "smc.h requires macOS (IOKit)"
+#endif
 
 #define KERNEL_INDEX_SMC 2
 

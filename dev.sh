@@ -1,13 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Kill any stale agent process
-STALE_PIDS=$(pgrep -f keldron-agent 2>/dev/null || true)
-if [ -n "$STALE_PIDS" ]; then
-    echo "🧹 Killing stale agent process(es): $STALE_PIDS"
-    kill $STALE_PIDS 2>/dev/null
-    sleep 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/scripts/common.sh"
+
+cleanup_stale_agent
 
 echo "═══════════════════════════════════════════"
 echo "  Keldron Agent — Local Dev Runner"
