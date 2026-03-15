@@ -43,9 +43,13 @@ type Prometheus struct {
 	logger         *slog.Logger
 	activeAdapters []string
 	deviceCount    int
+	gatherer       prometheus.Gatherer
 
 	httpServer *http.Server
 	mu         sync.Mutex
+
+	// Track previously seen devices for stale metric cleanup
+	previousDeviceIDs map[string]bool
 
 	// Raw telemetry
 	gpuTempC             *prometheus.GaugeVec
@@ -94,12 +98,23 @@ func NewPrometheusWithRegistry(port int, version, deviceName string, reg prometh
 	if logger == nil {
 		logger = slog.Default()
 	}
+
+	// Determine the matching gatherer for the registerer.
+	var gatherer prometheus.Gatherer
+	if g, ok := reg.(prometheus.Gatherer); ok {
+		gatherer = g
+	} else {
+		gatherer = prometheus.DefaultGatherer
+	}
+
 	p := &Prometheus{
-		port:       port,
-		version:    version,
-		deviceName: deviceName,
-		startedAt:  time.Now(),
-		logger:     logger,
+		port:              port,
+		version:           version,
+		deviceName:        deviceName,
+		startedAt:         time.Now(),
+		logger:            logger,
+		gatherer:          gatherer,
+		previousDeviceIDs: make(map[string]bool),
 	}
 	p.registerMetricsWith(reg)
 	return p
@@ -198,15 +213,15 @@ func (p *Prometheus) registerMetricsWith(reg prometheus.Registerer) {
 		Help: "1 if device warming up, 0 otherwise",
 	}, stringsToLabels(deviceIDLabels))
 
-	// Bonus metrics
+	// Bonus metrics — use full GPU labels for joinability with raw GPU metrics
 	p.gpuMemPressureRatio = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_gpu_memory_pressure_ratio",
 		Help: "GPU memory used/total ratio",
-	}, stringsToLabels(deviceIDLabels))
+	}, stringsToLabels(gpuLabels))
 	p.gpuClockEfficiency = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_gpu_clock_efficiency",
 		Help: "GPU clock efficiency ratio",
-	}, stringsToLabels(deviceIDLabels))
+	}, stringsToLabels(gpuLabels))
 	p.powerCostHourly = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_power_cost_hourly",
 		Help: "Estimated power cost per hour",
@@ -222,7 +237,7 @@ func (p *Prometheus) registerMetricsWith(reg prometheus.Registerer) {
 	p.gpuHotspotDeltaC = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_gpu_hotspot_delta_celsius",
 		Help: "Hotspot minus edge temp (NVIDIA only); -1 if unavailable",
-	}, stringsToLabels(deviceIDLabels))
+	}, stringsToLabels(gpuLabels))
 
 	// Agent meta
 	p.agentInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -258,7 +273,7 @@ func stringsToLabels(s string) []string {
 // Handler returns the HTTP handler for testing. Used by Start as well.
 func (p *Prometheus) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.HandlerFor(p.gatherer, promhttp.HandlerOpts{}))
 	mux.HandleFunc("GET /healthz", p.handleHealthz)
 	mux.HandleFunc("GET /api/v1/status", p.handleStatus)
 	return mux
@@ -324,12 +339,47 @@ func (p *Prometheus) SetActiveAdapters(adapters []string) {
 }
 
 // Update applies telemetry points to Prometheus gauges.
+// Clears stale metrics for devices no longer present.
 func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Build set of current device IDs.
+	currentDeviceIDs := make(map[string]bool, len(readings))
+	for _, pt := range readings {
+		currentDeviceIDs[p.deviceID(pt)] = true
+	}
+
+	// Reset all per-device GaugeVecs to clear stale label combinations.
+	p.gpuTempC.Reset()
+	p.gpuHotspotTempC.Reset()
+	p.gpuPowerW.Reset()
+	p.gpuUtilization.Reset()
+	p.gpuMemUsedBytes.Reset()
+	p.gpuMemTotalBytes.Reset()
+	p.gpuClockSMMHz.Reset()
+	p.gpuClockMaxMHz.Reset()
+	p.gpuThrottleActive.Reset()
+	p.cpuTempC.Reset()
+	p.fanSpeedRPM.Reset()
+	p.deviceUptimeSeconds.Reset()
+	p.riskComposite.Reset()
+	p.riskThermal.Reset()
+	p.riskPower.Reset()
+	p.riskVolatility.Reset()
+	p.riskFleetPenalty.Reset()
+	p.riskSeverity.Reset()
+	p.riskWarmingUp.Reset()
+	p.gpuMemPressureRatio.Reset()
+	p.gpuClockEfficiency.Reset()
+	p.powerCostHourly.Reset()
+	p.powerCostDaily.Reset()
+	p.powerCostMonthly.Reset()
+	p.gpuHotspotDeltaC.Reset()
+
 	p.deviceCount = len(readings)
 	p.agentInfo.WithLabelValues(p.version, p.deviceName).Set(1)
+	p.previousDeviceIDs = currentDeviceIDs
 
 	for _, pt := range readings {
 		p.updatePoint(pt)
@@ -345,16 +395,16 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 	behaviorClass := spec.BehaviorClass
 	adapter := pt.AdapterName
 
-	gpuLabels := prometheus.Labels{
+	gpuLbls := prometheus.Labels{
 		"device_model":   deviceModel,
 		"device_vendor":  deviceVendor,
 		"device_id":      deviceID,
 		"behavior_class": behaviorClass,
 		"adapter":        adapter,
 	}
-	deviceLabels := prometheus.Labels{"device_model": deviceModel, "device_id": deviceID}
-	deviceIDLabels := prometheus.Labels{"device_id": deviceID}
-	deviceBehaviorLabels := prometheus.Labels{"device_id": deviceID, "behavior_class": behaviorClass}
+	deviceLbls := prometheus.Labels{"device_model": deviceModel, "device_id": deviceID}
+	deviceIDLbls := prometheus.Labels{"device_id": deviceID}
+	deviceBehaviorLbls := prometheus.Labels{"device_id": deviceID, "behavior_class": behaviorClass}
 
 	m := pt.Metrics
 	if m == nil {
@@ -363,48 +413,48 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 
 	// GPU metrics
 	if v, ok := m["temperature_c"]; ok {
-		p.gpuTempC.With(gpuLabels).Set(v)
+		p.gpuTempC.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["temperature_junction_c"]; ok {
-		p.gpuHotspotTempC.With(gpuLabels).Set(v)
+		p.gpuHotspotTempC.With(gpuLbls).Set(v)
 	} else if v, ok := m["temperature_edge"]; ok {
-		p.gpuHotspotTempC.With(gpuLabels).Set(v)
+		p.gpuHotspotTempC.With(gpuLbls).Set(v)
 	} else if v, ok := m["temperature_c"]; ok {
-		p.gpuHotspotTempC.With(gpuLabels).Set(v)
+		p.gpuHotspotTempC.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["power_usage_w"]; ok {
-		p.gpuPowerW.With(gpuLabels).Set(v)
+		p.gpuPowerW.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["gpu_utilization_pct"]; ok {
-		p.gpuUtilization.With(gpuLabels).Set(v / 100)
+		p.gpuUtilization.With(gpuLbls).Set(v / 100)
 	}
 	if v, ok := m["mem_used_bytes"]; ok {
-		p.gpuMemUsedBytes.With(gpuLabels).Set(v)
+		p.gpuMemUsedBytes.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["mem_total_bytes"]; ok {
-		p.gpuMemTotalBytes.With(gpuLabels).Set(v)
+		p.gpuMemTotalBytes.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["sm_clock_mhz"]; ok {
-		p.gpuClockSMMHz.With(gpuLabels).Set(v)
+		p.gpuClockSMMHz.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["sm_clock_max_mhz"]; ok {
-		p.gpuClockMaxMHz.With(gpuLabels).Set(v)
+		p.gpuClockMaxMHz.With(gpuLbls).Set(v)
 	}
 	if v, ok := m["throttled"]; ok {
 		throttle := 0.0
 		if v > 0 {
 			throttle = 1
 		}
-		p.gpuThrottleActive.With(gpuLabels).Set(throttle)
+		p.gpuThrottleActive.With(gpuLbls).Set(throttle)
 	}
 
 	// CPU temp
 	if v, ok := m["cpu_temp_c"]; ok {
-		p.cpuTempC.With(deviceLabels).Set(v)
+		p.cpuTempC.With(deviceLbls).Set(v)
 	}
 	// Fan
 	if v, ok := m["fan_speed_rpm"]; ok {
-		p.fanSpeedRPM.With(deviceLabels).Set(v)
+		p.fanSpeedRPM.With(deviceLbls).Set(v)
 	}
 
 	// System swap
@@ -416,46 +466,46 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 	}
 	// Uptime
 	if v, ok := m["uptime_seconds"]; ok {
-		p.deviceUptimeSeconds.With(deviceIDLabels).Set(v)
+		p.deviceUptimeSeconds.With(deviceIDLbls).Set(v)
 	}
 
 	// Risk placeholders (OSS-003 fills in)
-	p.riskComposite.With(deviceBehaviorLabels).Set(0)
-	p.riskThermal.With(deviceIDLabels).Set(0)
-	p.riskPower.With(deviceIDLabels).Set(0)
-	p.riskVolatility.With(deviceIDLabels).Set(0)
-	p.riskFleetPenalty.With(deviceIDLabels).Set(0)
-	p.riskSeverity.With(deviceIDLabels).Set(0)
-	p.riskWarmingUp.With(deviceIDLabels).Set(0)
+	p.riskComposite.With(deviceBehaviorLbls).Set(0)
+	p.riskThermal.With(deviceIDLbls).Set(0)
+	p.riskPower.With(deviceIDLbls).Set(0)
+	p.riskVolatility.With(deviceIDLbls).Set(0)
+	p.riskFleetPenalty.With(deviceIDLbls).Set(0)
+	p.riskSeverity.With(deviceIDLbls).Set(0)
+	p.riskWarmingUp.With(deviceIDLbls).Set(0)
 
-	// Bonus
+	// Bonus — use full GPU labels for joinability
 	if used, ok1 := m["mem_used_bytes"]; ok1 {
 		if total, ok2 := m["mem_total_bytes"]; ok2 && total > 0 {
-			p.gpuMemPressureRatio.With(deviceIDLabels).Set(used / total)
+			p.gpuMemPressureRatio.With(gpuLbls).Set(used / total)
 		}
 	}
 	if sm, ok1 := m["sm_clock_mhz"]; ok1 {
 		if max, ok2 := m["sm_clock_max_mhz"]; ok2 && max > 0 {
-			p.gpuClockEfficiency.With(deviceIDLabels).Set(sm / max)
+			p.gpuClockEfficiency.With(gpuLbls).Set(sm / max)
 		}
 	}
 	if power, ok := m["power_usage_w"]; ok {
 		// Assume 0.12 $/kWh
 		rate := 0.12 / 1000
 		hourly := power * rate
-		p.powerCostHourly.With(deviceIDLabels).Set(hourly)
-		p.powerCostDaily.With(deviceIDLabels).Set(hourly * 24)
-		p.powerCostMonthly.With(deviceIDLabels).Set(hourly * 24 * 30)
+		p.powerCostHourly.With(deviceIDLbls).Set(hourly)
+		p.powerCostDaily.With(deviceIDLbls).Set(hourly * 24)
+		p.powerCostMonthly.With(deviceIDLbls).Set(hourly * 24 * 30)
 	}
 	// Hotspot delta: junction - edge if both available, -1 otherwise
 	if j, ok1 := m["temperature_junction_c"]; ok1 {
 		if e, ok2 := m["temperature_edge"]; ok2 {
-			p.gpuHotspotDeltaC.With(deviceIDLabels).Set(j - e)
+			p.gpuHotspotDeltaC.With(gpuLbls).Set(j - e)
 		} else {
-			p.gpuHotspotDeltaC.With(deviceIDLabels).Set(-1)
+			p.gpuHotspotDeltaC.With(gpuLbls).Set(-1)
 		}
 	} else {
-		p.gpuHotspotDeltaC.With(deviceIDLabels).Set(-1)
+		p.gpuHotspotDeltaC.With(gpuLbls).Set(-1)
 	}
 }
 
@@ -467,14 +517,20 @@ func (p *Prometheus) deviceID(pt normalizer.TelemetryPoint) string {
 }
 
 func (p *Prometheus) deviceModel(pt normalizer.TelemetryPoint) string {
-	// gpu_name is typically a string from adapters, so normalizer drops it (Metrics is float64).
-	// OSS-003 or normalizer enhancement could add device_model.
-	if pt.Metrics == nil {
-		return "unknown"
+	// Check Tags for string metadata preserved from adapters.
+	if pt.Tags != nil {
+		for _, k := range []string{"gpu_name", "gpu_model", "model", "device_model"} {
+			if v, ok := pt.Tags[k]; ok && v != "" {
+				return v
+			}
+		}
 	}
-	for _, k := range []string{"gpu_name", "model", "device_model"} {
-		if v, ok := pt.Metrics[k]; ok {
-			return strconv.FormatFloat(v, 'f', -1, 64)
+	// Fallback to numeric Metrics (unlikely but defensive).
+	if pt.Metrics != nil {
+		for _, k := range []string{"gpu_name", "model", "device_model"} {
+			if v, ok := pt.Metrics[k]; ok {
+				return strconv.FormatFloat(v, 'f', -1, 64)
+			}
 		}
 	}
 	return "unknown"

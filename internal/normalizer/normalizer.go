@@ -170,15 +170,23 @@ func (n *Normalizer) process(reading adapter.RawReading) {
 		)
 	}
 
-	// Coerce metrics to float64.
+	// Coerce metrics to float64; preserve string values as tags.
 	metrics := make(map[string]float64, len(reading.Metrics))
+	var tags map[string]string
 	for key, val := range reading.Metrics {
 		f, ok := CoerceToFloat64(val)
 		if !ok {
-			n.logger.Debug("skipping non-numeric metric",
-				"key", key,
-				"type", typeString(val),
-			)
+			if s, isStr := val.(string); isStr {
+				if tags == nil {
+					tags = make(map[string]string)
+				}
+				tags[key] = s
+			} else {
+				n.logger.Debug("skipping non-numeric metric",
+					"key", key,
+					"type", typeString(val),
+				)
+			}
 			continue
 		}
 		metrics[key] = f
@@ -193,6 +201,7 @@ func (n *Normalizer) process(reading adapter.RawReading) {
 		Timestamp:   reading.Timestamp,
 		ReceivedAt:  time.Now(),
 		Metrics:     metrics,
+		Tags:        tags,
 	}
 
 	// Blocking send — applies backpressure to adapters rather than dropping data.

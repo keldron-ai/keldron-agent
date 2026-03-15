@@ -155,13 +155,15 @@ func run() int {
 			slog.Info("running in local mode — Prometheus metrics disabled, stdout output only")
 		}
 
+		// Build adapter name list once for all outputs.
+		activeAdapters := make([]string, 0, len(running))
+		for _, a := range running {
+			activeAdapters = append(activeAdapters, a.Name())
+		}
+
 		// Build outputs
 		if cfg.Output.Prometheus {
 			prom := output.NewPrometheus(cfg.Output.PrometheusPort, version, cfg.Agent.DeviceName, logger.With("component", "prometheus"))
-			activeAdapters := make([]string, 0, len(running))
-			for _, a := range running {
-				activeAdapters = append(activeAdapters, a.Name())
-			}
 			prom.SetActiveAdapters(activeAdapters)
 			outputs = append(outputs, prom)
 			go func() {
@@ -171,10 +173,6 @@ func run() int {
 			}()
 		}
 		if cfg.Output.Stdout {
-			activeAdapters := make([]string, 0, len(running))
-			for _, a := range running {
-				activeAdapters = append(activeAdapters, a.Name())
-			}
 			std := output.NewStdout(os.Stdout, version, activeAdapters)
 			outputs = append(outputs, std)
 		}
@@ -314,7 +312,9 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				// Channel closed, flush remaining
 				if len(batch) > 0 {
 					for _, out := range outputs {
-						_ = out.Update(batch)
+						if err := out.Update(batch); err != nil {
+							logger.Error("output update error on channel close", "error", err)
+						}
 					}
 				}
 				return
@@ -332,7 +332,9 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 		case <-ctx.Done():
 			if len(batch) > 0 {
 				for _, out := range outputs {
-					_ = out.Update(batch)
+					if err := out.Update(batch); err != nil {
+						logger.Error("output update error on shutdown", "error", err)
+					}
 				}
 			}
 			return

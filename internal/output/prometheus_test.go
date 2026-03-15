@@ -5,6 +5,7 @@ package output
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 )
@@ -47,12 +47,8 @@ func TestPrometheus_UpdateAndScrape(t *testing.T) {
 		t.Fatalf("Update: %v", err)
 	}
 
-	// Use httptest to serve the handler. Must use promhttp.HandlerFor with our registry.
-	handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
-	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", handler)
-	mux.HandleFunc("GET /healthz", p.handleHealthz)
-	srv := httptest.NewServer(mux)
+	// Use the handler which now uses the injected gatherer.
+	srv := httptest.NewServer(p.Handler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/metrics")
@@ -61,9 +57,11 @@ func TestPrometheus_UpdateAndScrape(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	body := make([]byte, 64*1024)
-	n, _ := resp.Body.Read(body)
-	metrics := string(body[:n])
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading response body: %v", err)
+	}
+	metrics := string(b)
 
 	if !strings.Contains(metrics, "keldron_gpu_temperature_celsius") {
 		t.Error("expected keldron_gpu_temperature_celsius in /metrics output")
@@ -82,14 +80,10 @@ func TestPrometheus_UpdateAndScrape(t *testing.T) {
 func TestPrometheus_Healthz(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	p := NewPrometheusWithRegistry(0, "0.1.0-dev", "test", reg, nil)
-	// Create a test server with the same mux we'd use
-	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	mux.HandleFunc("GET /healthz", p.handleHealthz)
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
+	p.Handler().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("healthz status = %d, want 200", rec.Code)

@@ -5,6 +5,7 @@ package output
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -56,7 +57,7 @@ func TestStdout_Update_JSONSchema(t *testing.T) {
 	if out.Devices[0].DeviceID == "" {
 		t.Error("expected device_id")
 	}
-	if out.Devices[0].TemperatureC != 72.5 {
+	if out.Devices[0].TemperatureC == nil || *out.Devices[0].TemperatureC != 72.5 {
 		t.Errorf("temperature_c = %v, want 72.5", out.Devices[0].TemperatureC)
 	}
 	if out.Agent.Version != "0.1.0-dev" {
@@ -142,8 +143,9 @@ func TestStdout_SetActiveAdapters(t *testing.T) {
 }
 
 func TestStdout_StartAndClose(t *testing.T) {
-	std := NewStdout(nil, "0.1.0-dev", nil)
-	if err := std.Start(nil); err != nil {
+	var buf bytes.Buffer
+	std := NewStdout(&buf, "0.1.0-dev", nil)
+	if err := std.Start(context.Background()); err != nil {
 		t.Errorf("Start = %v", err)
 	}
 	if err := std.Close(); err != nil {

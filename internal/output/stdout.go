@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -24,13 +25,13 @@ type StdoutLine struct {
 
 // StdoutDevice represents one device in the output.
 type StdoutDevice struct {
-	DeviceID      string  `json:"device_id"`
-	DeviceModel   string  `json:"device_model"`
-	TemperatureC  float64 `json:"temperature_c,omitempty"`
-	PowerW        float64 `json:"power_w,omitempty"`
-	Utilization   float64 `json:"utilization,omitempty"`
-	RiskComposite float64 `json:"risk_composite,omitempty"`
-	RiskSeverity  string  `json:"risk_severity,omitempty"`
+	DeviceID      string   `json:"device_id"`
+	DeviceModel   string   `json:"device_model"`
+	TemperatureC  *float64 `json:"temperature_c,omitempty"`
+	PowerW        *float64 `json:"power_w,omitempty"`
+	Utilization   *float64 `json:"utilization,omitempty"`
+	RiskComposite *float64 `json:"risk_composite,omitempty"`
+	RiskSeverity  string   `json:"risk_severity,omitempty"`
 }
 
 // StdoutAgent holds agent metadata.
@@ -52,7 +53,7 @@ type Stdout struct {
 // NewStdout creates a Stdout output that writes to w (default os.Stdout).
 func NewStdout(w io.Writer, version string, activeAdapters []string) *Stdout {
 	if w == nil {
-		w = io.Discard
+		w = os.Stdout
 	}
 	return &Stdout{
 		writer:         w,
@@ -107,6 +108,10 @@ func (s *Stdout) Update(readings []normalizer.TelemetryPoint) error {
 	return err
 }
 
+func float64Ptr(v float64) *float64 {
+	return &v
+}
+
 func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint) StdoutDevice {
 	deviceID := deviceIDFromPoint(pt)
 	deviceModel := deviceModelFromPoint(pt)
@@ -118,17 +123,17 @@ func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint) StdoutDevice {
 
 	if m := pt.Metrics; m != nil {
 		if v, ok := m["temperature_c"]; ok {
-			dev.TemperatureC = v
+			dev.TemperatureC = float64Ptr(v)
 		}
 		if v, ok := m["power_usage_w"]; ok {
-			dev.PowerW = v
+			dev.PowerW = float64Ptr(v)
 		}
 		if v, ok := m["gpu_utilization_pct"]; ok {
-			dev.Utilization = v / 100
+			dev.Utilization = float64Ptr(v / 100)
 		}
 		// Risk placeholders (OSS-003 fills in)
 		if v, ok := m["risk_composite"]; ok {
-			dev.RiskComposite = v
+			dev.RiskComposite = float64Ptr(v)
 		}
 		if v, ok := m["risk_severity"]; ok {
 			dev.RiskSeverity = severityString(v)
@@ -152,8 +157,14 @@ func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
 }
 
 func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {
-	// gpu_name is typically a string from adapters, so normalizer drops it (Metrics is float64).
-	// OSS-003 or normalizer enhancement could add device_model.
+	// Check Tags for string metadata preserved from adapters.
+	if pt.Tags != nil {
+		for _, k := range []string{"gpu_name", "gpu_model", "model", "device_model"} {
+			if v, ok := pt.Tags[k]; ok && v != "" {
+				return v
+			}
+		}
+	}
 	return "unknown"
 }
 
