@@ -6,7 +6,7 @@ This document provides a comprehensive onboarding briefing for new contributors.
 
 ## 1. Directory Structure (Go Files)
 
-```
+```text
 ./cmd/agent/bridge_test.go
 ./cmd/agent/main.go
 ./cmd/agent/register_darwin_arm64.go
@@ -45,7 +45,7 @@ This document provides a comprehensive onboarding briefing for new contributors.
 4. **Config holder:** `config.NewHolder(cfg)` for hot-reload
 5. **Adapter registry:**
    - Platform-specific adapters (e.g. `apple_silicon` on darwin/arm64)
-   - Global adapters: `dcgm`, `rocm`, `fake`, `kubernetes`, `slurm`, `temperature`, `snmp_pdu`
+   - Global adapters: `dcgm`, `rocm`, `fake`, `kubernetes`, `slurm`, `temperature`, `snmp_pdu`, `nvidia_consumer` (linux/windows)
 6. **Config watcher:** `config.NewWatcher()` watches the config file for reloads
 7. **Adapters:** `registry.StartAll()` starts enabled adapters
 8. **Normalizer:** Consumes all adapter `Readings()` channels and emits `TelemetryPoint`
@@ -187,7 +187,7 @@ Strings in `Metrics` become `Tags` in `TelemetryPoint`: `gpu_model`, `device_mod
 
 ### Adapter Map
 
-`ToAdapterMap()` converts these to `AdapterConfig{Enabled, PollInterval, Endpoint, Raw}` for the registry. Only enabled adapters are started; registry skips adapters not registered (e.g. `linux_thermal`, `nvidia_consumer` if not implemented).
+`ToAdapterMap()` converts these to `AdapterConfig{Enabled, PollInterval, Endpoint, Raw}` for the registry. Only enabled adapters are started; registry skips adapters not registered (e.g. `linux_thermal`; `nvidia_consumer` is registered on linux/windows).
 
 ---
 
@@ -266,7 +266,7 @@ Prometheus client, gRPC tooling, Kubernetes support.
 
 ## Data Flow: Hardware Sensor → Prometheus
 
-```
+```text
 Hardware (IOKit, DCGM, rocm-smi, SNMP, etc.)
     → Adapter (poll loop, reads channels)
     → RawReading (Source, AdapterName, Timestamp, Metrics)
@@ -288,7 +288,7 @@ Hardware (IOKit, DCGM, rocm-smi, SNMP, etc.)
 | `slurm`         | Slurm clusters |
 | `temperature`   | SNMP/Modbus temperature sensors |
 | `snmp_pdu`      | PDU power via SNMP |
-| `nvidia_consumer` | (config only; not registered) |
+| `nvidia_consumer` | linux/windows (nvidia-smi-based NVIDIA metrics) |
 | `linux_thermal` | (config only; not registered) |
 
 ## Metric Keys for Prometheus Compatibility

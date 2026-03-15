@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	channelBuffer       = 256
+	channelBuffer        = 256
 	defaultNvidiaSMIPath = "nvidia-smi"
-	defaultPollInterval = 10 * time.Second
+	defaultPollInterval  = 10 * time.Second
 )
 
 // NvidiaConsumerAdapter polls NVIDIA consumer GPU metrics via nvidia-smi CLI.
@@ -154,6 +154,15 @@ func (a *NvidiaConsumerAdapter) Start(ctx context.Context) error {
 		a.mu.Lock()
 		a.unsubscribe = unsub
 		a.mu.Unlock()
+		defer func() {
+			a.mu.Lock()
+			unsubscribe := a.unsubscribe
+			a.unsubscribe = nil
+			a.mu.Unlock()
+			if unsubscribe != nil {
+				unsubscribe()
+			}
+		}()
 	}
 
 	a.logger.Info("NVIDIA consumer adapter polling started",
@@ -249,20 +258,18 @@ func (a *NvidiaConsumerAdapter) toRawReading(nr NvidiaReading) adapter.RawReadin
 	spec := registry.LookupWithFallback(modelKey, nr.TempLimitC, nr.PowerLimitW)
 
 	metrics := map[string]interface{}{
-		"gpu_id":               nr.Index,
-		"device_model":         modelKey,
-		"device_vendor":        spec.Vendor,
+		"gpu_id":              nr.Index,
+		"device_model":        modelKey,
+		"device_vendor":       spec.Vendor,
 		"behavior_class":      spec.BehaviorClass,
-		"pci_bus_id":           nr.PCIBusID,
-		"temperature_c":        nr.TemperatureC,
-		"temperature_junction_c": -1, // RTX consumer GPUs: nvidia-smi doesn't report hotspot
-		"power_usage_w":        nr.PowerDrawW,
-		"gpu_utilization_pct":  nr.GPUUtil,
-		"mem_used_bytes":       nr.MemUsedMB * 1024 * 1024,
+		"pci_bus_id":          nr.PCIBusID,
+		"temperature_c":       nr.TemperatureC,
+		"power_usage_w":       nr.PowerDrawW,
+		"gpu_utilization_pct": nr.GPUUtil,
+		"mem_used_bytes":      nr.MemUsedMB * 1024 * 1024,
 		"mem_total_bytes":     nr.MemTotalMB * 1024 * 1024,
 		"sm_clock_mhz":        nr.ClockSMMHz,
 		"sm_clock_max_mhz":    nr.ClockMaxMHz,
-		"fan_speed_pct":       nr.FanSpeedPct,
 	}
 
 	active, reason := MapThrottleReason(nr.ThrottleReason)

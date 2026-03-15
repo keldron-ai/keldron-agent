@@ -34,8 +34,8 @@ const (
 
 // NvidiaCollector collects GPU metrics by executing nvidia-smi.
 type NvidiaCollector struct {
-	smiPath     string
-	gpuIndices  []int
+	smiPath    string
+	gpuIndices []int
 }
 
 // NewNvidiaCollector creates a collector that uses the nvidia-smi CLI.
@@ -56,7 +56,7 @@ type NvidiaReading struct {
 	Index          int
 	Name           string
 	TemperatureC   float64
-	TempLimitC      float64
+	TempLimitC     float64
 	GPUUtil        float64
 	MemUtil        float64
 	MemUsedMB      float64
@@ -150,7 +150,12 @@ func parseNvidiaSmiCSV(data []byte) ([]NvidiaReading, error) {
 
 		r := NvidiaReading{}
 
-		r.Index = parseNAInt(rec[0], 0)
+		indexRaw := strings.TrimSpace(rec[0])
+		index, err := strconv.Atoi(indexRaw)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: invalid gpu index %q: %w", i+1, rec[0], err)
+		}
+		r.Index = index
 		r.Name = strings.TrimSpace(rec[1])
 		r.TemperatureC = parseNAFloat(rec[2], 0)
 		r.TempLimitC = parseNAFloat(rec[3], 0)
@@ -183,18 +188,6 @@ func parseNAFloat(s string, defaultVal float64) float64 {
 		return defaultVal
 	}
 	return f
-}
-
-func parseNAInt(s string, defaultVal int) int {
-	s = strings.TrimSpace(s)
-	if s == "" || strings.EqualFold(s, "[N/A]") {
-		return defaultVal
-	}
-	i, err := strconv.Atoi(s)
-	if err != nil {
-		return defaultVal
-	}
-	return i
 }
 
 func parseNAThrottle(s string) uint64 {

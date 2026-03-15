@@ -7,6 +7,7 @@ package nvidia_consumer
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 )
 
@@ -174,7 +175,9 @@ func TestResolveNvidiaSMIPath(t *testing.T) {
 func TestCollectNvidiaSmi_NoExec(t *testing.T) {
 	// Use a non-existent path - should fail
 	ctx := context.Background()
-	_, err := CollectNvidiaSmi(ctx, "/nonexistent/nvidia-smi-path-xyz", nil)
+	tempDir := t.TempDir()
+	missingPath := filepath.Join(tempDir, "nvidia-smi-missing")
+	_, err := CollectNvidiaSmi(ctx, missingPath, nil)
 	if err == nil {
 		t.Fatal("CollectNvidiaSmi with bad path should fail")
 	}
