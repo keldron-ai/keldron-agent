@@ -3,9 +3,12 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoad_ValidConfig(t *testing.T) {
@@ -19,6 +22,8 @@ adapters:
     enabled: true
     poll_interval: "10s"
     endpoint: "localhost:5555"
+output:
+  prometheus: true
 rack_mapping:
   node-01: "rack-A1"
 sender:
@@ -72,9 +77,13 @@ health:
 }
 
 func TestLoad_MissingFile(t *testing.T) {
-	_, err := Load("/nonexistent/config.yaml")
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
+	// OSS-004: Missing file uses defaults with auto-detection (no error).
+	cfg, err := Load("/nonexistent/config.yaml")
+	if err != nil {
+		t.Fatalf("expected no error for missing file (use defaults), got %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected config from defaults, got nil")
 	}
 }
 
@@ -93,6 +102,13 @@ agent:
   id: "test"
   log_level: "verbose"
   shutdown_timeout: "10s"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+sender:
+  target: "localhost:50051"
 `
 	path := writeTemp(t, content)
 
@@ -105,15 +121,26 @@ agent:
 func TestLoad_MissingAgentID(t *testing.T) {
 	content := `
 agent:
-  id: ""
+  device_name: ""
   log_level: "info"
   shutdown_timeout: "10s"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+sender:
+  target: "localhost:50051"
 `
 	path := writeTemp(t, content)
 
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error for empty agent.id, got nil")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// ID is derived from hostname when device_name and id are empty.
+	if cfg.Agent.ID == "" {
+		t.Error("agent.id should be derived from hostname when empty")
 	}
 }
 
@@ -123,6 +150,13 @@ agent:
   id: "minimal"
   log_level: "info"
   shutdown_timeout: "5s"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+sender:
+  target: "localhost:50051"
 `
 	path := writeTemp(t, content)
 
@@ -143,6 +177,7 @@ agent:
 func TestHolder_Get(t *testing.T) {
 	cfg1 := Defaults()
 	cfg1.Agent.ID = "first"
+	cfg1.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 
 	holder := NewHolder(cfg1)
 	if got := holder.Get().Agent.ID; got != "first" {
@@ -153,6 +188,7 @@ func TestHolder_Get(t *testing.T) {
 func TestHolder_Update_ValidConfig_NotifiesSubscribers(t *testing.T) {
 	cfg1 := Defaults()
 	cfg1.Agent.ID = "first"
+	cfg1.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 	holder := NewHolder(cfg1)
 
 	notified := false
@@ -164,6 +200,7 @@ func TestHolder_Update_ValidConfig_NotifiesSubscribers(t *testing.T) {
 
 	cfg2 := Defaults()
 	cfg2.Agent.ID = "second"
+	cfg2.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 	if err := holder.Update(cfg2); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -182,10 +219,12 @@ func TestHolder_Update_ValidConfig_NotifiesSubscribers(t *testing.T) {
 func TestHolder_Update_InvalidConfig_ReturnsError_KeepsOldConfig(t *testing.T) {
 	cfg1 := Defaults()
 	cfg1.Agent.ID = "first"
+	cfg1.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 	holder := NewHolder(cfg1)
 
 	cfg2 := Defaults()
 	cfg2.Agent.ID = "" // invalid
+	cfg2.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 	err := holder.Update(cfg2)
 	if err == nil {
 		t.Fatal("expected error for invalid config, got nil")
@@ -203,6 +242,7 @@ func TestValidate(t *testing.T) {
 		c.Agent.ShutdownTimeout = 10 * time.Second
 		c.Sender.Target = "localhost:443"
 		c.Buffer.RingSize = 1000
+		c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 		return c
 	}
 
@@ -239,9 +279,10 @@ func TestValidate(t *testing.T) {
 			wantErr: "poll_interval",
 		},
 		{
-			name:   "empty sender target when adapter enabled",
+			name:   "empty sender target and cloud key when adapter enabled",
 			modify: func(c *Config) {
 				c.Sender.Target = ""
+				c.Cloud.APIKey = ""
 				c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 			},
 			wantErr: "sender.target",
@@ -276,6 +317,7 @@ func TestValidate(t *testing.T) {
 func TestHolder_ConcurrentGetUpdate(t *testing.T) {
 	cfg := Defaults()
 	cfg.Agent.ID = "initial"
+	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 	holder := NewHolder(cfg)
 
 	done := make(chan bool)
@@ -289,6 +331,7 @@ func TestHolder_ConcurrentGetUpdate(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			c := Defaults()
 			c.Agent.ID = "concurrent"
+			c.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
 			_ = holder.Update(c)
 		}
 		done <- true
@@ -313,6 +356,8 @@ adapters:
     collect:
       temperature: true
       power: true
+output:
+  prometheus: true
 sender:
   target: "platform.example.com:443"
 `
@@ -359,6 +404,267 @@ sender:
 	}
 	if !specific.Collect.Power {
 		t.Error("collect.power = false, want true")
+	}
+}
+
+func TestLoad_EnvOverride(t *testing.T) {
+	content := `
+agent:
+  id: "from-yaml"
+  log_level: "info"
+  poll_interval: "60s"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9090
+sender:
+  target: "localhost:50051"
+`
+	path := writeTemp(t, content)
+
+	os.Setenv("KELDRON_AGENT_LOG_LEVEL", "debug")
+	os.Setenv("KELDRON_AGENT_POLL_INTERVAL", "10s")
+	os.Setenv("KELDRON_OUTPUT_PROMETHEUS_PORT", "9200")
+	defer func() {
+		os.Unsetenv("KELDRON_AGENT_LOG_LEVEL")
+		os.Unsetenv("KELDRON_AGENT_POLL_INTERVAL")
+		os.Unsetenv("KELDRON_OUTPUT_PROMETHEUS_PORT")
+	}()
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Agent.LogLevel != "debug" {
+		t.Errorf("log_level = %q, want debug (env override)", cfg.Agent.LogLevel)
+	}
+	if cfg.Agent.PollInterval != 10*time.Second {
+		t.Errorf("poll_interval = %v, want 10s (env override)", cfg.Agent.PollInterval)
+	}
+	if cfg.Output.PrometheusPort != 9200 {
+		t.Errorf("prometheus_port = %d, want 9200 (env override)", cfg.Output.PrometheusPort)
+	}
+
+	// Boolean env override
+	os.Setenv("KELDRON_OUTPUT_STDOUT", "true")
+	defer os.Unsetenv("KELDRON_OUTPUT_STDOUT")
+	cfg2, _ := Load(path)
+	if !cfg2.Output.Stdout {
+		t.Error("output.stdout should be true via env override")
+	}
+}
+
+func TestLoad_InvalidPollInterval(t *testing.T) {
+	content := `
+agent:
+  id: "test"
+  log_level: "info"
+  poll_interval: "1s"
+  shutdown_timeout: "10s"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+sender:
+  target: "localhost:50051"
+`
+	path := writeTemp(t, content)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for poll_interval < 5s, got nil")
+	}
+	if !strings.Contains(err.Error(), "poll_interval") {
+		t.Errorf("error %q does not mention poll_interval", err.Error())
+	}
+}
+
+func TestLoad_NoAdaptersEnabled(t *testing.T) {
+	// Explicitly disable all auto-detectable adapters so none are enabled.
+	content := `
+agent:
+  id: "test"
+  log_level: "info"
+adapters:
+  apple_silicon:
+    enabled: false
+  nvidia_consumer:
+    enabled: false
+  dcgm:
+    enabled: false
+  rocm:
+    enabled: false
+  linux_thermal:
+    enabled: false
+  kubernetes:
+    enabled: false
+output:
+  prometheus: true
+sender:
+  target: "localhost:50051"
+`
+	path := writeTemp(t, content)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error when no adapters enabled, got nil")
+	}
+	if !strings.Contains(err.Error(), "adapter") {
+		t.Errorf("error %q does not mention adapter", err.Error())
+	}
+}
+
+func TestLoad_CloudKeyWithoutEndpoint(t *testing.T) {
+	content := `
+agent:
+  id: "test"
+  log_level: "info"
+adapters:
+  dcgm:
+    enabled: true
+output:
+  prometheus: true
+cloud:
+  api_key: "kld_test123"
+  endpoint: ""
+sender:
+  target: "localhost:50051"
+`
+	path := writeTemp(t, content)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Validation sets default endpoint when api_key is set and endpoint empty.
+	if cfg.Cloud.Endpoint == "" {
+		t.Error("cloud.endpoint should be set to default when api_key set")
+	}
+}
+
+func TestMaskedCloudAPIKey(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"", ""},
+		{"ab", "***"},
+		{"kld_1234567890", "kld_***7890"},
+	}
+	for _, tt := range tests {
+		got := MaskedCloudAPIKey(tt.in)
+		if got != tt.want {
+			t.Errorf("MaskedCloudAPIKey(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestApplyAutoDetection_DarwinArm64(t *testing.T) {
+	load := defaultConfigLoad()
+	load.Adapters.AppleSilicon.Enabled = nil
+	load.Adapters.NVIDIAConsumer.Enabled = nil
+
+	ApplyAutoDetection(load)
+
+	// On darwin/arm64, Apple Silicon should be enabled
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		if load.Adapters.AppleSilicon.Enabled == nil || !*load.Adapters.AppleSilicon.Enabled {
+			t.Error("apple_silicon should be enabled on darwin/arm64")
+		}
+	}
+}
+
+func TestToAdapterMap(t *testing.T) {
+	a := &AdaptersConfig{}
+	v := true
+	a.DCGM.Enabled = &v
+	a.DCGM.Raw = yaml.Node{Kind: yaml.MappingNode}
+
+	m := ToAdapterMap(a, 30*time.Second)
+	if len(m) != 1 {
+		t.Fatalf("expected 1 adapter, got %d", len(m))
+	}
+	acfg, ok := m["dcgm"]
+	if !ok {
+		t.Fatal("expected dcgm in map")
+	}
+	if !acfg.Enabled {
+		t.Error("dcgm should be enabled")
+	}
+	if acfg.PollInterval != 30*time.Second {
+		t.Errorf("poll_interval = %v, want 30s", acfg.PollInterval)
+	}
+
+	// Test multiple adapters
+	a2 := &AdaptersConfig{}
+	a2.Slurm.Enabled = &v
+	a2.Kubernetes.Enabled = &v
+	m2 := ToAdapterMap(a2, 20*time.Second)
+	if len(m2) != 2 {
+		t.Errorf("expected 2 adapters, got %d", len(m2))
+	}
+}
+
+func TestHolder_Subscribe_Unsubscribe(t *testing.T) {
+	cfg := Defaults()
+	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+	holder := NewHolder(cfg)
+
+	unsub := holder.Subscribe(func(cfg *Config) {})
+	unsub() // Unsubscribe
+	// Update should not panic
+	cfg2 := Defaults()
+	cfg2.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+	if err := holder.Update(cfg2); err != nil {
+		t.Fatalf("Update after unsubscribe: %v", err)
+	}
+}
+
+func TestValidate_HubEnabledNoPort(t *testing.T) {
+	cfg := Defaults()
+	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+	cfg.Hub.Enabled = true
+	cfg.Hub.ListenPort = 0
+
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected error for hub.enabled with listen_port 0")
+	}
+	if !strings.Contains(err.Error(), "listen_port") {
+		t.Errorf("error %q does not mention listen_port", err.Error())
+	}
+}
+
+func TestApplyEnvOverrides_HubAndCloud(t *testing.T) {
+	load := defaultConfigLoad()
+	os.Setenv("KELDRON_HUB_ENABLED", "true")
+	os.Setenv("KELDRON_HUB_STATIC_PEERS", "192.168.1.10:9100, 192.168.1.11:9100")
+	os.Setenv("KELDRON_CLOUD_API_KEY", "kld_test")
+	os.Setenv("KELDRON_CLOUD_ENDPOINT", "https://custom.api.example.com")
+	defer func() {
+		os.Unsetenv("KELDRON_HUB_ENABLED")
+		os.Unsetenv("KELDRON_HUB_STATIC_PEERS")
+		os.Unsetenv("KELDRON_CLOUD_API_KEY")
+		os.Unsetenv("KELDRON_CLOUD_ENDPOINT")
+	}()
+
+	ApplyEnvOverrides(load)
+
+	if !load.Hub.Enabled {
+		t.Error("hub.enabled should be true")
+	}
+	if len(load.Hub.StaticPeers) != 2 {
+		t.Errorf("static_peers = %v, want 2 entries", load.Hub.StaticPeers)
+	}
+	if load.Cloud.APIKey != "kld_test" {
+		t.Errorf("cloud.api_key = %q", load.Cloud.APIKey)
+	}
+	if load.Cloud.Endpoint != "https://custom.api.example.com" {
+		t.Errorf("cloud.endpoint = %q", load.Cloud.Endpoint)
 	}
 }
 
