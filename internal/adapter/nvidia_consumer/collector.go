@@ -43,9 +43,10 @@ type NvidiaCollector struct {
 
 // NewNvidiaCollector creates a collector that uses the nvidia-smi CLI.
 func NewNvidiaCollector(smiPath string, gpuIndices []int) *NvidiaCollector {
+	indicesCopy := append([]int(nil), gpuIndices...)
 	return &NvidiaCollector{
 		smiPath:    smiPath,
-		gpuIndices: gpuIndices,
+		gpuIndices: indicesCopy,
 	}
 }
 

@@ -180,14 +180,20 @@ func (a *NvidiaConsumerAdapter) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			a.logger.Info("NVIDIA consumer adapter stopping")
 			a.mu.Lock()
-			a.ticker.Stop()
+			if a.ticker != nil {
+				a.ticker.Stop()
+				a.ticker = nil
+			}
 			a.mu.Unlock()
 			a.closeOnce.Do(func() { close(a.readings) })
 			return nil
 		case <-a.done:
 			a.logger.Info("NVIDIA consumer adapter stopping")
 			a.mu.Lock()
-			a.ticker.Stop()
+			if a.ticker != nil {
+				a.ticker.Stop()
+				a.ticker = nil
+			}
 			a.mu.Unlock()
 			a.closeOnce.Do(func() { close(a.readings) })
 			return nil
