@@ -267,7 +267,13 @@ func (p *Prometheus) Handler() http.Handler {
 // Start starts the HTTP server. Blocks until ctx is cancelled.
 func (p *Prometheus) Start(ctx context.Context) error {
 	addr := ":" + strconv.Itoa(p.port)
-	p.httpServer = &http.Server{Addr: addr, Handler: p.Handler()}
+	p.httpServer = &http.Server{
+		Addr:         addr,
+		Handler:      p.Handler(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -441,13 +447,15 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint) {
 		p.powerCostDaily.With(deviceIDLabels).Set(hourly * 24)
 		p.powerCostMonthly.With(deviceIDLabels).Set(hourly * 24 * 30)
 	}
-	// Hotspot delta: junction - edge if both available
+	// Hotspot delta: junction - edge if both available, -1 otherwise
 	if j, ok1 := m["temperature_junction_c"]; ok1 {
 		if e, ok2 := m["temperature_edge"]; ok2 {
 			p.gpuHotspotDeltaC.With(deviceIDLabels).Set(j - e)
 		} else {
 			p.gpuHotspotDeltaC.With(deviceIDLabels).Set(-1)
 		}
+	} else {
+		p.gpuHotspotDeltaC.With(deviceIDLabels).Set(-1)
 	}
 }
 

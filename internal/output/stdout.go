@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ func NewStdout(w io.Writer, version string, activeAdapters []string) *Stdout {
 		writer:         w,
 		version:        version,
 		startedAt:      time.Now(),
-		activeAdapters: activeAdapters,
+		activeAdapters: append([]string(nil), activeAdapters...),
 	}
 }
 
@@ -85,6 +86,7 @@ func (s *Stdout) Update(readings []normalizer.TelemetryPoint) error {
 		for a := range seenAdapters {
 			adapters = append(adapters, a)
 		}
+		sort.Strings(adapters)
 	}
 
 	line := StdoutLine{

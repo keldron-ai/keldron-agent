@@ -149,7 +149,11 @@ func run() int {
 	var bufferDone chan error
 
 	if isLocalMode {
-		slog.Info("running in local mode — metrics available at http://localhost:" + fmt.Sprintf("%d", cfg.Output.PrometheusPort) + "/metrics")
+		if cfg.Output.Prometheus {
+			slog.Info("running in local mode — metrics available at http://localhost:" + fmt.Sprintf("%d", cfg.Output.PrometheusPort) + "/metrics")
+		} else {
+			slog.Info("running in local mode — Prometheus metrics disabled, stdout output only")
+		}
 
 		// Build outputs
 		if cfg.Output.Prometheus {
