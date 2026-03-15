@@ -92,6 +92,7 @@ curl -s localhost:9100/metrics | grep keldron_
 | 9100 | `/api/v1/status` | Agent version, device name, active adapters |
 | 8081 | `/health` | Full health (adapters, normalizer, buffer) — when health server enabled |
 | 8081 | `/ready` | Readiness probe |
+| 9200 | `/api/v1/fleet` | Fleet status for all discovered peers — when hub enabled (`--hub.enabled=true`) |
 
 ## Key Metrics Reference
 
