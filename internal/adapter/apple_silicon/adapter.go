@@ -110,6 +110,8 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 	interval := a.pollInterval
 	a.intervalMu.RUnlock()
 
+	resetIntervalCh := make(chan time.Duration, 1)
+
 	if a.holder != nil {
 		a.holder.Subscribe(func(cfg *config.Config) {
 			acfg, ok := cfg.Adapters["apple_silicon"]
@@ -120,6 +122,11 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 				a.intervalMu.Lock()
 				a.pollInterval = acfg.PollInterval
 				a.intervalMu.Unlock()
+
+				select {
+				case resetIntervalCh <- acfg.PollInterval:
+				default:
+				}
 			}
 		})
 	}
@@ -138,6 +145,10 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 			a.logger.Info("apple_silicon adapter stopping")
 			a.closeOnce.Do(func() { close(a.readings) })
 			return nil
+		case newInterval := <-resetIntervalCh:
+			ticker.Stop()
+			ticker = time.NewTicker(newInterval)
+			a.logger.Info("apple_silicon poll interval updated", "interval", newInterval)
 		case <-ticker.C:
 			a.poll()
 		}
@@ -276,12 +287,16 @@ func parseVMStatPage(s, key string) (uint64, error) {
 	if idx < 0 {
 		return 0, fmt.Errorf("key %q not found", key)
 	}
-	line := s[idx:]
-	colon := strings.Index(line, ":")
+	rest := s[idx:]
+	// Isolate the single line containing the key.
+	if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+		rest = rest[:nl]
+	}
+	colon := strings.Index(rest, ":")
 	if colon < 0 {
 		return 0, fmt.Errorf("malformed line")
 	}
-	val := strings.TrimSpace(line[colon+1:])
+	val := strings.TrimSpace(rest[colon+1:])
 	val = strings.TrimSuffix(val, ".")
 	return parseUint64(val)
 }

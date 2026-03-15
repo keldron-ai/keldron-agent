@@ -6,7 +6,7 @@ echo ""
 
 # Check health
 echo "→ Health check"
-curl -sf http://localhost:9100/healthz | python3 -m json.tool
+curl -sf http://localhost:8081/healthz | python3 -m json.tool
 echo ""
 
 # Check Prometheus metrics exist
@@ -22,7 +22,7 @@ echo ""
 
 # Check status endpoint
 echo "→ Agent status"
-curl -sf http://localhost:9100/api/v1/status | python3 -m json.tool 2>/dev/null || echo "   (status endpoint not yet implemented)"
+curl -sf http://localhost:8081/api/v1/status | python3 -m json.tool 2>/dev/null || echo "   (status endpoint not yet implemented)"
 echo ""
 
 echo "✅ Agent is running"

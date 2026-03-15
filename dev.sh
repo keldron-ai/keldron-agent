@@ -51,7 +51,7 @@ fi
 echo ""
 echo "🚀 Starting agent..."
 echo "   Prometheus metrics: http://localhost:9100/metrics"
-echo "   Health check:       http://localhost:9100/healthz"
+echo "   Health check:       http://localhost:8081/healthz"
 echo "   Press Ctrl+C to stop"
 echo ""
 
