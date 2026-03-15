@@ -36,6 +36,7 @@ type Hub struct {
 	hubSummary       *hubSummaryMetrics
 	hubRegistry      prometheus.Gatherer
 	lastScrapeErrors int64
+	lastScrapeMu     sync.Mutex
 }
 
 type hubSummaryMetrics struct {
@@ -155,7 +156,10 @@ func (h *Hub) Start(ctx context.Context) error {
 
 	h.logger.Info("Hub mode active — fleet API at http://localhost:"+strconv.Itoa(h.config.ListenPort)+"/api/v1/fleet",
 		"port", h.config.ListenPort)
-	return h.httpServer.ListenAndServe()
+	if err := h.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
@@ -198,12 +202,14 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		h.hubSummary.peersHealthy.Set(float64(healthy))
 		h.hubSummary.devicesTotal.Set(float64(totalDevices))
 		h.hubSummary.scrapeDuration.Set(h.scraper.LastDuration().Seconds())
+		h.lastScrapeMu.Lock()
 		curr := h.scraper.ScrapeErrors()
 		delta := curr - h.lastScrapeErrors
 		h.lastScrapeErrors = curr
 		if delta > 0 {
 			h.hubSummary.scrapeErrors.Add(float64(delta))
 		}
+		h.lastScrapeMu.Unlock()
 
 		// Gather hub summary metrics
 		hubFamilies, err := h.hubRegistry.Gather()

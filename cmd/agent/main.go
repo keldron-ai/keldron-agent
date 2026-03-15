@@ -133,8 +133,8 @@ func run() int {
 		}
 	}()
 
-	// Local mode: --local flag OR no cloud and (prometheus or stdout) enabled
-	isLocalMode := *localMode || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
+	// Local mode: --local flag, hub enabled, OR no cloud and (prometheus or stdout) enabled
+	isLocalMode := *localMode || cfg.Hub.Enabled || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
 
 	var bufMgr *buffer.Manager
 	var sndr interface {

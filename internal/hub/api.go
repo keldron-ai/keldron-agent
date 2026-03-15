@@ -5,6 +5,7 @@ package hub
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -64,20 +65,15 @@ type summaryResponse struct {
 	HealthyPeers int `json:"healthy_peers"`
 }
 
-func (a *FleetAPI) handleFleet(w http.ResponseWriter, _ *http.Request) {
-	state := a.getState()
-
-	peerList := make([]peerResponse, 0)
-
-	// Add local as first peer (this hub's own devices)
+// buildPeerList constructs the peer list from a FleetState (local + registry peers).
+func buildPeerList(state FleetState) []peerResponse {
+	peerList := make([]peerResponse, 0, 1+len(state.Peers))
 	peerList = append(peerList, peerResponse{
 		ID:      "local",
 		Address: "local",
 		Healthy: true,
 		Devices: devicesToResponse(state.LocalDevices),
 	})
-
-	// Add peers from registry
 	for _, p := range state.Peers {
 		peerList = append(peerList, peerResponse{
 			ID:      p.ID,
@@ -86,6 +82,12 @@ func (a *FleetAPI) handleFleet(w http.ResponseWriter, _ *http.Request) {
 			Devices: devicesToResponse(p.Devices),
 		})
 	}
+	return peerList
+}
+
+func (a *FleetAPI) handleFleet(w http.ResponseWriter, r *http.Request) {
+	state := a.getState()
+	peerList := buildPeerList(state)
 
 	healthyPeerCount := 0
 	for _, p := range peerList {
@@ -109,7 +111,9 @@ func (a *FleetAPI) handleFleet(w http.ResponseWriter, _ *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
+	}
 }
 
 func devicesToResponse(devices []PeerDevice) []deviceResponse {
@@ -128,45 +132,54 @@ func devicesToResponse(devices []PeerDevice) []deviceResponse {
 	return out
 }
 
-func (a *FleetAPI) handleFleetDevices(w http.ResponseWriter, _ *http.Request) {
+func (a *FleetAPI) handleFleetDevices(w http.ResponseWriter, r *http.Request) {
 	state := a.getState()
 	devices := devicesToResponse(state.AllDevices)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(devices)
+	if err := json.NewEncoder(w).Encode(devices); err != nil {
+		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
+	}
 }
 
-func (a *FleetAPI) handleFleetPeers(w http.ResponseWriter, _ *http.Request) {
+func (a *FleetAPI) handleFleetPeers(w http.ResponseWriter, r *http.Request) {
 	state := a.getState()
-	peerList := make([]peerResponse, 0)
-	peerList = append(peerList, peerResponse{
-		ID:      "local",
-		Address: "local",
-		Healthy: true,
-		Devices: devicesToResponse(state.LocalDevices),
-	})
-	for _, p := range state.Peers {
-		peerList = append(peerList, peerResponse{
-			ID:      p.ID,
-			Address: p.Address,
-			Healthy: p.Healthy,
-			Devices: devicesToResponse(p.Devices),
-		})
-	}
+	peerList := buildPeerList(state)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(peerList)
+	if err := json.NewEncoder(w).Encode(peerList); err != nil {
+		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
+	}
 }
 
-func (a *FleetAPI) handleHealthz(w http.ResponseWriter, _ *http.Request) {
+func (a *FleetAPI) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	state := a.getState()
 	peerCount := 1 + len(state.Peers) // local + registry peers
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":  "healthy",
+
+	status := "healthy"
+	var issues []string
+	if state.TotalGPUs == 0 {
+		status = "degraded"
+		issues = append(issues, "no devices detected")
+	}
+	if state.CriticalGPUs > 0 {
+		status = "degraded"
+		issues = append(issues, "critical devices present")
+	}
+
+	resp := map[string]interface{}{
+		"status":  status,
 		"mode":    "hub",
 		"peers":   peerCount,
 		"devices": state.TotalGPUs,
-	})
+	}
+	if len(issues) > 0 {
+		resp["issues"] = issues
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("fleet: failed to encode response for %s: %v", r.URL.Path, err)
+	}
 }

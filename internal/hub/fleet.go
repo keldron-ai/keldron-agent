@@ -22,7 +22,10 @@ type FleetState struct {
 
 // BuildFleetState merges local devices and peer registry into a FleetState.
 func BuildFleetState(local []PeerDevice, registry *PeerRegistry) FleetState {
-	peers := registry.GetPeers()
+	var peers []*Peer
+	if registry != nil {
+		peers = registry.GetPeers()
+	}
 	var peerDevices []PeerDevice
 	healthyPeers := 0
 	for _, p := range peers {

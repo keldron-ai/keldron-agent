@@ -20,6 +20,7 @@ import (
 
 const (
 	unhealthyLogThreshold = 5
+	maxResponseSize       = 10 * 1024 * 1024 // 10 MB
 )
 
 // PeerMetricsCallback is called when a peer is successfully scraped, with peerID and parsed MetricFamilies.
@@ -34,7 +35,7 @@ type Scraper struct {
 	logger            *slog.Logger
 	scrapeErrors      int64
 	lastDuration      time.Duration
-	mu                sync.Mutex
+	mu                sync.RWMutex
 	peerMetricsNotify PeerMetricsCallback
 }
 
@@ -141,9 +142,12 @@ func (s *Scraper) ScrapePeerWithMetrics(ctx context.Context, address string) ([]
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 	if err != nil {
 		return nil, "", nil, err
+	}
+	if int64(len(body)) > maxResponseSize {
+		return nil, "", nil, fmt.Errorf("response from %s exceeds max size (%d bytes)", address, maxResponseSize)
 	}
 	devices, peerID, err := ParseMetricsToPeerDevices(bytes.NewReader(body))
 	if err != nil {
@@ -161,15 +165,15 @@ func (s *Scraper) ScrapePeerWithMetrics(ctx context.Context, address string) ([]
 
 // ScrapeErrors returns the cumulative scrape error count.
 func (s *Scraper) ScrapeErrors() int64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.scrapeErrors
 }
 
 // LastDuration returns the last scrape cycle duration.
 func (s *Scraper) LastDuration() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.lastDuration
 }
 

@@ -56,12 +56,15 @@ health:
 EOF
 fi
 
+HUB_PORT=$(grep 'listen_port' keldron-agent.dev.yaml 2>/dev/null | head -1 | awk '{print $2}')
+HUB_PORT="${HUB_PORT:-9200}"
+
 echo ""
 echo "🚀 Starting agent..."
 echo "   Prometheus metrics: http://localhost:9100/metrics"
 echo "   Health check:       http://localhost:8081/healthz"
 echo "   Verify: curl localhost:9100/metrics | grep keldron_gpu_temperature"
-echo "   With hub enabled:   Fleet API at http://localhost:9200/api/v1/fleet"
+echo "   With hub enabled:   Fleet API at http://localhost:${HUB_PORT}/api/v1/fleet"
 echo "   Press Ctrl+C to stop"
 echo ""
 

@@ -106,7 +106,7 @@ func (r *PeerRegistry) UpdatePeer(address string, peerID string, devices []PeerD
 	if p, ok := r.peers[address]; ok {
 		p.Healthy = true
 		p.LastSeen = time.Now()
-		p.Devices = devices
+		p.Devices = append([]PeerDevice(nil), devices...)
 		p.DeviceCount = len(devices)
 		if peerID != "" {
 			p.ID = peerID
@@ -119,9 +119,11 @@ func (r *PeerRegistry) UpdatePeer(address string, peerID string, devices []PeerD
 func (r *PeerRegistry) MarkUnhealthy(address string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if p, ok := r.peers[address]; ok {
-		p.Healthy = false
+	p, ok := r.peers[address]
+	if !ok {
+		return 0
 	}
+	p.Healthy = false
 	r.failureCount[address]++
 	return r.failureCount[address]
 }
