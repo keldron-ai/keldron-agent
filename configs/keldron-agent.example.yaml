@@ -1,0 +1,147 @@
+# Keldron Agent Configuration (OSS-004)
+# Single-file YAML controls all agent behavior. Every field supports
+# environment variable override via KELDRON_ prefix (e.g. KELDRON_AGENT_LOG_LEVEL=debug).
+#
+# SCENARIO 1: Mac (Apple Silicon) — stdout + Prometheus
+# SCENARIO 2: Linux + NVIDIA — consumer adapter, Prometheus
+# SCENARIO 3: Linux + AMD — ROCm adapter, Prometheus
+#
+# Copy this file to keldron-agent.yaml and customize.
+
+# --- Agent settings ---
+agent:
+  # device_name: ""              # Human-readable name (default: hostname)
+  # id: ""                       # Unique agent ID (default: device_name or hostname)
+  poll_interval: "30s"           # How often to poll adapters (5s–5m)
+  log_level: "info"              # debug | info | warn | error
+  electricity_rate: 0.12         # $/kWh for power cost estimates
+  shutdown_timeout: "30s"        # Graceful shutdown deadline
+
+# --- Adapters (auto-detect when enabled not set) ---
+# Apple Silicon: auto on darwin/arm64
+# NVIDIA Consumer: auto when nvidia-smi in PATH
+# DCGM: auto when nv-hostengine in PATH
+# ROCm: auto when rocm-smi in PATH
+# Linux Thermal: auto when /sys/class/hwmon exists
+# Kubernetes: auto when KUBERNETES_SERVICE_HOST set
+# Slurm, SNMP PDU, Temperature: disabled by default (explicit config required)
+adapters:
+  # --- Scenario 1: Mac user — enable only apple_silicon ---
+  apple_silicon:
+    enabled: false               # Set true on Mac; auto: true on darwin/arm64
+
+  # --- Scenario 2: Linux + NVIDIA — enable only nvidia_consumer ---
+  nvidia_consumer:
+    enabled: false               # Set true when nvidia-smi in PATH
+
+  # --- Scenario 3: Linux + AMD — enable only rocm ---
+  rocm:
+    enabled: false               # Set true when rocm-smi in PATH; auto-detect available
+    poll_interval: "10s"
+    rocm_smi_path: "/opt/rocm/bin/rocm-smi"
+    collection_method: "cli"
+    gpu_indices: []              # Empty = all GPUs
+
+  # --- DCGM (datacenter NVIDIA; use_stub works without NVIDIA libs) ---
+  dcgm:
+    enabled: true                # use_stub: true for testing without NVIDIA
+    poll_interval: "10s"
+    endpoint: "localhost:5555"
+    use_stub: true               # true = synthetic data, no NVIDIA libs needed
+    gpu_ids: [0]
+    collect:
+      temperature: true
+      power: true
+      utilization: true
+      memory: true
+      clocks: true
+      throttle: true
+
+  # --- Linux thermal (fallback when no GPU adapters) ---
+  linux_thermal:
+    enabled: false
+    hwmon_path: "/sys/class/hwmon"
+
+  # --- SNMP PDU (disabled by default) ---
+  snmp_pdu:
+    enabled: false
+    poll_interval: "30s"
+    version: "v2c"
+    community: "public"
+    targets:
+      - address: "192.168.1.100:161"
+        pdu_id: "pdu-1"
+        rack_ids: ["rack-01"]
+        vendor: "servertech"
+
+  # --- Temperature sensors (disabled by default) ---
+  temperature:
+    enabled: false
+    poll_interval: "30s"
+    sensors: []
+
+  # --- Kubernetes (auto when in-cluster) ---
+  kubernetes:
+    enabled: false
+    kubeconfig: ""
+    namespace: ""
+    resync_interval: "5m"
+    gpu_resource_names:
+      - "nvidia.com/gpu"
+      - "amd.com/gpu"
+    node_to_rack_map: {}
+
+  # --- Slurm (disabled by default) ---
+  slurm:
+    enabled: false
+    slurmrestd_url: "http://slurmctld:6820"
+    api_version: "v0.0.40"
+    auth_token: ""
+    poll_interval: "30s"
+    timeout: "10s"
+    node_to_rack_map: {}
+
+# --- Output modes (at least one required) ---
+output:
+  stdout: false                  # Print JSON lines to stdout
+  prometheus: true               # Expose /metrics endpoint
+  prometheus_port: 9100          # Prometheus scrape port
+
+# --- Hub aggregator (peer aggregation) ---
+hub:
+  enabled: false
+  mdns_enabled: false            # Auto-discover peers via mDNS
+  static_peers: []               # e.g. ["192.168.1.10:9100", "192.168.1.11:9100"]
+  listen_port: 9200              # Hub API port
+
+# --- Cloud streaming ---
+cloud:
+  api_key: ""                    # KELDRON_CLOUD_API_KEY
+  endpoint: ""                    # Default: https://api.keldron.ai
+
+# --- Rack mapping (normalizer) ---
+rack_mapping:
+  # node-01: "rack-A1"
+  # node-02: "rack-A1"
+
+# --- gRPC sender (when not using cloud) ---
+sender:
+  target: "localhost:50051"
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+  batch_size: 100
+  flush_interval: "5s"
+
+# --- Buffer (ring + WAL) ---
+buffer:
+  ring_size: 10000
+  wal_dir: "/var/lib/keldron-agent/wal"
+  wal_max_size: "500MB"
+
+# --- Health endpoint ---
+health:
+  enabled: true
+  bind: ":8081"
