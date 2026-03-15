@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package sender provides local and gRPC senders for telemetry.
 // LocalSender drains the input channel and discards points (no cloud streaming).
 package sender

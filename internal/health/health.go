@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package health exposes an HTTP endpoint for agent observability and k8s probes.
 package health
 

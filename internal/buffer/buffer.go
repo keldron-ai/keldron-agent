@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package buffer provides an in-memory ring buffer with write-ahead log (WAL)
 // for durable telemetry buffering during network outages.
 package buffer

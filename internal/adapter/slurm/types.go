@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package slurm implements the Slurm REST API adapter for HPC/AI training job discovery.
 package slurm
 

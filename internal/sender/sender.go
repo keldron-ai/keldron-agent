@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package sender transmits normalized telemetry to a remote platform via gRPC.
 // It batches TelemetryPoints and streams them using a bidirectional gRPC stream,
 // handling reconnection with exponential backoff and mTLS.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package fake implements a simulated GPU telemetry adapter for testing
 // the full agent pipeline without real NVIDIA hardware.
 //

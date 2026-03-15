@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package dcgm implements the DCGM telemetry adapter for NVIDIA GPU metrics.
 package dcgm
 

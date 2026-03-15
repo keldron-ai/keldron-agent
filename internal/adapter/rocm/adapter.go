@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package rocm implements the ROCm SMI telemetry adapter for AMD GPU metrics.
 package rocm
 

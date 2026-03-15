@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Keldron (keldron.ai)
+
 // Package kubernetes implements the Kubernetes scheduler adapter for GPU pod discovery.
 package kubernetes
 
