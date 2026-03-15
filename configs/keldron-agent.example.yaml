@@ -36,7 +36,7 @@ adapters:
 
   # --- Scenario 3: Linux + AMD — enable only rocm ---
   rocm:
-    enabled: false               # Set true when rocm-smi in PATH; auto-detect available
+    enabled: false               # Set true when rocm-smi in PATH; auto-detect available (env: KELDRON_ADAPTERS_ROCM_ENABLED)
     poll_interval: "10s"
     rocm_smi_path: "/opt/rocm/bin/rocm-smi"
     collection_method: "cli"

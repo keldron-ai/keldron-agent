@@ -501,12 +501,7 @@ func ApplyEnvOverrides(load *configLoad) {
 		b := parseBool(v)
 		load.Adapters.DCGM.Enabled = &b
 	}
-	if v := os.Getenv("KELDRON_ADAPTERS_ROCM_ENABLED"); v == "" {
-		if v = os.Getenv("KELDRON_ADAPTERS_ROCm_ENABLED"); v != "" {
-			b := parseBool(v)
-			load.Adapters.ROCm.Enabled = &b
-		}
-	} else {
+	if v := os.Getenv("KELDRON_ADAPTERS_ROCM_ENABLED"); v != "" {
 		b := parseBool(v)
 		load.Adapters.ROCm.Enabled = &b
 	}
@@ -583,7 +578,7 @@ func ApplyAutoDetection(load *configLoad) {
 		load.Adapters.NVIDIAConsumer.Enabled = &v
 	}
 	if load.Adapters.DCGM.Enabled == nil {
-		// Check if nv-hostengine is running (simplified: check if nvidia-smi works as proxy for NVIDIA stack)
+		// Check for the nv-hostengine binary as a proxy for DCGM availability.
 		_, err := exec.LookPath("nv-hostengine")
 		v := err == nil
 		load.Adapters.DCGM.Enabled = &v
@@ -737,7 +732,9 @@ func (h *Holder) Update(newCfg *Config) error {
 	return nil
 }
 
-// Subscribe registers a callback for config changes.
+// Subscribe registers a callback for config changes. Nil slots in h.subs are
+// reused to avoid unbounded slice growth; the returned unsubscribe closure nulls
+// the slot (via sync.Once) rather than removing it, keeping indices stable.
 func (h *Holder) Subscribe(fn func(*Config)) func() {
 	if fn == nil {
 		return func() {}

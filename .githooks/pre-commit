@@ -2,7 +2,7 @@
 # Pre-commit checks for keldron-agent
 # Install: git config core.hooksPath .githooks
 
-set -e
+set -eo pipefail
 
 echo "🔍 Running pre-commit checks..."
 
