@@ -1,0 +1,69 @@
+# Keldron Agent - Dev Configuration
+# Updated: fake adapter enabled for testing without real GPUs.
+
+agent:
+  id: "agent-rack-01"
+  log_level: "info"
+  shutdown_timeout: "30s"
+
+adapters:
+  dcgm:
+    enabled: false          # <-- disabled: using fake adapter instead
+    poll_interval: "1s"
+    endpoint: "localhost:5555"
+    use_stub: true
+    gpu_ids: [0]
+    collect:
+      temperature: true
+      power: true
+      utilization: true
+      memory: true
+      clocks: true
+      throttle: true
+    connection:
+      retry_interval: "5s"
+      max_retries: 0
+
+  fake:
+    enabled: true            # <-- the simulated GPU adapter
+    poll_interval: "1s"
+    num_racks: 4
+    gpus_per_rack: 8
+    ambient_temp_c: 22.0
+    scenario: "bursty"       # Options: "bursty", "steady", "failure", "ramp"
+    memory_gb: 80            # H100 = 80GB
+    power_limit_w: 700.0     # H100 TDP
+
+  pdu:
+    enabled: false
+    poll_interval: "30s"
+  temperature:
+    enabled: false
+    poll_interval: "15s"
+  kubernetes:
+    enabled: false
+
+rack_mapping:
+  gpu-node-00: "rack-A1"
+  gpu-node-01: "rack-A2"
+  gpu-node-02: "rack-B1"
+  gpu-node-03: "rack-B2"
+
+sender:
+  target: "localhost:50051"
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+  batch_size: 100
+  flush_interval: "5s"
+
+buffer:
+  ring_size: 10000
+  wal_dir: "/var/lib/keldron-agent/wal"
+  wal_max_size: "500MB"
+
+health:
+  enabled: true
+  bind: ":8081"

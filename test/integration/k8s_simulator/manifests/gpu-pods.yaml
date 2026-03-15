@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-1
+  labels:
+    app: training
+spec:
+  containers:
+  - name: cuda
+    image: nvidia/cuda:12.0-base
+    resources:
+      limits:
+        nvidia.com/gpu: 2
+  nodeName: kind-control-plane
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod-2
+  labels:
+    app: inference
+spec:
+  containers:
+  - name: cuda
+    image: nvidia/cuda:12.0-base
+    resources:
+      limits:
+        nvidia.com/gpu: 4
+  nodeName: kind-control-plane

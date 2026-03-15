@@ -1,0 +1,8 @@
+keldron-agent
+keldron-agent-*
+keldron-agent.yaml
+/agent
+/mock-server
+*.exe
+.env
+.DS_Store

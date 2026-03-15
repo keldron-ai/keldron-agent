@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package telemetry.v1;
+
+option go_package = "github.com/keldron-ai/keldron-agent/internal/proto/telemetry/v1;telemetryv1";
+
+// TelemetryService receives batched telemetry from collector agents.
+service TelemetryService {
+  // StreamBatch opens a bidirectional stream: the agent sends TelemetryBatch
+  // messages and receives BatchAck responses from the platform.
+  rpc StreamBatch(stream TelemetryBatch) returns (stream BatchAck);
+}
+
+// TelemetryBatch is a collection of telemetry points sent by an agent.
+message TelemetryBatch {
+  string agent_id = 1;
+  uint64 sequence_number = 2;
+  int64 sent_at_ms = 3; // Unix milliseconds
+  repeated TelemetryPoint points = 4;
+}
+
+// TelemetryPoint is a single normalized telemetry measurement.
+message TelemetryPoint {
+  string id = 1;           // ULID
+  string agent_id = 2;
+  string adapter_name = 3;
+  string source = 4;       // Hostname or device ID
+  string rack_id = 5;
+  int64 timestamp_ms = 6;  // Original timestamp as Unix milliseconds
+  int64 received_at_ms = 7;
+  map<string, double> metrics = 8;
+}
+
+// BatchAck is the platform's acknowledgement for a received batch.
+message BatchAck {
+  uint64 sequence_number = 1;
+  AckStatus status = 2;
+  int32 accepted_count = 3;
+  int32 rejected_count = 4;
+  string message = 5;
+}
+
+// AckStatus indicates the result of processing a batch.
+enum AckStatus {
+  ACK_STATUS_UNSPECIFIED = 0;
+  ACK_STATUS_OK = 1;
+  ACK_STATUS_PARTIAL = 2;
+  ACK_STATUS_ERROR = 3;
+}

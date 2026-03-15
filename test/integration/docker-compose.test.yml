@@ -1,0 +1,43 @@
+# Docker Compose for M9 adapter integration test simulators.
+# Run: docker compose -f agent/test/integration/docker-compose.test.yml up -d
+# From repo root.
+
+services:
+  snmp-sim:
+    build:
+      context: ./snmp_simulator
+      dockerfile: Dockerfile
+    ports:
+      - "1161:1161/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(2); s.sendto(b'\\x30\\x26\\x02\\x01\\x01\\x04\\x06public\\xa0\\x19\\x02\\x04\\x00\\x00\\x00\\x01\\x02\\x01\\x00\\x02\\x01\\x00\\x30\\x0b\\x30\\x09\\x06\\x05\\x2b\\x06\\x01\\x02\\x01\\x05\\x00',('127.0.0.1',1161)); s.recvfrom(1024); s.close()\""]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  modbus-sim:
+    build:
+      context: ./modbus_simulator
+      dockerfile: Dockerfile
+    ports:
+      - "1502:1502"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',1502)); s.close()\""]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  slurm-sim:
+    build:
+      context: ./slurm_simulator
+      dockerfile: Dockerfile
+    ports:
+      - "6820:6820"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',6820)); s.close()\""]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 3s

@@ -1,0 +1,292 @@
+{
+  "H100-SXM": {
+    "vendor": "nvidia",
+    "architecture": "hopper",
+    "thermal_limit_c": 83,
+    "tdp_w": 700,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "H100-PCIe": {
+    "vendor": "nvidia",
+    "architecture": "hopper",
+    "thermal_limit_c": 83,
+    "tdp_w": 350,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "H200-SXM": {
+    "vendor": "nvidia",
+    "architecture": "hopper",
+    "thermal_limit_c": 83,
+    "tdp_w": 700,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "B200-SXM": {
+    "vendor": "nvidia",
+    "architecture": "blackwell",
+    "thermal_limit_c": 83,
+    "tdp_w": 1000,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "GB200-NVL72": {
+    "vendor": "nvidia",
+    "architecture": "blackwell",
+    "thermal_limit_c": 83,
+    "tdp_w": 1200,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "A100-SXM": {
+    "vendor": "nvidia",
+    "architecture": "ampere",
+    "thermal_limit_c": 83,
+    "tdp_w": 400,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "A100-PCIe": {
+    "vendor": "nvidia",
+    "architecture": "ampere",
+    "thermal_limit_c": 83,
+    "tdp_w": 300,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "V100-SXM2": {
+    "vendor": "nvidia",
+    "architecture": "volta",
+    "thermal_limit_c": 84,
+    "tdp_w": 300,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "L40": {
+    "vendor": "nvidia",
+    "architecture": "ada_lovelace",
+    "thermal_limit_c": 90,
+    "tdp_w": 300,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "RTX-3090": {
+    "vendor": "nvidia",
+    "architecture": "ampere",
+    "thermal_limit_c": 83,
+    "tdp_w": 350,
+    "temp_measurement_type": "junction",
+    "behavior_class": "consumer_active_cooled",
+    "cv_max": 0.60,
+    "thermal_pressure_state_supported": false
+  },
+  "RTX-4090": {
+    "vendor": "nvidia",
+    "architecture": "ada_lovelace",
+    "thermal_limit_c": 83,
+    "tdp_w": 450,
+    "temp_measurement_type": "junction",
+    "behavior_class": "consumer_active_cooled",
+    "cv_max": 0.60,
+    "thermal_pressure_state_supported": false
+  },
+  "RTX-5090": {
+    "vendor": "nvidia",
+    "architecture": "blackwell",
+    "thermal_limit_c": 83,
+    "tdp_w": 575,
+    "temp_measurement_type": "junction",
+    "behavior_class": "consumer_active_cooled",
+    "cv_max": 0.60,
+    "thermal_pressure_state_supported": false
+  },
+  "MI250X": {
+    "vendor": "amd",
+    "architecture": "cdna2",
+    "thermal_limit_c": 90,
+    "tdp_w": 560,
+    "temp_measurement_type": "edge",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "MI300X": {
+    "vendor": "amd",
+    "architecture": "cdna3",
+    "thermal_limit_c": 100,
+    "tdp_w": 750,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "MI300A": {
+    "vendor": "amd",
+    "architecture": "cdna3",
+    "thermal_limit_c": 100,
+    "tdp_w": 760,
+    "temp_measurement_type": "junction",
+    "behavior_class": "datacenter_sustained",
+    "cv_max": 0.30,
+    "thermal_pressure_state_supported": false
+  },
+  "RX-7900-XTX": {
+    "vendor": "amd",
+    "architecture": "rdna3",
+    "thermal_limit_c": 110,
+    "tdp_w": 355,
+    "temp_measurement_type": "junction",
+    "behavior_class": "consumer_active_cooled",
+    "cv_max": 0.60,
+    "thermal_pressure_state_supported": false
+  },
+  "M1": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 20,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M1-Pro": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 30,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M1-Max": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 40,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M1-Ultra": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 60,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M2": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 20,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M2-Pro": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 30,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M2-Max": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 40,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M3": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 20,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M3-Pro": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 30,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M3-Max": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 40,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M4": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 20,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M4-Pro": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 30,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  },
+  "M4-Max": {
+    "vendor": "apple",
+    "architecture": "apple_silicon",
+    "thermal_limit_c": 105,
+    "tdp_w": 40,
+    "temp_measurement_type": "soc_package",
+    "behavior_class": "soc_integrated",
+    "cv_max": 0.50,
+    "thermal_pressure_state_supported": true
+  }
+}

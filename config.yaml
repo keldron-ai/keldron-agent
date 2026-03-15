@@ -1,0 +1,57 @@
+# Keldron Agent - Dev Configuration
+# Used by docker-compose.dev.yml with DCGM stub and mock gRPC server.
+
+agent:
+  id: "agent-rack-01"
+  log_level: "debug"
+  shutdown_timeout: "30s"
+
+adapters:
+  dcgm:
+    enabled: true
+    poll_interval: "1s"
+    endpoint: "localhost:5555"
+    use_stub: true
+    gpu_ids: [0]
+    collect:
+      temperature: true
+      power: true
+      utilization: true
+      memory: true
+      clocks: true
+      throttle: true
+    connection:
+      retry_interval: "5s"
+      max_retries: 0
+  pdu:
+    enabled: false
+    poll_interval: "30s"
+  temperature:
+    enabled: false
+    poll_interval: "15s"
+  kubernetes:
+    enabled: false
+
+rack_mapping:
+  gpu-node-01: "rack-A1"
+  gpu-node-02: "rack-A1"
+  gpu-node-03: "rack-A2"
+
+sender:
+  target: "localhost:50051"
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+  batch_size: 100
+  flush_interval: "5s"
+
+buffer:
+  ring_size: 10000
+  wal_dir: "/var/lib/keldron-agent/wal"
+  wal_max_size: "500MB"
+
+health:
+  enabled: true
+  bind: ":8081"
