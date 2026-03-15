@@ -67,12 +67,20 @@ func run() int {
 		slog.SetDefault(initLogger(cfg.Agent.LogLevel))
 	})
 
+	// Log effective config summary (mask cloud API key when set).
 	slog.Info("agent starting",
 		"agent_id", cfg.Agent.ID,
 		"version", version,
 		"config", *configPath,
 		"log_level", cfg.Agent.LogLevel,
+		"poll_interval", cfg.Agent.PollInterval,
+		"output_stdout", cfg.Output.Stdout,
+		"output_prometheus", cfg.Output.Prometheus,
+		"output_prometheus_port", cfg.Output.PrometheusPort,
 	)
+	if cfg.Cloud.APIKey != "" {
+		slog.Info("cloud configured", "api_key", config.MaskedCloudAPIKey(cfg.Cloud.APIKey), "endpoint", cfg.Cloud.Endpoint)
+	}
 
 	// Build adapter registry.
 	registry := adapter.NewRegistry()
