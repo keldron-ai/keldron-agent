@@ -13,5 +13,5 @@ type NvidiaConsumerConfig struct {
 	Enabled       bool          `yaml:"enabled"`
 	PollInterval  time.Duration `yaml:"poll_interval"`
 	NvidiaSMIPath string        `yaml:"nvidia_smi_path"` // empty = search PATH
-	GPUIndices    []int         `yaml:"gpu_indices"`      // empty = all GPUs
+	GPUIndices    []int         `yaml:"gpu_indices"`     // empty = all GPUs
 }

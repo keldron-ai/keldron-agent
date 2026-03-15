@@ -22,13 +22,13 @@ var (
 	registryOnce sync.Once
 	appleRe      = regexp.MustCompile(`(?i)^(M\d+)\s*-?\s*(Pro|Max|Ultra)$`)
 	aliasMap     = map[string]string{
-		"a100-sxm4-80gb":  "A100-SXM",
-		"a100-sxm4-40gb":  "A100-SXM",
-		"mi355x":          "MI300X", // MI355X is MI300X variant
-		"geforce-rtx-4090": "RTX-4090",
-		"geforce-rtx-3090": "RTX-3090",
+		"a100-sxm4-80gb":      "A100-SXM",
+		"a100-sxm4-40gb":      "A100-SXM",
+		"mi355x":              "MI300X", // MI355X is MI300X variant
+		"geforce-rtx-4090":    "RTX-4090",
+		"geforce-rtx-3090":    "RTX-3090",
 		"geforce-rtx-3090-ti": "RTX-3090-Ti",
-		"geforce-rtx-5090": "RTX-5090",
+		"geforce-rtx-5090":    "RTX-5090",
 	}
 )
 
