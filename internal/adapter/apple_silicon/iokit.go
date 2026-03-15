@@ -90,7 +90,7 @@ func ReadIOKit(logger *slog.Logger) *IOKitReading {
 func CleanupIOKit() {
 	mu.Lock()
 	defer mu.Unlock()
-	if !initOk && !cleaned {
+	if !initOk || cleaned {
 		return
 	}
 	C.cleanupIOKit()
