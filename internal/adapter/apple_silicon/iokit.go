@@ -5,8 +5,29 @@
 
 package apple_silicon
 
+/*
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -L/usr/lib -framework CoreFoundation -framework IOKit -framework Foundation -lIOReport
+#include "smc.h"
+
+typedef struct {
+	double gpuPowerW;
+	double cpuPowerW;
+	double anePowerW;
+	double systemPowerW;
+	double gpuUtilization;
+	float socTempC;
+} IOKitMetrics;
+
+int initIOKit(void);
+IOKitMetrics sampleIOKitMetrics(int durationMs);
+void cleanupIOKit(void);
+*/
+import "C"
+
 import (
 	"log/slog"
+	"sync"
 )
 
 // IOKitReading holds metrics from IOKit/IOReport.
@@ -19,17 +40,50 @@ type IOKitReading struct {
 	SystemPowerW   float64 // GPU + CPU + ANE total
 }
 
+var (
+	initOnce    sync.Once
+	initOk      bool
+	cleanupOnce sync.Once
+)
+
 // ReadIOKit reads GPU utilization, power, and SoC temperature via IOKit/IOReport.
 // IOReport is a private framework; channel names vary by macOS version.
 // Returns partial data with zeros for unavailable channels. Never panics.
-// TODO: Integrate IOReportCreateSubscription/IOReportCreateSamples or SMC
-// for real GPU power/temperature (see socpowerbud, IOReport_decompile).
 func ReadIOKit(logger *slog.Logger) *IOKitReading {
 	r := &IOKitReading{}
-	r.SystemPowerW = r.GPUPowerW + r.CPUPowerW + r.ANEPowerW
 
-	if logger != nil {
-		logger.Debug("IOReport channels unavailable; reporting zeros (graceful degradation)")
+	initOnce.Do(func() {
+		ret := C.initIOKit()
+		initOk = (ret == 0)
+		if !initOk && logger != nil {
+			logger.Debug("IOKit init failed; reporting zeros", "ret", int(ret))
+		}
+	})
+
+	if !initOk {
+		r.SystemPowerW = r.GPUPowerW + r.CPUPowerW + r.ANEPowerW
+		return r
 	}
+
+	pm := C.sampleIOKitMetrics(100)
+
+	r.GPUPowerW = float64(pm.gpuPowerW)
+	r.CPUPowerW = float64(pm.cpuPowerW)
+	r.ANEPowerW = float64(pm.anePowerW)
+	r.SystemPowerW = float64(pm.systemPowerW)
+	if r.SystemPowerW == 0 {
+		r.SystemPowerW = r.GPUPowerW + r.CPUPowerW + r.ANEPowerW
+	}
+	r.GPUUtilization = float64(pm.gpuUtilization)
+	r.SoCTempC = float64(pm.socTempC)
+
 	return r
+}
+
+// CleanupIOKit releases the IOReport subscription and SMC connection.
+// Call from adapter Stop() for graceful shutdown. Idempotent.
+func CleanupIOKit() {
+	cleanupOnce.Do(func() {
+		C.cleanupIOKit()
+	})
 }

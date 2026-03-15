@@ -175,6 +175,7 @@ func (a *AppleSiliconAdapter) Start(ctx context.Context) error {
 // Stop gracefully shuts down the adapter.
 func (a *AppleSiliconAdapter) Stop(_ context.Context) error {
 	a.logger.Info("apple_silicon adapter shutting down")
+	CleanupIOKit()
 	return nil
 }
 
