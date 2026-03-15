@@ -376,7 +376,12 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint) error {
 	p.powerCostMonthly.Reset()
 	p.gpuHotspotDeltaC.Reset()
 
-	p.deviceCount = len(readings)
+	// Count unique devices (multiple readings may share a device ID).
+	uniqueDevices := make(map[string]bool, len(readings))
+	for _, pt := range readings {
+		uniqueDevices[p.deviceID(pt)] = true
+	}
+	p.deviceCount = len(uniqueDevices)
 	p.agentInfo.WithLabelValues(p.version, p.deviceName).Set(1)
 	for _, pt := range readings {
 		p.updatePoint(pt)

@@ -306,6 +306,7 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var batch []normalizer.TelemetryPoint
+	draining := false
 	for {
 		select {
 		case pt, ok := <-ch:
@@ -331,14 +332,20 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				batch = batch[:0]
 			}
 		case <-ctx.Done():
+			if draining {
+				continue
+			}
+			draining = true
+			// Flush current batch but keep draining ch until it closes.
 			if len(batch) > 0 {
 				for _, out := range outputs {
 					if err := out.Update(batch); err != nil {
 						logger.Error("output update error on shutdown", "error", err)
 					}
 				}
+				batch = batch[:0]
 			}
-			return
+			ticker.Stop()
 		}
 	}
 }

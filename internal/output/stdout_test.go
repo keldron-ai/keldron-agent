@@ -142,6 +142,98 @@ func TestStdout_SetActiveAdapters(t *testing.T) {
 	}
 }
 
+func TestStdout_ZeroValuesPreserved(t *testing.T) {
+	var buf bytes.Buffer
+	std := NewStdout(&buf, "0.1.0-dev", []string{"fake"})
+
+	readings := []normalizer.TelemetryPoint{
+		{
+			Source:      "host1",
+			AdapterName: "fake",
+			Metrics: map[string]float64{
+				"temperature_c":       0,
+				"power_usage_w":       0,
+				"gpu_utilization_pct": 0,
+				"risk_composite":      0,
+			},
+		},
+	}
+	if err := std.Update(readings); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	var out StdoutLine
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	dev := out.Devices[0]
+	if dev.TemperatureC == nil {
+		t.Error("TemperatureC should not be nil for zero value")
+	} else if *dev.TemperatureC != 0 {
+		t.Errorf("TemperatureC = %v, want 0", *dev.TemperatureC)
+	}
+	if dev.PowerW == nil {
+		t.Error("PowerW should not be nil for zero value")
+	} else if *dev.PowerW != 0 {
+		t.Errorf("PowerW = %v, want 0", *dev.PowerW)
+	}
+	if dev.Utilization == nil {
+		t.Error("Utilization should not be nil for zero value")
+	} else if *dev.Utilization != 0 {
+		t.Errorf("Utilization = %v, want 0", *dev.Utilization)
+	}
+	if dev.RiskComposite == nil {
+		t.Error("RiskComposite should not be nil for zero value")
+	} else if *dev.RiskComposite != 0 {
+		t.Errorf("RiskComposite = %v, want 0", *dev.RiskComposite)
+	}
+}
+
+func TestStdout_DeviceModelFromTags(t *testing.T) {
+	var buf bytes.Buffer
+	std := NewStdout(&buf, "0.1.0-dev", []string{"dcgm"})
+
+	readings := []normalizer.TelemetryPoint{
+		{
+			Source:      "host1",
+			AdapterName: "dcgm",
+			Metrics:     map[string]float64{"temperature_c": 65},
+			Tags:        map[string]string{"gpu_name": "NVIDIA A100-SXM4-80GB"},
+		},
+		{
+			Source:      "host2",
+			AdapterName: "dcgm",
+			Metrics:     map[string]float64{"temperature_c": 70},
+			Tags:        map[string]string{"device_model": "MI300X"},
+		},
+		{
+			Source:      "host3",
+			AdapterName: "dcgm",
+			Metrics:     map[string]float64{"temperature_c": 55},
+		},
+	}
+	if err := std.Update(readings); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	var out StdoutLine
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(out.Devices) != 3 {
+		t.Fatalf("devices len = %d, want 3", len(out.Devices))
+	}
+	if out.Devices[0].DeviceModel != "NVIDIA A100-SXM4-80GB" {
+		t.Errorf("device[0].DeviceModel = %q, want NVIDIA A100-SXM4-80GB", out.Devices[0].DeviceModel)
+	}
+	if out.Devices[1].DeviceModel != "MI300X" {
+		t.Errorf("device[1].DeviceModel = %q, want MI300X", out.Devices[1].DeviceModel)
+	}
+	if out.Devices[2].DeviceModel != "unknown" {
+		t.Errorf("device[2].DeviceModel = %q, want unknown", out.Devices[2].DeviceModel)
+	}
+}
+
 func TestStdout_StartAndClose(t *testing.T) {
 	var buf bytes.Buffer
 	std := NewStdout(&buf, "0.1.0-dev", nil)
