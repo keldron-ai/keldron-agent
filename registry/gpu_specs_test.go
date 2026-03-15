@@ -4,6 +4,9 @@
 package registry
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -62,6 +65,17 @@ func TestLookupUnknown(t *testing.T) {
 	}
 	if spec2.TDPW != 400 {
 		t.Errorf("fallback with driver TDP: TDPW = %v, want 400", spec2.TDPW)
+	}
+
+	// When driver reports zeros, use defaults
+	spec3 := LookupWithFallback("Unknown-GPU", 0, 0)
+	if spec3.ThermalLimitC != 83 || spec3.TDPW != 350 {
+		t.Errorf("fallback with zero driver values: got thermal=%v tdp=%v, want 83, 350",
+			spec3.ThermalLimitC, spec3.TDPW)
+	}
+	if spec3.BehaviorClass != "consumer_active_cooled" || spec3.CVMax != 0.60 {
+		t.Errorf("fallback: class=%q cv_max=%v, want consumer_active_cooled 0.60",
+			spec3.BehaviorClass, spec3.CVMax)
 	}
 }
 
@@ -145,6 +159,87 @@ func TestBehaviorClassAssignment(t *testing.T) {
 	if soc.BehaviorClass != "soc_integrated" || soc.CVMax != 0.50 {
 		t.Errorf("soc M4-Pro: class=%q cv_max=%v, want soc_integrated 0.50",
 			soc.BehaviorClass, soc.CVMax)
+	}
+}
+
+func TestAllEntriesValidation(t *testing.T) {
+	validBehaviorClasses := map[string]bool{
+		"datacenter_sustained":    true,
+		"consumer_active_cooled":  true,
+		"soc_integrated":          true,
+		"consumer_passive_cooled": true,
+	}
+
+	entries := AllEntries()
+	if len(entries) < 25 {
+		t.Errorf("registry has %d entries, want at least 25", len(entries))
+	}
+
+	// Walk top-level JSON tokens to detect duplicate keys (case-insensitive)
+	// before any unmarshalling silently overwrites them.
+	dec := json.NewDecoder(bytes.NewReader(gpuSpecsJSON))
+	tok, err := dec.Token() // opening '{'
+	if d, ok := tok.(json.Delim); err != nil || !ok || d != '{' {
+		t.Fatalf("expected opening '{' delimiter, got %v (%T, err=%v)", tok, tok, err)
+	}
+	lowerKeys := make(map[string]string) // lowercased → original key
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			t.Fatalf("reading key token: %v", err)
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			t.Fatalf("expected key token to be string, got %T", keyTok)
+		}
+		lower := strings.ToLower(key)
+		if prev, exists := lowerKeys[lower]; exists {
+			t.Errorf("duplicate key (case-insensitive): %q collides with %q", key, prev)
+		}
+		lowerKeys[lower] = key
+
+		// Skip the value object
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			t.Fatalf("skipping value for key %q: %v", key, err)
+		}
+	}
+
+	// Parse into raw field maps to verify required keys are present
+	requiredFields := []string{
+		"vendor", "architecture", "thermal_limit_c", "tdp_w",
+		"temp_measurement_type", "behavior_class", "cv_max",
+		"thermal_pressure_state_supported",
+	}
+	var rawFields map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(gpuSpecsJSON, &rawFields); err != nil {
+		t.Fatalf("failed to parse gpu_specs.json into raw fields: %v", err)
+	}
+	for key, fields := range rawFields {
+		for _, req := range requiredFields {
+			if _, ok := fields[req]; !ok {
+				t.Errorf("%s: missing required field %q", key, req)
+			}
+		}
+	}
+
+	// Validate decoded values
+	for key, spec := range entries {
+		if spec.ThermalLimitC <= 0 {
+			t.Errorf("%s: thermal_limit_c=%v, want > 0", key, spec.ThermalLimitC)
+		}
+		if spec.TDPW <= 0 {
+			t.Errorf("%s: tdp_w=%v, want > 0", key, spec.TDPW)
+		}
+		if !validBehaviorClasses[spec.BehaviorClass] {
+			t.Errorf("%s: behavior_class=%q, want one of datacenter_sustained, consumer_active_cooled, soc_integrated, consumer_passive_cooled", key, spec.BehaviorClass)
+		}
+		if spec.CVMax <= 0 || spec.CVMax > 1.0 {
+			t.Errorf("%s: cv_max=%v, want > 0 and <= 1.0", key, spec.CVMax)
+		}
+		if spec.Vendor == "" {
+			t.Errorf("%s: vendor is empty", key)
+		}
 	}
 }
 
