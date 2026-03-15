@@ -1,6 +1,6 @@
 .PHONY: build build-all build-dcgm test test-dcgm lint clean generate docker-build docker-run
 
-VERSION := 0.1.0-dev
+VERSION := $(shell cat VERSION 2>/dev/null || echo 0.1.0-dev)
 
 build:
 	go build -ldflags "-X main.version=$(VERSION)" -o keldron-agent ./cmd/agent
