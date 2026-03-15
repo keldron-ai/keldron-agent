@@ -32,7 +32,10 @@ adapters:
 
   # --- Scenario 2: Linux + NVIDIA — enable only nvidia_consumer ---
   nvidia_consumer:
-    enabled: false               # Set true when nvidia-smi in PATH
+    enabled: false               # Auto: true when nvidia-smi in PATH (linux/windows only)
+    poll_interval: "10s"        # NVIDIA GPUs update fast
+    nvidia_smi_path: ""         # Empty = search PATH
+    gpu_indices: []             # Empty = all GPUs
 
   # --- Scenario 3: Linux + AMD — enable only rocm ---
   rocm:
