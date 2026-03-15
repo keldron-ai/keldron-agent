@@ -248,12 +248,12 @@ func TestNormalizerTransform(t *testing.T) {
 		Source:      "gpu-node-01",
 		Timestamp:   time.Now(),
 		Metrics: map[string]interface{}{
-			"temperature_c":     65.0,
-			"power_usage_w":     250.0,
-			"gpu_utilization":   float64(85),
-			"mem_used_bytes":    uint64(40e9),
-			"throttled":         false,
-			"gpu_name":          "NVIDIA A100", // string — should be skipped
+			"temperature_c":   65.0,
+			"power_usage_w":   250.0,
+			"gpu_utilization": float64(85),
+			"mem_used_bytes":  uint64(40e9),
+			"throttled":       false,
+			"gpu_name":        "NVIDIA A100", // string — should be skipped
 		},
 	}
 

@@ -21,10 +21,10 @@ const (
 	MetricPowerKW       = "power_kw"
 	MetricVoltageV      = "voltage_v"
 	MetricCurrentA      = "current_a"
-	MetricPhaseCurrent1  = "phase_current_a_1"
-	MetricPhaseCurrent2  = "phase_current_a_2"
-	MetricPhaseCurrent3  = "phase_current_a_3"
-	MetricInletTempC     = "inlet_temp_c"
+	MetricPhaseCurrent1 = "phase_current_a_1"
+	MetricPhaseCurrent2 = "phase_current_a_2"
+	MetricPhaseCurrent3 = "phase_current_a_3"
+	MetricInletTempC    = "inlet_temp_c"
 	MetricStatus        = "status"
 )
 
@@ -35,14 +35,14 @@ type snmpGetter interface {
 
 // SNMPPoller polls a single PDU target via SNMP.
 type SNMPPoller struct {
-	client   *gosnmp.GoSNMP
-	getter   snmpGetter // same as client when using real connection
-	target   PDUTarget
-	oidMap   VendorOIDMap
-	cfg      *SNMPPDUConfig
-	logger   *slog.Logger
-	closeMu  sync.Mutex
-	closed   bool
+	client  *gosnmp.GoSNMP
+	getter  snmpGetter // same as client when using real connection
+	target  PDUTarget
+	oidMap  VendorOIDMap
+	cfg     *SNMPPDUConfig
+	logger  *slog.Logger
+	closeMu sync.Mutex
+	closed  bool
 }
 
 // NewSNMPPoller creates a poller for the given target. It connects internally

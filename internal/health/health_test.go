@@ -27,7 +27,7 @@ type stubAdapter struct {
 	lastErrorAt time.Time
 }
 
-func (s *stubAdapter) Name() string { return s.name }
+func (s *stubAdapter) Name() string    { return s.name }
 func (s *stubAdapter) IsRunning() bool { return s.running }
 func (s *stubAdapter) Stats() (pollCount, errorCount uint64, lastPoll time.Time, lastError string, lastErrorAt time.Time) {
 	return s.pollCount, s.errorCount, s.lastPoll, s.lastError, s.lastErrorAt
@@ -35,23 +35,23 @@ func (s *stubAdapter) Stats() (pollCount, errorCount uint64, lastPoll time.Time,
 
 // stubNormalizer implements NormalizerProvider for testing.
 type stubNormalizer struct {
-	running     bool
-	processed   uint64
-	rejected    uint64
-	inputCount  int
+	running    bool
+	processed  uint64
+	rejected   uint64
+	inputCount int
 }
 
 func (s *stubNormalizer) Stats() (processed, rejected uint64) { return s.processed, s.rejected }
-func (s *stubNormalizer) InputCount() int { return s.inputCount }
-func (s *stubNormalizer) IsRunning() bool { return s.running }
+func (s *stubNormalizer) InputCount() int                     { return s.inputCount }
+func (s *stubNormalizer) IsRunning() bool                     { return s.running }
 
 // stubBuffer implements BufferProvider for testing.
 type stubBuffer struct {
-	ringCap, ringUsed     int
-	walSize, walMax       int64
-	walSegments           int
-	walPoints             uint64
-	draining              bool
+	ringCap, ringUsed int
+	walSize, walMax   int64
+	walSegments       int
+	walPoints         uint64
+	draining          bool
 }
 
 func (s *stubBuffer) RingStats() (capacity, used int) { return s.ringCap, s.ringUsed }
@@ -61,7 +61,7 @@ func (s *stubBuffer) WALStats() (totalSize, maxSize int64, segments int, points 
 
 // stubSender implements SenderProvider for testing.
 type stubSender struct {
-	connected    bool
+	connected   bool
 	target      string
 	batchesSent uint64
 	pointsSent  uint64
@@ -74,11 +74,11 @@ type stubSender struct {
 func (s *stubSender) Stats() (batchesSent, pointsSent, errors uint64) {
 	return s.batchesSent, s.pointsSent, s.errors
 }
-func (s *stubSender) IsConnected() bool { return s.connected }
+func (s *stubSender) IsConnected() bool     { return s.connected }
 func (s *stubSender) LastSendAt() time.Time { return s.lastSendAt }
-func (s *stubSender) SeqNumber() uint64 { return s.seqNumber }
-func (s *stubSender) LastError() string { return s.lastError }
-func (s *stubSender) Target() string { return s.target }
+func (s *stubSender) SeqNumber() uint64     { return s.seqNumber }
+func (s *stubSender) LastError() string     { return s.lastError }
+func (s *stubSender) Target() string        { return s.target }
 
 // stubConfig implements ConfigProvider for testing.
 type stubConfig struct {
@@ -197,7 +197,7 @@ func TestHandleHealth_Degraded(t *testing.T) {
 
 func TestHandleHealth_Unhealthy(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		setup func(*health.Server)
 	}{
 		{

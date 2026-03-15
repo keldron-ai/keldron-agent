@@ -42,7 +42,7 @@ type WorkloadAdapter interface {
 // RawReading is the raw telemetry from an adapter before normalization.
 type RawReading struct {
 	AdapterName string
-	Source      string                 // e.g., hostname or device ID
+	Source      string // e.g., hostname or device ID
 	Timestamp   time.Time
 	Metrics     map[string]interface{} // Flexible key-value metrics
 }

@@ -8,11 +8,11 @@ type GPUPod struct {
 	PodName   string
 	Namespace string
 	NodeName  string
-	RackID    string            // Resolved from node_to_rack_map
-	GPUCount  int               // Requested GPU count
-	GPUType   string             // "nvidia.com/gpu" or "amd.com/gpu"
-	JobName   string             // Extracted from labels (job-name, app, etc.)
-	Phase     string             // Running, Pending, Succeeded, Failed
+	RackID    string // Resolved from node_to_rack_map
+	GPUCount  int    // Requested GPU count
+	GPUType   string // "nvidia.com/gpu" or "amd.com/gpu"
+	JobName   string // Extracted from labels (job-name, app, etc.)
+	Phase     string // Running, Pending, Succeeded, Failed
 	StartTime time.Time
 	Labels    map[string]string
 }

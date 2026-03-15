@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	channelBuffer       = 256
+	channelBuffer        = 256
 	defaultRetryInterval = 5 * time.Second
-	maxRetryBackoff     = 5 * time.Minute
+	maxRetryBackoff      = 5 * time.Minute
 )
 
 // dcgmClient is the interface for collecting GPU metrics.
@@ -29,8 +29,8 @@ type dcgmClient interface {
 
 // DCGMConfig holds DCGM-specific configuration decoded from the adapter's Raw YAML node.
 type DCGMConfig struct {
-	UseStub bool   `yaml:"use_stub"`
-	GPUIDs  []int  `yaml:"gpu_ids"`
+	UseStub bool  `yaml:"use_stub"`
+	GPUIDs  []int `yaml:"gpu_ids"`
 	Collect struct {
 		Temperature bool `yaml:"temperature"`
 		Power       bool `yaml:"power"`
@@ -47,17 +47,17 @@ type DCGMConfig struct {
 
 // DCGMAdapter polls GPU metrics via the dcgmClient interface.
 type DCGMAdapter struct {
-	cfg         config.AdapterConfig
-	dcgmCfg     DCGMConfig
-	client      dcgmClient
-	readings    chan adapter.RawReading
-	logger      *slog.Logger
-	hostname    string
-	closeOnce   sync.Once
-	holder      *config.Holder
+	cfg          config.AdapterConfig
+	dcgmCfg      DCGMConfig
+	client       dcgmClient
+	readings     chan adapter.RawReading
+	logger       *slog.Logger
+	hostname     string
+	closeOnce    sync.Once
+	holder       *config.Holder
 	pollInterval time.Duration
-	ticker      *time.Ticker
-	mu          sync.Mutex
+	ticker       *time.Ticker
+	mu           sync.Mutex
 
 	running     atomic.Bool
 	pollCount   atomic.Uint64

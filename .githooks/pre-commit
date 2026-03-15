@@ -1,0 +1,26 @@
+#!/bin/bash
+# Pre-commit checks for keldron-agent
+# Install: git config core.hooksPath .githooks
+
+set -eo pipefail
+
+echo "🔍 Running pre-commit checks..."
+
+# Format check
+echo "  → gofmt"
+UNFORMATTED=$(gofmt -l . 2>/dev/null | grep -v vendor || true)
+if [ -n "$UNFORMATTED" ]; then
+    echo "❌ These files need gofmt:"
+    echo "$UNFORMATTED"
+    exit 1
+fi
+
+# Vet
+echo "  → go vet"
+go vet ./...
+
+# Tests (short mode for speed)
+echo "  → go test -short -race"
+go test ./... -short -race -count=1 2>&1 | tail -5
+
+echo "✅ All pre-commit checks passed"

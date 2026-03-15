@@ -12,18 +12,18 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
+	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
 	"github.com/keldron-ai/keldron-agent/internal/fake"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/kubernetes"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/rocm"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
-	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
 )
 
 // Set at build time via -ldflags.
@@ -67,12 +67,20 @@ func run() int {
 		slog.SetDefault(initLogger(cfg.Agent.LogLevel))
 	})
 
+	// Log effective config summary (mask cloud API key when set).
 	slog.Info("agent starting",
 		"agent_id", cfg.Agent.ID,
 		"version", version,
 		"config", *configPath,
 		"log_level", cfg.Agent.LogLevel,
+		"poll_interval", cfg.Agent.PollInterval,
+		"output_stdout", cfg.Output.Stdout,
+		"output_prometheus", cfg.Output.Prometheus,
+		"output_prometheus_port", cfg.Output.PrometheusPort,
 	)
+	if cfg.Cloud.APIKey != "" {
+		slog.Info("cloud configured", "api_key", config.MaskedCloudAPIKey(cfg.Cloud.APIKey), "endpoint", cfg.Cloud.Endpoint)
+	}
 
 	// Build adapter registry.
 	registry := adapter.NewRegistry()

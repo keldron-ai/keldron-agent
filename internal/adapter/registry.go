@@ -63,7 +63,12 @@ func (r *Registry) StartAll(ctx context.Context, holder *config.Holder, logger *
 
 		a, err := r.Create(name, acfg, holder, logger.With("adapter", name))
 		if err != nil {
-			// Stop already-started adapters before returning.
+			// Skip adapters enabled in config but not registered (e.g. apple_silicon, nvidia_consumer).
+			if _, ok := r.constructors[name]; !ok {
+				logger.Debug("adapter enabled in config but not registered, skipping", "adapter", name)
+				continue
+			}
+			// Registered adapter failed to create; stop already-started adapters.
 			for _, started := range running {
 				_ = started.Stop(ctx)
 			}

@@ -36,10 +36,10 @@ const (
 
 // PDUTarget represents a single PDU to poll.
 type PDUTarget struct {
-	Address  string   `yaml:"address"`
-	PDUID    string   `yaml:"pdu_id"`
-	RackIDs  []string `yaml:"rack_ids"`
-	Vendor   string   `yaml:"vendor"` // servertech, raritan, apc, generic
+	Address string   `yaml:"address"`
+	PDUID   string   `yaml:"pdu_id"`
+	RackIDs []string `yaml:"rack_ids"`
+	Vendor  string   `yaml:"vendor"` // servertech, raritan, apc, generic
 }
 
 // RetryConfig holds retry and backoff settings.
@@ -51,16 +51,16 @@ type RetryConfig struct {
 
 // SNMPPDUConfig holds PDU-specific configuration decoded from the adapter's Raw YAML node.
 type SNMPPDUConfig struct {
-	Version       string        `yaml:"version"` // "v2c" or "v3"
-	Community     string        `yaml:"community"`
-	Username      string        `yaml:"username"`
-	AuthProtocol  string        `yaml:"auth_protocol"`
-	AuthPassphrase string       `yaml:"auth_passphrase"`
-	PrivProtocol  string        `yaml:"priv_protocol"`
-	PrivPassphrase string      `yaml:"priv_passphrase"`
-	Targets       []PDUTarget   `yaml:"targets"`
-	Retry         RetryConfig   `yaml:"retry"`
-	Timeout       time.Duration `yaml:"timeout"`
+	Version        string        `yaml:"version"` // "v2c" or "v3"
+	Community      string        `yaml:"community"`
+	Username       string        `yaml:"username"`
+	AuthProtocol   string        `yaml:"auth_protocol"`
+	AuthPassphrase string        `yaml:"auth_passphrase"`
+	PrivProtocol   string        `yaml:"priv_protocol"`
+	PrivPassphrase string        `yaml:"priv_passphrase"`
+	Targets        []PDUTarget   `yaml:"targets"`
+	Retry          RetryConfig   `yaml:"retry"`
+	Timeout        time.Duration `yaml:"timeout"`
 }
 
 // DecodeFromRaw decodes SNMPPDUConfig from a YAML node.

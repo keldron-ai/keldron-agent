@@ -167,15 +167,15 @@ func TestNormalizeThrottle(t *testing.T) {
 
 func TestToRawReading_CanonicalKeys(t *testing.T) {
 	r := GPUReading{
-		GPUID:            0,
-		GPUTemp:          65.0,
-		GPUUtilization:   95.0,
-		GPUMemoryUsed:    1e9,
-		GPUMemoryTotal:   8e9,
-		GPUPowerW:        350.0,
-		ThrottleReason:   "thermal_throttle",
+		GPUID:              0,
+		GPUTemp:            65.0,
+		GPUUtilization:     95.0,
+		GPUMemoryUsed:      1e9,
+		GPUMemoryTotal:     8e9,
+		GPUPowerW:          350.0,
+		ThrottleReason:     "thermal_throttle",
 		ThrottleReasonCode: ThrottleThermal,
-		GPUModel:         "MI300X",
+		GPUModel:           "MI300X",
 	}
 	raw := r.ToRawReading("host-01")
 

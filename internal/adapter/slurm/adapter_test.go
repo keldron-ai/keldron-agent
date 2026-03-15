@@ -175,7 +175,7 @@ func TestIntegration_MockSlurmrestd(t *testing.T) {
 				StartTime:    time.Now().Unix(),
 				UserName:     "user1",
 				Partition:    "gpu",
-				Name:        "job1",
+				Name:         "job1",
 			},
 			{
 				JobID:        101,
@@ -186,7 +186,7 @@ func TestIntegration_MockSlurmrestd(t *testing.T) {
 				StartTime:    time.Now().Unix(),
 				UserName:     "user2",
 				Partition:    "gpu",
-				Name:        "job2",
+				Name:         "job2",
 			},
 		},
 	}
@@ -424,7 +424,7 @@ func TestMergeNodeToRackMap(t *testing.T) {
 		Adapters: map[string]config.AdapterConfig{
 			"slurm": {
 				Enabled: true,
-				Raw:     mustDecodeYAML(t, `slurmrestd_url: "http://x"
+				Raw: mustDecodeYAML(t, `slurmrestd_url: "http://x"
 node_to_rack_map:
   gpu-node-01: "rack-01"
   gpu-node-02: "rack-02"`),
@@ -455,7 +455,7 @@ func TestMergeNodeToRackMap_SlurmDisabled(t *testing.T) {
 		Adapters: map[string]config.AdapterConfig{
 			"slurm": {
 				Enabled: false,
-				Raw:     mustDecodeYAML(t, `node_to_rack_map:
+				Raw: mustDecodeYAML(t, `node_to_rack_map:
   gpu-node-01: "rack-01"`),
 			},
 		},

@@ -21,9 +21,9 @@ const bufSize = 1024 * 1024
 type mockTelemetryServer struct {
 	telemetryv1.UnimplementedTelemetryServiceServer
 
-	mu       sync.Mutex
-	batches  []*telemetryv1.TelemetryBatch
-	ackFunc  func(*telemetryv1.TelemetryBatch) *telemetryv1.BatchAck // optional custom ack
+	mu      sync.Mutex
+	batches []*telemetryv1.TelemetryBatch
+	ackFunc func(*telemetryv1.TelemetryBatch) *telemetryv1.BatchAck // optional custom ack
 }
 
 func (m *mockTelemetryServer) StreamBatch(stream grpc.BidiStreamingServer[telemetryv1.TelemetryBatch, telemetryv1.BatchAck]) error {

@@ -29,13 +29,13 @@ type SlurmAdapter struct {
 	ticker       *time.Ticker
 	mu           sync.Mutex
 
-	cancelFunc context.CancelFunc
-	closeOnce  sync.Once
-	running    atomic.Bool
-	pollCount atomic.Uint64
-	errorCount atomic.Uint64
-	lastPoll   atomic.Value // time.Time
-	lastError  atomic.Value // string
+	cancelFunc  context.CancelFunc
+	closeOnce   sync.Once
+	running     atomic.Bool
+	pollCount   atomic.Uint64
+	errorCount  atomic.Uint64
+	lastPoll    atomic.Value // time.Time
+	lastError   atomic.Value // string
 	lastErrorAt atomic.Value // time.Time
 }
 

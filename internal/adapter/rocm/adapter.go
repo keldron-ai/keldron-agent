@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	channelBuffer        = 256
-	defaultROCmSMIPath   = "/opt/rocm/bin/rocm-smi"
-	defaultPollInterval  = 10 * time.Second
+	channelBuffer       = 256
+	defaultROCmSMIPath  = "/opt/rocm/bin/rocm-smi"
+	defaultPollInterval = 10 * time.Second
 )
 
 // ROCmAdapter polls AMD GPU metrics via rocm-smi CLI.

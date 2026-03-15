@@ -4,12 +4,12 @@ import "time"
 
 // Response is the JSON payload returned by GET /health.
 type Response struct {
-	Status    Status          `json:"status"`    // healthy | degraded | unhealthy
-	AgentID   string          `json:"agent_id"`
-	Version   string          `json:"version"`
-	Uptime    string          `json:"uptime"`    // Human-readable: "2h34m"
-	StartedAt time.Time       `json:"started_at"`
-	Timestamp time.Time       `json:"timestamp"` // When this response was generated
+	Status    Status    `json:"status"` // healthy | degraded | unhealthy
+	AgentID   string    `json:"agent_id"`
+	Version   string    `json:"version"`
+	Uptime    string    `json:"uptime"` // Human-readable: "2h34m"
+	StartedAt time.Time `json:"started_at"`
+	Timestamp time.Time `json:"timestamp"` // When this response was generated
 
 	Adapters   map[string]AdapterStatus `json:"adapters"`
 	Normalizer NormalizerStatus         `json:"normalizer"`
@@ -41,35 +41,35 @@ type AdapterStatus struct {
 
 // NormalizerStatus holds normalizer health information.
 type NormalizerStatus struct {
-	Running      bool `json:"running"`
-	Processed    uint64 `json:"processed"`
-	Rejected     uint64 `json:"rejected"`
-	InputQueues  int  `json:"input_queues"`
+	Running     bool   `json:"running"`
+	Processed   uint64 `json:"processed"`
+	Rejected    uint64 `json:"rejected"`
+	InputQueues int    `json:"input_queues"`
 }
 
 // BufferStatus holds ring buffer and WAL health information.
 type BufferStatus struct {
-	RingCapacity  int     `json:"ring_capacity"`
-	RingUsed      int     `json:"ring_used"`
-	RingPercent   float64 `json:"ring_percent"` // 0-100
-	WALEnabled    bool   `json:"wal_enabled"`
-	WALSegments   int    `json:"wal_segments"`
-	WALSizeBytes  int64  `json:"wal_size_bytes"`
-	WALMaxBytes   int64  `json:"wal_max_bytes"` // 0 if unknown
-	WALPoints     uint64 `json:"wal_points"`
-	Draining      bool   `json:"draining"` // true if WAL is currently draining
+	RingCapacity int     `json:"ring_capacity"`
+	RingUsed     int     `json:"ring_used"`
+	RingPercent  float64 `json:"ring_percent"` // 0-100
+	WALEnabled   bool    `json:"wal_enabled"`
+	WALSegments  int     `json:"wal_segments"`
+	WALSizeBytes int64   `json:"wal_size_bytes"`
+	WALMaxBytes  int64   `json:"wal_max_bytes"` // 0 if unknown
+	WALPoints    uint64  `json:"wal_points"`
+	Draining     bool    `json:"draining"` // true if WAL is currently draining
 }
 
 // SenderStatus holds gRPC sender health information.
 type SenderStatus struct {
 	Connected   bool      `json:"connected"`
-	Target     string    `json:"target"`
-	BatchesSent uint64   `json:"batches_sent"`
-	PointsSent  uint64   `json:"points_sent"`
-	Errors      uint64   `json:"errors"`
+	Target      string    `json:"target"`
+	BatchesSent uint64    `json:"batches_sent"`
+	PointsSent  uint64    `json:"points_sent"`
+	Errors      uint64    `json:"errors"`
 	LastSendAt  time.Time `json:"last_send_at,omitempty"`
 	LastError   string    `json:"last_error,omitempty"`
-	SeqNumber   uint64   `json:"sequence_number"`
+	SeqNumber   uint64    `json:"sequence_number"`
 }
 
 // ConfigStatus holds config watcher health information.
