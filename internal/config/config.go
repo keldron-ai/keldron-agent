@@ -178,10 +178,11 @@ type OutputConfig struct {
 
 // HubConfig holds hub aggregator settings.
 type HubConfig struct {
-	Enabled     bool     `yaml:"enabled"`
-	MDNSEnabled bool     `yaml:"mdns_enabled"`
-	StaticPeers []string `yaml:"static_peers"`
-	ListenPort  int      `yaml:"listen_port"`
+	Enabled        bool          `yaml:"enabled"`
+	MDNSEnabled    bool          `yaml:"mdns_enabled"`
+	StaticPeers    []string      `yaml:"static_peers"`
+	ListenPort     int           `yaml:"listen_port"`
+	ScrapeInterval time.Duration `yaml:"scrape_interval"`
 }
 
 // CloudConfig holds cloud API settings.
@@ -256,10 +257,11 @@ func Defaults() *Config {
 			PrometheusPort: 9100,
 		},
 		Hub: HubConfig{
-			Enabled:     false,
-			MDNSEnabled: false,
-			StaticPeers: nil,
-			ListenPort:  9200,
+			Enabled:        false,
+			MDNSEnabled:    false,
+			StaticPeers:    nil,
+			ListenPort:     9200,
+			ScrapeInterval: 30 * time.Second,
 		},
 		Cloud: CloudConfig{},
 		Sender: SenderConfig{
@@ -293,7 +295,8 @@ func defaultConfigLoad() *configLoad {
 			PrometheusPort: 9100,
 		},
 		Hub: HubConfig{
-			ListenPort: 9200,
+			ListenPort:     9200,
+			ScrapeInterval: 30 * time.Second,
 		},
 		Adapters: AdaptersConfig{
 			LinuxThermal: LinuxThermalConfig{
@@ -563,6 +566,11 @@ func ApplyEnvOverrides(load *configLoad) {
 	if v := os.Getenv("KELDRON_HUB_LISTEN_PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil {
 			load.Hub.ListenPort = p
+		}
+	}
+	if v := os.Getenv("KELDRON_HUB_SCRAPE_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			load.Hub.ScrapeInterval = d
 		}
 	}
 	if v := os.Getenv("KELDRON_CLOUD_API_KEY"); v != "" {

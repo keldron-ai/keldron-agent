@@ -116,6 +116,7 @@ hub:
   mdns_enabled: false            # Auto-discover peers via mDNS
   static_peers: []               # e.g. ["192.168.1.10:9100", "192.168.1.11:9100"]
   listen_port: 9200              # Hub API port
+  scrape_interval: "30s"         # How often to scrape peer /metrics
 
 # --- Cloud streaming ---
 cloud:
