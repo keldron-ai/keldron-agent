@@ -4,8 +4,8 @@
 package registry
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 )
@@ -177,10 +177,10 @@ func TestAllEntriesValidation(t *testing.T) {
 
 	// Walk top-level JSON tokens to detect duplicate keys (case-insensitive)
 	// before any unmarshalling silently overwrites them.
-	dec := json.NewDecoder(strings.NewReader(string(gpuSpecsJSON)))
+	dec := json.NewDecoder(bytes.NewReader(gpuSpecsJSON))
 	tok, err := dec.Token() // opening '{'
-	if err != nil || fmt.Sprintf("%v", tok) != "{" {
-		t.Fatalf("expected opening '{', got %v (err=%v)", tok, err)
+	if d, ok := tok.(json.Delim); err != nil || !ok || d != '{' {
+		t.Fatalf("expected opening '{' delimiter, got %v (%T, err=%v)", tok, tok, err)
 	}
 	lowerKeys := make(map[string]string) // lowercased → original key
 	for dec.More() {
@@ -188,7 +188,10 @@ func TestAllEntriesValidation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading key token: %v", err)
 		}
-		key := keyTok.(string)
+		key, ok := keyTok.(string)
+		if !ok {
+			t.Fatalf("expected key token to be string, got %T", keyTok)
+		}
 		lower := strings.ToLower(key)
 		if prev, exists := lowerKeys[lower]; exists {
 			t.Errorf("duplicate key (case-insensitive): %q collides with %q", key, prev)
