@@ -55,13 +55,16 @@ func ReadIOKit(logger *slog.Logger) *IOKitReading {
 	initOnce.Do(func() {
 		ret := C.initIOKit()
 		initOk = (ret == 0)
-		if !initOk && logger != nil {
-			logger.Debug("IOKit init failed; reporting zeros", "ret", int(ret))
+		if !initOk {
+			l := logger
+			if l == nil {
+				l = slog.Default()
+			}
+			l.Debug("IOKit init failed (IOReport is optional, a private framework whose channel names vary by macOS version); reporting zeros", "ret", int(ret))
 		}
 	})
 
 	if !initOk {
-		r.SystemPowerW = r.GPUPowerW + r.CPUPowerW + r.ANEPowerW
 		return r
 	}
 

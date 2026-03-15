@@ -249,16 +249,7 @@ func (a *AppleSiliconAdapter) collect(now time.Time) (adapter.RawReading, error)
 		metrics["swap_used_bytes"] = float64(mem.SwapUsedBytes)
 	}
 
-	// Ensure schema stability for missing metrics
-	if _, ok := metrics["temperature_c"]; !ok {
-		metrics["temperature_c"] = 0.0
-	}
-	if _, ok := metrics["power_usage_w"]; !ok {
-		metrics["power_usage_w"] = 0.0
-	}
-	if _, ok := metrics["gpu_utilization_pct"]; !ok {
-		metrics["gpu_utilization_pct"] = 0.0
-	}
+	// Ensure schema stability for missing metrics (memory keys may be absent on error)
 	if _, ok := metrics["mem_total_bytes"]; !ok {
 		metrics["mem_total_bytes"] = 0.0
 	}

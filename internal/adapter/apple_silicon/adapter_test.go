@@ -124,8 +124,10 @@ func TestReadIOKit(t *testing.T) {
 	if r == nil {
 		t.Fatal("ReadIOKit returned nil")
 	}
-	if r.GPUUtilization != 0 || r.GPUPowerW != 0 || r.SoCTempC != 0 {
-		t.Errorf("ReadIOKit: expected zeros, got util=%v power=%v temp=%v",
+	// On real Apple Silicon hardware, ReadIOKit returns live metrics.
+	// Just verify it returns non-negative values without crashing.
+	if r.GPUUtilization < 0 || r.GPUPowerW < 0 || r.SoCTempC < 0 {
+		t.Errorf("ReadIOKit: unexpected negative values: util=%v power=%v temp=%v",
 			r.GPUUtilization, r.GPUPowerW, r.SoCTempC)
 	}
 }

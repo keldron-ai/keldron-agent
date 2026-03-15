@@ -16,6 +16,9 @@
 #define SMC_CMD_READ_PLIMIT 11
 #define SMC_CMD_READ_VERS 12
 
+// FourCC for 'flt ' data type: (('f' << 24) | ('l' << 16) | ('t' << 8) | ' ')
+#define kSMCDataTypeFloat 1718383648
+
 typedef struct {
 	char major;
 	char minor;

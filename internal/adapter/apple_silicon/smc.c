@@ -38,7 +38,7 @@ io_connect_t SMCOpen(void) {
 
 kern_return_t SMCClose(io_connect_t conn) { return IOServiceClose(conn); }
 
-kern_return_t SMCCall(io_connect_t conn, int index,
+static kern_return_t SMCCall(io_connect_t conn, int index,
 	SMCKeyData_t *inputStructure,
 	SMCKeyData_t *outputStructure) {
 	size_t structureInputSize;
@@ -62,7 +62,7 @@ kern_return_t SMCReadKey(io_connect_t conn, const char *key,
 	memset(&outputStructure, 0, sizeof(SMCKeyData_t));
 	memset(val, 0, sizeof(SMCKeyData_t));
 
-	inputStructure.key = (key[0] << 24) | (key[1] << 16) | (key[2] << 8) | key[3];
+	inputStructure.key = ((unsigned char)key[0] << 24) | ((unsigned char)key[1] << 16) | ((unsigned char)key[2] << 8) | (unsigned char)key[3];
 	inputStructure.data8 = SMC_CMD_READ_KEYINFO;
 
 	result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
@@ -91,7 +91,7 @@ double SMCGetFloatValue(io_connect_t conn, const char *key) {
 		return 0.0;
 	}
 
-	if (val.keyInfo.dataType == 1718383648) {
+	if (val.keyInfo.dataType == kSMCDataTypeFloat) {
 		float f;
 		memcpy(&f, val.bytes, 4);
 		return (double)f;
@@ -150,7 +150,7 @@ kern_return_t SMCGetKeyInfo(io_connect_t conn, const char *key,
 	memset(&inputStructure, 0, sizeof(SMCKeyData_t));
 	memset(&outputStructure, 0, sizeof(SMCKeyData_t));
 
-	inputStructure.key = (key[0] << 24) | (key[1] << 16) | (key[2] << 8) | key[3];
+	inputStructure.key = ((unsigned char)key[0] << 24) | ((unsigned char)key[1] << 16) | ((unsigned char)key[2] << 8) | (unsigned char)key[3];
 	inputStructure.data8 = SMC_CMD_READ_KEYINFO;
 
 	result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);

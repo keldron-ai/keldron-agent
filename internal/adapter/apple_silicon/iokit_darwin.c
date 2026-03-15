@@ -5,6 +5,7 @@
 #include "smc.h"
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -48,6 +49,8 @@ static char g_cpu_keys[64][5];
 static int g_cpu_key_count = 0;
 static char g_gpu_keys[64][5];
 static int g_gpu_key_count = 0;
+
+static pthread_mutex_t g_iokit_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int cfStringMatch(CFStringRef str, const char *match) {
 	if (str == NULL || match == NULL)
@@ -130,7 +133,7 @@ static void loadSMCTempKeys(void) {
 		if (SMCGetKeyInfo(g_smcConn, key, &keyInfo) != kIOReturnSuccess)
 			continue;
 
-		if (keyInfo.dataType != 1718383648)
+		if (keyInfo.dataType != kSMCDataTypeFloat)
 			continue;
 
 		if ((key[0] == 'T' && (key[1] == 'p' || key[1] == 'e'))) {
@@ -230,20 +233,27 @@ int initIOKit(void) {
 IOKitMetrics sampleIOKitMetrics(int durationMs) {
 	IOKitMetrics m = {0, 0, 0, 0, 0, 0};
 
+	pthread_mutex_lock(&g_iokit_mutex);
+
 	if (g_subscription == NULL || g_channels == NULL) {
-		if (initIOKit() != 0)
+		if (initIOKit() != 0) {
+			pthread_mutex_unlock(&g_iokit_mutex);
 			return m;
+		}
 	}
 
 	CFDictionaryRef sample1 = IOReportCreateSamples(g_subscription, g_channels, NULL);
-	if (sample1 == NULL)
+	if (sample1 == NULL) {
+		pthread_mutex_unlock(&g_iokit_mutex);
 		return m;
+	}
 
 	usleep((useconds_t)(durationMs * 1000));
 
 	CFDictionaryRef sample2 = IOReportCreateSamples(g_subscription, g_channels, NULL);
 	if (sample2 == NULL) {
 		CFRelease(sample1);
+		pthread_mutex_unlock(&g_iokit_mutex);
 		return m;
 	}
 
@@ -251,12 +261,15 @@ IOKitMetrics sampleIOKitMetrics(int durationMs) {
 	CFRelease(sample1);
 	CFRelease(sample2);
 
-	if (delta == NULL)
+	if (delta == NULL) {
+		pthread_mutex_unlock(&g_iokit_mutex);
 		return m;
+	}
 
 	CFArrayRef channels = CFDictionaryGetValue(delta, CFSTR("IOReportChannels"));
 	if (channels == NULL) {
 		CFRelease(delta);
+		pthread_mutex_unlock(&g_iokit_mutex);
 		return m;
 	}
 
@@ -322,19 +335,25 @@ IOKitMetrics sampleIOKitMetrics(int durationMs) {
 		m.systemPowerW = SMCGetFloatValue(g_smcConn, "PSTR");
 	}
 
+	pthread_mutex_unlock(&g_iokit_mutex);
 	return m;
 }
 
 void cleanupIOKit(void) {
+	pthread_mutex_lock(&g_iokit_mutex);
+	if (g_subscription != NULL) {
+		CFRelease(g_subscription);
+		g_subscription = NULL;
+	}
 	if (g_channels != NULL) {
 		CFRelease(g_channels);
 		g_channels = NULL;
 	}
-	g_subscription = NULL;
 	g_cpu_key_count = 0;
 	g_gpu_key_count = 0;
 	if (g_smcConn) {
 		SMCClose(g_smcConn);
 		g_smcConn = 0;
 	}
+	pthread_mutex_unlock(&g_iokit_mutex);
 }
