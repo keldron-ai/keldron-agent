@@ -317,33 +317,43 @@ func parseUint64(s string) (uint64, error) {
 // collectPowermetrics returns the latest cached temperature and power values.
 // Returns (-1, -1) if no data has been collected yet.
 func (a *AppleSiliconAdapter) collectPowermetrics() (tempC, powerW float64) {
-	tempC = a.cachedTempC.Load().(float64)
-	powerW = a.cachedPowerW.Load().(float64)
+	tempC = -1
+	powerW = -1
+	if v := a.cachedTempC.Load(); v != nil {
+		tempC = v.(float64)
+	}
+	if v := a.cachedPowerW.Load(); v != nil {
+		powerW = v.(float64)
+	}
 	return tempC, powerW
 }
 
 // refreshPowermetricsLoop runs powermetrics in the background and updates
 // cached values. Requires root; returns silently if unavailable.
 func (a *AppleSiliconAdapter) refreshPowermetricsLoop(ctx context.Context) {
-	// Sample slightly faster than the default poll interval so fresh data
-	// is usually available by the time poll() reads the cache.
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	a.samplePowermetrics()
+	a.samplePowermetrics(ctx)
 
 	for {
+		a.intervalMu.RLock()
+		interval := a.pollInterval
+		a.intervalMu.RUnlock()
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			a.samplePowermetrics()
+		case <-time.After(interval):
+			a.samplePowermetrics(ctx)
 		}
 	}
 }
 
-func (a *AppleSiliconAdapter) samplePowermetrics() {
-	out, err := exec.Command("powermetrics", "-i", "1000", "-n", "1").Output()
+const powermetricsTimeout = 3 * time.Second
+
+func (a *AppleSiliconAdapter) samplePowermetrics(ctx context.Context) {
+	cmdCtx, cancel := context.WithTimeout(ctx, powermetricsTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(cmdCtx, "powermetrics", "-i", "1000", "-n", "1").Output()
 	if err != nil {
 		return
 	}
