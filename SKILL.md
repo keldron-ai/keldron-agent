@@ -10,6 +10,7 @@ metadata:
       bins:
         - curl
         - bc
+        - jq
       anyBins:
         - go
         - docker
@@ -22,7 +23,7 @@ metadata:
 
 Keldron Agent is a vendor-neutral GPU monitoring agent that runs locally and exposes real-time telemetry and risk scores via a Prometheus endpoint. It supports Apple Silicon (M1–M5), NVIDIA consumer GPUs (RTX 3090/4090/5090), NVIDIA datacenter (H100/B200), AMD GPUs, and any Linux machine.
 
-**No sudo required on any platform.** The agent runs entirely unprivileged.
+**No sudo required on any platform.** The agent binary runs entirely unprivileged. On Linux, Docker itself may require `sudo` or membership in the `docker` group — see [Docker post-install](https://docs.docker.com/engine/install/linux-postinstall/) or use rootless Docker if you hit permission errors.
 
 Use this skill when the user wants to:
 - Monitor GPU temperature, power, utilization, or memory
@@ -37,7 +38,7 @@ Use this skill when the user wants to:
 ### Mac (Apple Silicon)
 
 ```bash
-go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
+go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
 ```
 
 ### Linux (with Docker)
@@ -49,7 +50,7 @@ docker run -d --name keldron-agent -p 9100:9100 -p 8081:8081 ghcr.io/keldron-ai/
 ### Linux (with Go)
 
 ```bash
-go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
+go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
 ```
 
 ### Verify Installation
@@ -71,8 +72,10 @@ The agent auto-detects your hardware. No configuration needed for basic use.
 Verify it's running:
 
 ```bash
-curl -s localhost:9100/healthz
+curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'
 ```
+
+A non-zero exit code means the agent is not healthy or not running.
 
 Metrics are available at:
 
@@ -189,7 +192,7 @@ On Apple Silicon, high swap usage means the ML model exceeds unified memory — 
 
 First, verify the agent is running:
 ```bash
-curl -s localhost:9100/healthz
+curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'
 ```
 
 Then set up a background monitoring loop:
@@ -420,7 +423,7 @@ Report the healthz response to confirm it's back up.
 
 ## Rules
 
-- **Always check agent health first.** Before any query, verify the agent is running: `curl -s localhost:9100/healthz`. If it returns an error or is not running, offer to start it with `agent --local`.
+- **Always check agent health first.** Before any query, verify the agent is running: `curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'`. A non-zero exit code means the agent is down — offer to start it with `agent --local`.
 - **If metrics return 0 for temperature, the agent may still be warming up.** Wait 30 seconds and retry once before reporting zero values.
 - **Always include severity assessment.** When reporting risk, always include the severity level (normal/warning/critical) alongside the numeric score.
 - **Alert loops run in the background.** Tell the user what you're watching, how often, and what thresholds will trigger an alert.
