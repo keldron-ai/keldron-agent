@@ -4,6 +4,8 @@
 package registry
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -62,6 +64,17 @@ func TestLookupUnknown(t *testing.T) {
 	}
 	if spec2.TDPW != 400 {
 		t.Errorf("fallback with driver TDP: TDPW = %v, want 400", spec2.TDPW)
+	}
+
+	// When driver reports zeros, use defaults
+	spec3 := LookupWithFallback("Unknown-GPU", 0, 0)
+	if spec3.ThermalLimitC != 83 || spec3.TDPW != 350 {
+		t.Errorf("fallback with zero driver values: got thermal=%v tdp=%v, want 83, 350",
+			spec3.ThermalLimitC, spec3.TDPW)
+	}
+	if spec3.BehaviorClass != "consumer_active_cooled" || spec3.CVMax != 0.60 {
+		t.Errorf("fallback: class=%q cv_max=%v, want consumer_active_cooled 0.60",
+			spec3.BehaviorClass, spec3.CVMax)
 	}
 }
 
@@ -145,6 +158,55 @@ func TestBehaviorClassAssignment(t *testing.T) {
 	if soc.BehaviorClass != "soc_integrated" || soc.CVMax != 0.50 {
 		t.Errorf("soc M4-Pro: class=%q cv_max=%v, want soc_integrated 0.50",
 			soc.BehaviorClass, soc.CVMax)
+	}
+}
+
+func TestAllEntriesValidation(t *testing.T) {
+	validBehaviorClasses := map[string]bool{
+		"datacenter_sustained":    true,
+		"consumer_active_cooled":  true,
+		"soc_integrated":          true,
+		"consumer_passive_cooled": true,
+	}
+
+	entries := AllEntries()
+	if len(entries) < 25 {
+		t.Errorf("registry has %d entries, want at least 25", len(entries))
+	}
+
+	// Parse raw JSON to check for duplicate keys (case-insensitive)
+	var raw map[string]GPUSpec
+	if err := json.Unmarshal(gpuSpecsJSON, &raw); err != nil {
+		t.Fatalf("failed to parse gpu_specs.json: %v", err)
+	}
+	lowerKeys := make(map[string]bool)
+	for k := range raw {
+		lower := strings.ToLower(k)
+		if lowerKeys[lower] {
+			t.Errorf("duplicate key (case-insensitive): %q", k)
+		}
+		lowerKeys[lower] = true
+	}
+	if len(lowerKeys) != len(raw) {
+		t.Errorf("raw JSON has case-colliding keys: %d unique lowercased vs %d raw", len(lowerKeys), len(raw))
+	}
+
+	for key, spec := range entries {
+		if spec.ThermalLimitC <= 0 {
+			t.Errorf("%s: thermal_limit_c=%v, want > 0", key, spec.ThermalLimitC)
+		}
+		if spec.TDPW <= 0 {
+			t.Errorf("%s: tdp_w=%v, want > 0", key, spec.TDPW)
+		}
+		if !validBehaviorClasses[spec.BehaviorClass] {
+			t.Errorf("%s: behavior_class=%q, want one of datacenter_sustained, consumer_active_cooled, soc_integrated, consumer_passive_cooled", key, spec.BehaviorClass)
+		}
+		if spec.CVMax <= 0 || spec.CVMax > 1.0 {
+			t.Errorf("%s: cv_max=%v, want > 0 and <= 1.0", key, spec.CVMax)
+		}
+		if spec.Vendor == "" {
+			t.Errorf("%s: vendor is empty", key)
+		}
 	}
 }
 

@@ -86,6 +86,17 @@ func LookupWithFallback(model string, driverThermalLimit, driverTDP float64) GPU
 	}
 }
 
+// AllEntries returns a copy of all registry entries (normalized key -> spec).
+// Used for validation tests.
+func AllEntries() map[string]GPUSpec {
+	registryOnce.Do(initRegistry)
+	out := make(map[string]GPUSpec, len(registry))
+	for k, v := range registry {
+		out[k] = v
+	}
+	return out
+}
+
 // NormalizeModelName strips vendor prefixes, normalizes spaces to hyphens, and handles known aliases.
 func NormalizeModelName(rawName string) string {
 	s := strings.TrimSpace(rawName)
