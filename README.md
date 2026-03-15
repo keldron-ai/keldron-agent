@@ -32,12 +32,16 @@ agent --local
 go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
 agent --local
 
-# or
-docker run -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest --local
+# or build and run with Docker
+make docker-build
+make docker-run
 
-# or with a config file
-docker run -p 9100:9100 \
-  -v $(pwd)/keldron-agent.yaml:/app/keldron-agent.yaml \
+# or run a pre-built image (when published)
+docker run -p 9100:9100 -p 8081:8081 ghcr.io/keldron-ai/keldron-agent:latest
+
+# with a config file
+docker run -p 9100:9100 -p 8081:8081 \
+  -v $(pwd)/configs/keldron-agent.example.yaml:/etc/keldron/keldron-agent.yaml:ro \
   ghcr.io/keldron-ai/keldron-agent:latest
 ```
 
