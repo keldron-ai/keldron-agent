@@ -431,5 +431,5 @@ Report the healthz response to confirm it's back up.
 - **When the user says "dashboard", render one.** Do not just link to Grafana or explain options — fetch the metrics and format the output.
 - **For fleet queries, check hub availability first.** If the hub is not running on port 9200, explain how to enable it with `--hub.enabled=true`.
 - **On Apple Silicon, high swap = model too large.** If `keldron_system_swap_used_bytes` is high, suggest a smaller or quantized model.
-- **Never require sudo.** The agent runs unprivileged on all platforms.
+- **The agent itself never requires sudo.** It runs unprivileged on all platforms. Docker on Linux may require `sudo` or docker-group membership — see the installation note above.
 - **Use the metric labels.** Device model and name are in the metric labels — extract and use them in responses for a personalized experience.
