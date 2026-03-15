@@ -336,7 +336,8 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Use defaults, apply auto-detect
+			// Use defaults, apply env overrides and auto-detect
+			ApplyEnvOverrides(load)
 			ApplyAutoDetection(load)
 			cfg := toConfig(load)
 			for _, hook := range getPostLoadHooks() {
@@ -649,6 +650,10 @@ func Validate(cfg *Config) error {
 	anyOutputEnabled := cfg.Output.Stdout || cfg.Output.Prometheus || (cfg.Cloud.APIKey != "")
 	if !anyOutputEnabled {
 		return fmt.Errorf("at least one output must be enabled (stdout, prometheus, or cloud.api_key)")
+	}
+
+	if cfg.Output.Prometheus && (cfg.Output.PrometheusPort < 1 || cfg.Output.PrometheusPort > 65535) {
+		return fmt.Errorf("output.prometheus_port must be between 1 and 65535 (got %d)", cfg.Output.PrometheusPort)
 	}
 
 	if cfg.Hub.Enabled && cfg.Hub.ListenPort <= 0 {

@@ -556,6 +556,7 @@ func TestMaskedCloudAPIKey(t *testing.T) {
 	}{
 		{"", ""},
 		{"ab", "***"},
+		{"abcdefgh", "***"},
 		{"kld_1234567890", "kld_***7890"},
 	}
 	for _, tt := range tests {
@@ -567,6 +568,10 @@ func TestMaskedCloudAPIKey(t *testing.T) {
 }
 
 func TestApplyAutoDetection_DarwinArm64(t *testing.T) {
+	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
+		t.Skip("skipping: test only applies on darwin/arm64")
+	}
+
 	load := defaultConfigLoad()
 	load.Adapters.AppleSilicon.Enabled = nil
 	load.Adapters.NVIDIAConsumer.Enabled = nil
@@ -574,7 +579,7 @@ func TestApplyAutoDetection_DarwinArm64(t *testing.T) {
 	ApplyAutoDetection(load)
 
 	// On darwin/arm64, Apple Silicon should be enabled
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+	if true {
 		if load.Adapters.AppleSilicon.Enabled == nil || !*load.Adapters.AppleSilicon.Enabled {
 			t.Error("apple_silicon should be enabled on darwin/arm64")
 		}
