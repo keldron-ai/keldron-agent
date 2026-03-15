@@ -24,6 +24,9 @@ func TestLookup(t *testing.T) {
 		{"rtx-4090", "nvidia", 83, 450, "consumer_active_cooled"},
 		{"M4-Pro", "apple", 105, 30, "soc_integrated"},
 		{"m4-pro", "apple", 105, 30, "soc_integrated"},
+		{"M5", "apple", 105, 25, "soc_integrated"},
+		{"M5-Pro", "apple", 105, 40, "soc_integrated"},
+		{"M5-Max", "apple", 105, 55, "soc_integrated"},
 		{"MI300X", "amd", 100, 750, "datacenter_sustained"},
 	}
 	for _, tt := range tests {
@@ -87,6 +90,9 @@ func TestNormalizeModelName(t *testing.T) {
 		{"NVIDIA H100 SXM", "H100-SXM"},
 		{"NVIDIA A100-SXM4-80GB", "A100-SXM"},
 		{"Apple M4 Pro", "M4-Pro"},
+		{"Apple M5 Pro", "M5-Pro"},
+		{"Apple M5 Max", "M5-Max"},
+		{"Apple M5", "M5"},
 		{"AMD MI300X", "MI300X"},
 		{"nvidia h100 sxm", "h100-sxm"},
 		{"M4-Pro", "M4-Pro"},
@@ -249,6 +255,7 @@ func TestAppleSiliconEntries(t *testing.T) {
 		"M2", "M2-Pro", "M2-Max",
 		"M3", "M3-Pro", "M3-Max",
 		"M4", "M4-Pro", "M4-Max",
+		"M5", "M5-Pro", "M5-Max",
 	}
 	for _, model := range variants {
 		spec := Lookup(model)
