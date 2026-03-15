@@ -10,9 +10,10 @@ import (
 )
 
 // ComputeTimeToHotspot estimates minutes until temperature reaches thermal limit
-// using 5-min linear regression. Returns nil if stable or cooling (slope <= 0.1 °C/min).
+// using 5-minute (10-sample at 30s poll) linear regression. Returns nil if the
+// buffer is not yet full or if temperature is stable/cooling (slope <= 0.1 °C/min).
 func ComputeTimeToHotspot(thermalBuffer *RingBuffer, tCurrent float64, spec registry.GPUSpec) *float64 {
-	if thermalBuffer.Len() < 5 {
+	if thermalBuffer.Len() < 10 {
 		return nil
 	}
 

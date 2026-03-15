@@ -344,7 +344,7 @@ func TestComputeTimeToHotspot_NotEnoughData(t *testing.T) {
 
 	got := ComputeTimeToHotspot(rb, 72, spec)
 	if got != nil {
-		t.Errorf("Len() < 5: got %v, want nil", got)
+		t.Errorf("Len() < 10: got %v, want nil", got)
 	}
 }
 
