@@ -174,15 +174,49 @@ type OutputConfig struct {
 	Stdout         bool `yaml:"stdout"`
 	Prometheus     bool `yaml:"prometheus"`
 	PrometheusPort int  `yaml:"prometheus_port"`
+	MDNSAdvertise  bool `yaml:"mdns_advertise"`
 }
 
 // HubConfig holds hub aggregator settings.
 type HubConfig struct {
 	Enabled        bool          `yaml:"enabled"`
-	MDNSEnabled    bool          `yaml:"mdns_enabled"`
+	mdnsEnabled    *bool         // set by UnmarshalYAML; nil = default true when Enabled
 	StaticPeers    []string      `yaml:"static_peers"`
 	ListenPort     int           `yaml:"listen_port"`
 	ScrapeInterval time.Duration `yaml:"scrape_interval"`
+}
+
+// UnmarshalYAML implements custom unmarshalling so the unexported mdnsEnabled
+// field is populated from the "mdns_enabled" YAML key.
+func (h *HubConfig) UnmarshalYAML(value *yaml.Node) error {
+	// Decode all exported fields via a plain type alias.
+	type plain HubConfig
+	if err := value.Decode((*plain)(h)); err != nil {
+		return err
+	}
+	// Manually extract mdns_enabled from the YAML mapping node.
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			if value.Content[i].Value == "mdns_enabled" {
+				var b bool
+				if err := value.Content[i+1].Decode(&b); err != nil {
+					return fmt.Errorf("hub.mdns_enabled: %w", err)
+				}
+				h.mdnsEnabled = &b
+				break
+			}
+		}
+	}
+	return nil
+}
+
+// MDNSEnabled returns whether mDNS discovery is enabled. When mdns_enabled is
+// not set in config, defaults to true when hub is enabled.
+func (h HubConfig) MDNSEnabled() bool {
+	if h.mdnsEnabled != nil {
+		return *h.mdnsEnabled
+	}
+	return h.Enabled
 }
 
 // CloudConfig holds cloud API settings.
@@ -255,10 +289,10 @@ func Defaults() *Config {
 			Stdout:         false,
 			Prometheus:     true,
 			PrometheusPort: 9100,
+			MDNSAdvertise:  true,
 		},
 		Hub: HubConfig{
 			Enabled:        false,
-			MDNSEnabled:    false,
 			StaticPeers:    nil,
 			ListenPort:     9200,
 			ScrapeInterval: 30 * time.Second,
@@ -293,6 +327,7 @@ func defaultConfigLoad() *configLoad {
 		Output: OutputConfig{
 			Prometheus:     true,
 			PrometheusPort: 9100,
+			MDNSAdvertise:  true,
 		},
 		Hub: HubConfig{
 			ListenPort:     9200,
@@ -551,11 +586,15 @@ func ApplyEnvOverrides(load *configLoad) {
 			load.Output.PrometheusPort = p
 		}
 	}
+	if v := os.Getenv("KELDRON_OUTPUT_MDNS_ADVERTISE"); v != "" {
+		load.Output.MDNSAdvertise = parseBool(v)
+	}
 	if v := os.Getenv("KELDRON_HUB_ENABLED"); v != "" {
 		load.Hub.Enabled = parseBool(v)
 	}
 	if v := os.Getenv("KELDRON_HUB_MDNS_ENABLED"); v != "" {
-		load.Hub.MDNSEnabled = parseBool(v)
+		b := parseBool(v)
+		load.Hub.mdnsEnabled = &b
 	}
 	if v := os.Getenv("KELDRON_HUB_STATIC_PEERS"); v != "" {
 		load.Hub.StaticPeers = strings.Split(v, ",")

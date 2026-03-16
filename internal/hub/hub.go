@@ -16,6 +16,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/keldron-ai/keldron-agent/internal/config"
+	"github.com/keldron-ai/keldron-agent/internal/discovery"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
@@ -27,6 +28,7 @@ type Hub struct {
 	scraper          *Scraper
 	api              *FleetAPI
 	deviceName       string
+	prometheusPort   int
 	logger           *slog.Logger
 	httpServer       *http.Server
 	localDevices     []PeerDevice
@@ -34,7 +36,6 @@ type Hub struct {
 	peerMetrics      map[string]map[string]*dto.MetricFamily // peerID -> MetricFamilies cache
 	peerMetricsMu    sync.RWMutex
 	hubSummary       *hubSummaryMetrics
-	hubRegistry      prometheus.Gatherer
 	lastScrapeErrors int64
 	lastScrapeMu     sync.Mutex
 	shutdownOnce     sync.Once
@@ -49,8 +50,9 @@ type hubSummaryMetrics struct {
 	scrapeErrors   prometheus.Counter
 }
 
-// NewHub creates a new Hub.
-func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
+// NewHub creates a new Hub. prometheusPort is used for self-filtering when
+// the hub discovers itself via mDNS.
+func NewHub(cfg config.HubConfig, deviceName string, prometheusPort int, logger *slog.Logger) *Hub {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -61,7 +63,6 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 	}
 	scraper := NewScraper(interval, registry, logger)
 
-	hubReg := prometheus.NewRegistry()
 	hubSummary := &hubSummaryMetrics{
 		peersTotal: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "keldron_hub_peers_total",
@@ -84,7 +85,9 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 			Help: "Cumulative scrape failures",
 		}),
 	}
-	hubReg.MustRegister(
+	// Register with the default registry so hub metrics appear on the main
+	// Prometheus /metrics endpoint (port 9100) as well as the hub's own port.
+	prometheus.MustRegister(
 		hubSummary.peersTotal,
 		hubSummary.peersHealthy,
 		hubSummary.devicesTotal,
@@ -93,14 +96,14 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 	)
 
 	h := &Hub{
-		config:      cfg,
-		registry:    registry,
-		scraper:     scraper,
-		deviceName:  deviceName,
-		logger:      logger,
-		peerMetrics: make(map[string]map[string]*dto.MetricFamily),
-		hubSummary:  hubSummary,
-		hubRegistry: hubReg,
+		config:         cfg,
+		registry:       registry,
+		scraper:        scraper,
+		deviceName:     deviceName,
+		prometheusPort: prometheusPort,
+		logger:         logger,
+		peerMetrics:    make(map[string]map[string]*dto.MetricFamily),
+		hubSummary:     hubSummary,
 	}
 
 	h.api = NewFleetAPI(func() FleetState {
@@ -132,8 +135,25 @@ func (h *Hub) Start(ctx context.Context) error {
 			h.registry.AddPeer(addr)
 		}
 	}
-	if h.config.MDNSEnabled {
-		h.logger.Info("mDNS discovery not yet implemented (OSS-022)")
+	if h.config.MDNSEnabled() {
+		browser := discovery.NewBrowser(
+			func(addr, name string) {
+				if discovery.IsSelf(addr, name, h.deviceName, h.prometheusPort) {
+					return
+				}
+				h.logger.Info("discovered peer via mDNS", "peer", name, "address", addr)
+				h.registry.AddPeer(addr)
+			},
+			func(addr string) {
+				h.logger.Info("peer disappeared from mDNS", "address", addr)
+				h.registry.MarkUnhealthy(addr)
+			},
+		)
+		go func() {
+			if err := browser.Start(ctx); err != nil && ctx.Err() == nil {
+				h.logger.Warn("mDNS discovery unavailable — using static peers only", "error", err)
+			}
+		}()
 	}
 
 	// Build merged /metrics handler
@@ -273,13 +293,8 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		}
 		h.lastScrapeMu.Unlock()
 
-		// Gather hub summary metrics — log and continue on error (same
-		// policy as local gather) so /metrics serves partial results.
-		hubFamilies, err := h.hubRegistry.Gather()
-		if err != nil {
-			h.logger.Warn("failed to gather hub summary metrics, continuing with collected metrics", "error", err)
-		}
-		mergeInto(hubFamilies)
+		// Hub summary metrics are registered with the default registry,
+		// so they are already included in the local gather above.
 
 		out := make([]*dto.MetricFamily, 0, len(merged))
 		for _, mf := range merged {
