@@ -175,7 +175,7 @@ TEMP=$(echo "$METRICS_RAW" | grep 'keldron_gpu_temperature_celsius{' | awk '{pri
 [ -n "$TEMP" ]
 check "keldron_gpu_temperature_celsius present" $?
 if [ -n "$TEMP" ]; then
-    TEMP_OK=$(awk "BEGIN{print ($TEMP > 0) ? 1 : 0}" 2>/dev/null || echo "0")
+    TEMP_OK=$(awk -v t="$TEMP" 'BEGIN{print (t+0>0)?1:0}' 2>/dev/null || echo "0")
     [ "$TEMP_OK" = "1" ]
     check "Temperature is non-zero (${TEMP}°C)" $?
 fi
@@ -195,7 +195,7 @@ MEM_USED=$(echo "$METRICS_RAW" | grep 'keldron_gpu_memory_used_bytes{' | awk '{p
 [ -n "$MEM_USED" ]
 check "keldron_gpu_memory_used_bytes present" $?
 if [ -n "$MEM_USED" ]; then
-    MEM_OK=$(awk "BEGIN{print ($MEM_USED > 0) ? 1 : 0}" 2>/dev/null || echo "0")
+    MEM_OK=$(awk -v m="$MEM_USED" 'BEGIN{print (m+0>0)?1:0}' 2>/dev/null || echo "0")
     [ "$MEM_OK" = "1" ]
     check "Memory used is non-zero" $?
 fi
