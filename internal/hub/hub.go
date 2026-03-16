@@ -209,6 +209,9 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 					if existing.Type == nil && mf.Type != nil {
 						existing.Type = mf.Type
 					}
+					if existing.Unit == nil && mf.Unit != nil {
+						existing.Unit = mf.Unit
+					}
 				} else {
 					merged[name] = cloneMetricFamily(mf)
 				}
