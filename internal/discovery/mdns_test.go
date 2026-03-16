@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grandcat/zeroconf"
+	"github.com/libp2p/zeroconf/v2"
 )
 
 func TestNewAdvertiser(t *testing.T) {

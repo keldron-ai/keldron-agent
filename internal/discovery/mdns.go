@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grandcat/zeroconf"
+	"github.com/libp2p/zeroconf/v2"
 )
 
 const (
@@ -70,11 +70,6 @@ func NewBrowser(onFound func(addr string, deviceName string), onRemoved func(add
 // Uses a 30s re-browse loop to detect disappeared services.
 // Returns an error only if initial resolver creation fails.
 func (b *MDNSBrowser) Start(ctx context.Context) error {
-	resolver, err := zeroconf.NewResolver(nil)
-	if err != nil {
-		return fmt.Errorf("mDNS resolver: %w", err)
-	}
-
 	seen := make(map[string]string) // addr -> deviceName
 	var mu sync.Mutex
 
@@ -83,8 +78,7 @@ func (b *MDNSBrowser) Start(ctx context.Context) error {
 		browseCtx, cancel := context.WithTimeout(ctx, browseInterval)
 
 		go func() {
-			defer close(entries)
-			_ = resolver.Browse(browseCtx, serviceType, domain, entries)
+			_ = zeroconf.Browse(browseCtx, serviceType, domain, entries)
 		}()
 
 		current := make(map[string]string)

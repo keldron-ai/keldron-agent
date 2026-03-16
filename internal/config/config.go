@@ -186,6 +186,27 @@ type HubConfig struct {
 	ScrapeInterval time.Duration `yaml:"scrape_interval"`
 }
 
+// UnmarshalYAML implements custom unmarshalling so the unexported mdnsEnabled
+// field is populated from the "mdns_enabled" YAML key.
+func (h *HubConfig) UnmarshalYAML(value *yaml.Node) error {
+	// Decode all exported fields via a plain type alias.
+	type plain HubConfig
+	if err := value.Decode((*plain)(h)); err != nil {
+		return err
+	}
+	// Manually extract mdns_enabled from the YAML mapping node.
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			if value.Content[i].Value == "mdns_enabled" {
+				b := parseBool(value.Content[i+1].Value)
+				h.mdnsEnabled = &b
+				break
+			}
+		}
+	}
+	return nil
+}
+
 // MDNSEnabled returns whether mDNS discovery is enabled. When mdns_enabled is
 // not set in config, defaults to true when hub is enabled.
 func (h HubConfig) MDNSEnabled() bool {
