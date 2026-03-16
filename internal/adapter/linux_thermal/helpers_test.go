@@ -27,10 +27,13 @@ func mustWriteFile(t *testing.T, path string, data []byte) {
 func waitForCondition(t *testing.T, fn func() bool, timeout time.Duration, msg string) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
-	for !fn() && time.Now().Before(deadline) {
+	for {
+		if fn() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(msg)
+		}
 		time.Sleep(10 * time.Millisecond)
-	}
-	if !fn() {
-		t.Fatal(msg)
 	}
 }
