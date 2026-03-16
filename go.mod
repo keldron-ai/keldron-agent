@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0
+	github.com/prometheus/common v0.66.1
 	github.com/gosnmp/gosnmp v1.43.2
 	github.com/grid-x/modbus v0.0.0-20260122103929-e192bc287e6e
 	github.com/oklog/ulid/v2 v2.1.1
@@ -38,7 +39,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

@@ -25,6 +25,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
 	"github.com/keldron-ai/keldron-agent/internal/fake"
 	"github.com/keldron-ai/keldron-agent/internal/health"
+	"github.com/keldron-ai/keldron-agent/internal/hub"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
@@ -132,8 +133,8 @@ func run() int {
 		}
 	}()
 
-	// Local mode: --local flag OR no cloud and (prometheus or stdout) enabled
-	isLocalMode := *localMode || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
+	// Local mode: --local flag, hub enabled, OR no cloud and (prometheus or stdout) enabled
+	isLocalMode := *localMode || cfg.Hub.Enabled || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
 
 	var bufMgr *buffer.Manager
 	var sndr interface {
@@ -157,6 +158,9 @@ func run() int {
 		} else {
 			slog.Info("running in local mode — Prometheus metrics disabled, stdout output only")
 		}
+		if cfg.Hub.Enabled {
+			slog.Info("running as hub — local monitoring + fleet aggregation")
+		}
 
 		// Build adapter name list once for all outputs.
 		activeAdapters := make([]string, 0, len(running))
@@ -179,6 +183,15 @@ func run() int {
 		if cfg.Output.Stdout {
 			std := output.NewStdout(os.Stdout, version, activeAdapters)
 			outputs = append(outputs, std)
+		}
+		if cfg.Hub.Enabled {
+			h := hub.NewHub(cfg.Hub, cfg.Agent.DeviceName, logger.With("component", "hub"))
+			outputs = append(outputs, h)
+			go func() {
+				if err := h.Start(ctx); err != nil && err != http.ErrServerClosed {
+					logger.Error("Hub server stopped", "error", err)
+				}
+			}()
 		}
 
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
