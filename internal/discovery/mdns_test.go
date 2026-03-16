@@ -121,20 +121,13 @@ func TestIsLocalAddress(t *testing.T) {
 	}{
 		{"127.0.0.1", true},
 		{"::1", true},
-		{"192.168.1.50", false}, // may be local on some machines; we just check logic
 		{"8.8.8.8", false},
 		{"invalid", false},
 	}
 	for _, tt := range tests {
 		got := IsLocalAddress(tt.host)
-		if tt.host == "127.0.0.1" || tt.host == "::1" {
-			if !got {
-				t.Errorf("IsLocalAddress(%q) = %v, want true (loopback)", tt.host, got)
-			}
-		} else if tt.host == "8.8.8.8" || tt.host == "invalid" {
-			if got {
-				t.Errorf("IsLocalAddress(%q) = %v, want false", tt.host, got)
-			}
+		if got != tt.want {
+			t.Errorf("IsLocalAddress(%q) = %v, want %v", tt.host, got, tt.want)
 		}
 	}
 }

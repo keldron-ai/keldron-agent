@@ -30,7 +30,7 @@ type MDNSAdvertiser struct {
 }
 
 // NewAdvertiser registers a _keldron._tcp service with the given parameters.
-// Returns nil and logs a warning on failure (graceful degradation).
+// Returns a non-nil error on failure; does not log (see NewAdvertiserSafe).
 func NewAdvertiser(deviceName string, port int, version string, deviceCount int) (*MDNSAdvertiser, error) {
 	txt := []string{
 		"version=" + version,
@@ -68,7 +68,6 @@ func NewBrowser(onFound func(addr string, deviceName string), onRemoved func(add
 
 // Start browses for _keldron._tcp services until ctx is cancelled.
 // Uses a 30s re-browse loop to detect disappeared services.
-// Returns an error only if initial resolver creation fails.
 func (b *MDNSBrowser) Start(ctx context.Context) error {
 	seen := make(map[string]string) // addr -> deviceName
 	var mu sync.Mutex
@@ -78,7 +77,13 @@ func (b *MDNSBrowser) Start(ctx context.Context) error {
 		browseCtx, cancel := context.WithTimeout(ctx, browseInterval)
 
 		go func() {
-			_ = zeroconf.Browse(browseCtx, serviceType, domain, entries)
+			if err := zeroconf.Browse(browseCtx, serviceType, domain, entries); err != nil {
+				slog.Warn("mDNS browse failed", "error", err)
+				// Browse returns early on setup failure without closing entries;
+				// close it so the consumer range loop can exit.
+				close(entries)
+			}
+			// On success, Browse's internals close entries when browseCtx ends.
 		}()
 
 		current := make(map[string]string)
