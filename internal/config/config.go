@@ -593,9 +593,8 @@ func ApplyEnvOverrides(load *configLoad) {
 		load.Hub.Enabled = parseBool(v)
 	}
 	if v := os.Getenv("KELDRON_HUB_MDNS_ENABLED"); v != "" {
-		if b, err := strconv.ParseBool(v); err == nil {
-			load.Hub.mdnsEnabled = &b
-		}
+		b := parseBool(v)
+		load.Hub.mdnsEnabled = &b
 	}
 	if v := os.Getenv("KELDRON_HUB_STATIC_PEERS"); v != "" {
 		load.Hub.StaticPeers = strings.Split(v, ",")
