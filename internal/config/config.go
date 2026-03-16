@@ -113,11 +113,11 @@ func (r *ROCmConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // LinuxThermalConfig holds Linux thermal adapter settings.
 type LinuxThermalConfig struct {
-	Enabled      *bool    `yaml:"enabled"`
-	HwmonPath    string   `yaml:"hwmon_path"`
-	ThermalPath  string   `yaml:"thermal_path"`
-	IncludeZones []string `yaml:"include_zones"`
-	ExcludeZones []string `yaml:"exclude_zones"`
+	Enabled      *bool     `yaml:"enabled"`
+	HwmonPath    string    `yaml:"hwmon_path"`
+	ThermalPath  string    `yaml:"thermal_path"`
+	IncludeZones []string  `yaml:"include_zones"`
+	ExcludeZones []string  `yaml:"exclude_zones"`
 	Raw          yaml.Node `yaml:"-"`
 }
 

@@ -264,9 +264,10 @@ func (a *LinuxThermalAdapter) collect(now time.Time) ([]adapter.RawReading, erro
 			continue
 		}
 		m := map[string]interface{}{
-			"cpu_temp_c": z.TempC,
-			"zone_type":  z.Type,
-			"adapter":    "linux_thermal",
+			"cpu_temp_c":     z.TempC,
+			"zone_type":      z.Type,
+			"adapter":        "linux_thermal",
+			"behavior_class": "sbc_constrained",
 		}
 		readings = append(readings, adapter.RawReading{
 			AdapterName: "linux_thermal",

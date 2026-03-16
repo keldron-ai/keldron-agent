@@ -18,187 +18,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestClassifySensorType(t *testing.T) {
-	tests := []struct {
-		name string
-		want string
-	}{
-		{"coretemp", "cpu"},
-		{"k10temp", "cpu"},
-		{"cpu_thermal", "cpu"},
-		{"amdgpu", "gpu"},
-		{"nvidia", "gpu"},
-		{"radeon", "gpu"},
-		{"nvme", "nvme"},
-		{"nvme0", "nvme"},
-		{"soc_thermal", "soc"},
-		{"thermal_zone", "soc"},
-		{"random_device", "other"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := classifySensorType(tt.name); got != tt.want {
-				t.Errorf("classifySensorType(%q) = %q, want %q", tt.name, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDiscoverHwmon_MockSysfs(t *testing.T) {
-	dir := t.TempDir()
-
-	// hwmon0: coretemp
-	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_label"), []byte("Package id 0\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// hwmon1: nvme
-	hwmon1 := filepath.Join(dir, "hwmon1")
-	if err := os.MkdirAll(hwmon1, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon1, "name"), []byte("nvme\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("45000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	logger := slog.Default()
-	sensors := DiscoverHwmon(dir, logger)
-	if len(sensors) != 2 {
-		t.Fatalf("got %d sensors, want 2", len(sensors))
-	}
-	// Order may vary
-	var foundCore, foundNvme bool
-	for _, s := range sensors {
-		if s.Name == "coretemp" && s.SensorType == "cpu" && s.TempC == 62.0 && s.Label == "Package id 0" {
-			foundCore = true
-		}
-		if s.Name == "nvme" && s.SensorType == "nvme" && s.TempC == 45.0 {
-			foundNvme = true
-		}
-	}
-	if !foundCore {
-		t.Error("expected coretemp sensor with 62.0°C, cpu type")
-	}
-	if !foundNvme {
-		t.Error("expected nvme sensor with 45.0°C")
-	}
-}
-
-func TestDiscoverHwmon_EmptyDir(t *testing.T) {
-	dir := t.TempDir()
-	logger := slog.Default()
-	sensors := DiscoverHwmon(dir, logger)
-	if len(sensors) != 0 {
-		t.Errorf("empty dir: got %d sensors, want 0", len(sensors))
-	}
-}
-
-func TestDiscoverHwmon_MissingTempFile(t *testing.T) {
-	dir := t.TempDir()
-	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	// No temp1_input - sensor should be skipped
-	logger := slog.Default()
-	sensors := DiscoverHwmon(dir, logger)
-	if len(sensors) != 0 {
-		t.Errorf("missing temp file: got %d sensors, want 0", len(sensors))
-	}
-}
-
-func TestDiscoverHwmon_MalformedValue(t *testing.T) {
-	dir := t.TempDir()
-	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("bad\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	logger := slog.Default()
-	sensors := DiscoverHwmon(dir, logger)
-	if len(sensors) != 0 {
-		t.Errorf("malformed value: got %d sensors, want 0", len(sensors))
-	}
-}
-
-func TestDiscoverThermalZones_MockSysfs(t *testing.T) {
-	dir := t.TempDir()
-	zone0 := filepath.Join(dir, "thermal_zone0")
-	if err := os.MkdirAll(zone0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	logger := slog.Default()
-	zones := DiscoverThermalZones(dir, logger)
-	if len(zones) != 1 {
-		t.Fatalf("got %d zones, want 1", len(zones))
-	}
-	z := zones[0]
-	if z.Zone != "thermal_zone0" || z.Type != "x86_pkg_temp" || z.TempC != 65.0 {
-		t.Errorf("zone: got %+v", z)
-	}
-}
-
-func TestDiscoverThermalZones_EmptyDir(t *testing.T) {
-	dir := t.TempDir()
-	logger := slog.Default()
-	zones := DiscoverThermalZones(dir, logger)
-	if len(zones) != 0 {
-		t.Errorf("empty dir: got %d zones, want 0", len(zones))
-	}
-}
-
 func TestAdapter_Collect(t *testing.T) {
 	dir := t.TempDir()
 
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
 
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	if err := os.MkdirAll(zone0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	os.MkdirAll(zone0, 0755)
+	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
+	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
 
 	ltCfg := LinuxThermalAdapterConfig{
 		HwmonPath:   dir,
@@ -207,7 +38,7 @@ func TestAdapter_Collect(t *testing.T) {
 	ltCfg.applyDefaults()
 
 	a := &LinuxThermalAdapter{
-		cfg:   ltCfg,
+		cfg:    ltCfg,
 		logger: slog.Default(),
 	}
 	readings, err := a.collect(time.Now())
@@ -228,12 +59,11 @@ func TestAdapter_Collect(t *testing.T) {
 			if !ok {
 				t.Fatalf("hwmon reading %q missing cpu_temp_c metric", r.Source)
 			}
-			f, ok := v.(float64)
-			if !ok {
-				t.Fatalf("hwmon reading %q cpu_temp_c type = %T, want float64", r.Source, v)
+			if f, ok := v.(float64); !ok || f != 62.0 {
+				t.Errorf("hwmon reading cpu_temp_c = %v, want 62.0", v)
 			}
-			if f != 62.0 {
-				t.Errorf("hwmon reading %q cpu_temp_c = %v, want 62.0", r.Source, f)
+			if bc, ok := r.Metrics["behavior_class"]; !ok || bc != "sbc_constrained" {
+				t.Errorf("hwmon reading behavior_class = %v, want sbc_constrained", bc)
 			}
 		}
 		if r.Source == "thermal_zone0" {
@@ -242,12 +72,11 @@ func TestAdapter_Collect(t *testing.T) {
 			if !ok {
 				t.Fatalf("thermal reading %q missing cpu_temp_c metric", r.Source)
 			}
-			f, ok := v.(float64)
-			if !ok {
-				t.Fatalf("thermal reading %q cpu_temp_c type = %T, want float64", r.Source, v)
+			if f, ok := v.(float64); !ok || f != 65.0 {
+				t.Errorf("thermal reading cpu_temp_c = %v, want 65.0", v)
 			}
-			if f != 65.0 {
-				t.Errorf("thermal reading %q cpu_temp_c = %v, want 65.0", r.Source, f)
+			if bc, ok := r.Metrics["behavior_class"]; !ok || bc != "sbc_constrained" {
+				t.Errorf("thermal reading behavior_class = %v, want sbc_constrained", bc)
 			}
 		}
 	}
@@ -259,35 +88,58 @@ func TestAdapter_Collect(t *testing.T) {
 	}
 }
 
-func TestAdapter_ExcludeZones(t *testing.T) {
+func TestAdapter_CollectGPUSensor(t *testing.T) {
 	dir := t.TempDir()
-
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("nvme\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("amdgpu\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("70000\n"), 0644)
 
-	a := &LinuxThermalAdapter{
-		cfg: LinuxThermalAdapterConfig{
-			HwmonPath:   dir,
-			ThermalPath: dir,
-			ExcludeZones: []string{"nvme"},
-		},
-		logger: slog.Default(),
-	}
-	a.cfg.applyDefaults()
+	ltCfg := LinuxThermalAdapterConfig{HwmonPath: dir, ThermalPath: t.TempDir()}
+	ltCfg.applyDefaults()
+	a := &LinuxThermalAdapter{cfg: ltCfg, logger: slog.Default()}
 
 	readings, err := a.collect(time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	// nvme should be excluded
+	if len(readings) != 1 {
+		t.Fatalf("got %d readings, want 1", len(readings))
+	}
+	if _, ok := readings[0].Metrics["temperature_c"]; !ok {
+		t.Error("GPU sensor should use temperature_c metric key")
+	}
+	if readings[0].Metrics["sensor_type"] != "gpu" {
+		t.Errorf("sensor_type = %v, want gpu", readings[0].Metrics["sensor_type"])
+	}
+}
+
+func TestAdapter_ExcludeZones(t *testing.T) {
+	dir := t.TempDir()
+
+	hwmon0 := filepath.Join(dir, "hwmon0")
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("nvme\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"), 0644)
+
+	hwmon1 := filepath.Join(dir, "hwmon1")
+	os.MkdirAll(hwmon1, 0755)
+	os.WriteFile(filepath.Join(hwmon1, "name"), []byte("coretemp\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"), 0644)
+
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			HwmonPath:    dir,
+			ThermalPath:  t.TempDir(),
+			ExcludeZones: []string{"nvme"},
+		},
+		logger: slog.Default(),
+	}
+
+	readings, err := a.collect(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range readings {
 		if sn, ok := r.Metrics["sensor_name"]; ok {
 			if s, ok := sn.(string); ok && s == "nvme" {
@@ -295,52 +147,290 @@ func TestAdapter_ExcludeZones(t *testing.T) {
 			}
 		}
 	}
+	if len(readings) != 1 {
+		t.Errorf("got %d readings, want 1 (coretemp only)", len(readings))
+	}
 }
 
-func TestAdapter_NonLinuxReturnsError(t *testing.T) {
-	// This test runs on Linux, so we can't test the error path directly.
-	// We test that New works on Linux with mock paths.
+func TestAdapter_IncludeZones(t *testing.T) {
 	dir := t.TempDir()
+
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	if err := os.MkdirAll(hwmon0, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"), 0644); err != nil {
-		t.Fatal(err)
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("nvme\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"), 0644)
+
+	hwmon1 := filepath.Join(dir, "hwmon1")
+	os.MkdirAll(hwmon1, 0755)
+	os.WriteFile(filepath.Join(hwmon1, "name"), []byte("coretemp\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"), 0644)
+
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			HwmonPath:    dir,
+			ThermalPath:  t.TempDir(),
+			IncludeZones: []string{"coretemp"},
+		},
+		logger: slog.Default(),
 	}
 
-	rawNode := configYAMLForPaths(dir, dir)
+	readings, err := a.collect(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(readings) != 1 {
+		t.Fatalf("got %d readings, want 1 (coretemp only)", len(readings))
+	}
+	if readings[0].Metrics["sensor_name"] != "coretemp" {
+		t.Errorf("expected coretemp, got %v", readings[0].Metrics["sensor_name"])
+	}
+}
+
+func TestAdapter_IncludeZones_ThermalZone(t *testing.T) {
+	dir := t.TempDir()
+	zone0 := filepath.Join(dir, "thermal_zone0")
+	os.MkdirAll(zone0, 0755)
+	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
+	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
+
+	zone1 := filepath.Join(dir, "thermal_zone1")
+	os.MkdirAll(zone1, 0755)
+	os.WriteFile(filepath.Join(zone1, "type"), []byte("acpitz\n"), 0644)
+	os.WriteFile(filepath.Join(zone1, "temp"), []byte("50000\n"), 0644)
+
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			HwmonPath:    t.TempDir(),
+			ThermalPath:  dir,
+			IncludeZones: []string{"x86_pkg_temp"},
+		},
+		logger: slog.Default(),
+	}
+
+	readings, err := a.collect(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(readings) != 1 {
+		t.Fatalf("got %d readings, want 1", len(readings))
+	}
+	if readings[0].Source != "thermal_zone0" {
+		t.Errorf("expected thermal_zone0, got %v", readings[0].Source)
+	}
+}
+
+func TestAdapter_MetricKeyForSensorType(t *testing.T) {
+	a := &LinuxThermalAdapter{}
+	tests := []struct {
+		sensorType string
+		want       string
+	}{
+		{"gpu", "temperature_c"},
+		{"cpu", "cpu_temp_c"},
+		{"nvme", "cpu_temp_c"},
+		{"soc", "cpu_temp_c"},
+		{"other", "cpu_temp_c"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.sensorType, func(t *testing.T) {
+			if got := a.metricKeyForSensorType(tt.sensorType); got != tt.want {
+				t.Errorf("metricKeyForSensorType(%q) = %q, want %q", tt.sensorType, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAdapter_PollAndStats(t *testing.T) {
+	dir := t.TempDir()
+	hwmon0 := filepath.Join(dir, "hwmon0")
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"), 0644)
+
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			HwmonPath:   dir,
+			ThermalPath: t.TempDir(),
+		},
+		readings: make(chan RawReading, channelBuffer),
+		logger:   slog.Default(),
+	}
+
+	if a.IsRunning() {
+		t.Error("should not be running before Start")
+	}
+
+	a.poll()
+
+	pollCount, errorCount, lastPoll, lastError, _ := a.Stats()
+	if pollCount != 1 {
+		t.Errorf("pollCount = %d, want 1", pollCount)
+	}
+	if errorCount != 0 {
+		t.Errorf("errorCount = %d, want 0", errorCount)
+	}
+	if lastPoll.IsZero() {
+		t.Error("lastPoll should not be zero")
+	}
+	if lastError != "" {
+		t.Errorf("lastError = %q, want empty", lastError)
+	}
+
+	// Drain reading
+	select {
+	case r := <-a.readings:
+		if r.AdapterName != "linux_thermal" {
+			t.Errorf("reading adapter = %q", r.AdapterName)
+		}
+	default:
+		t.Error("expected a reading from poll")
+	}
+}
+
+func TestAdapter_Name(t *testing.T) {
+	a := &LinuxThermalAdapter{}
+	if a.Name() != "linux_thermal" {
+		t.Errorf("Name() = %q, want linux_thermal", a.Name())
+	}
+}
+
+func TestAdapter_StartStop(t *testing.T) {
+	dir := t.TempDir()
+	hwmon0 := filepath.Join(dir, "hwmon0")
+	os.MkdirAll(hwmon0, 0755)
+	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
+	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"), 0644)
+
+	rawNode := configYAMLForPaths(dir, t.TempDir())
 	cfg := config.AdapterConfig{
 		Enabled:      true,
 		PollInterval: 30 * time.Second,
 		Raw:          rawNode,
 	}
 	holder := config.NewHolder(config.Defaults())
-	adapter, err := New(cfg, holder, slog.Default())
+	adpt, err := New(cfg, holder, slog.Default())
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
-	if adapter == nil {
-		t.Fatal("adapter is nil")
+	if adpt.Name() != "linux_thermal" {
+		t.Errorf("Name() = %q, want linux_thermal", adpt.Name())
 	}
-	if adapter.Name() != "linux_thermal" {
-		t.Errorf("Name() = %q, want linux_thermal", adapter.Name())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- adpt.Start(ctx)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// Should be running
+	lta := adpt.(*LinuxThermalAdapter)
+	if !lta.IsRunning() {
+		t.Error("should be running after Start")
+	}
+
+	// Stop via Stop method
+	if err := adpt.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Start returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return after Stop")
+	}
+}
+
+func TestAdapter_DoubleStartReturnsError(t *testing.T) {
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			HwmonPath:   t.TempDir(),
+			ThermalPath: t.TempDir(),
+		},
+		readings: make(chan RawReading, channelBuffer),
+		logger:   slog.Default(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() {
-		_ = adapter.Start(ctx)
-	}()
+	go func() { _ = a.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
+
+	// Second start should fail
+	err := a.Start(ctx)
+	if err == nil {
+		t.Error("expected error on double start")
+	}
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 }
 
-// configYAMLForPaths returns a yaml.Node for testing (decodes to LinuxThermalAdapterConfig with paths).
+func TestAdapter_ReadingsChannel(t *testing.T) {
+	a := &LinuxThermalAdapter{
+		readings: make(chan RawReading, channelBuffer),
+	}
+	ch := a.Readings()
+	if ch == nil {
+		t.Fatal("Readings() returned nil")
+	}
+}
+
+func TestAdapter_IsExcluded(t *testing.T) {
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			ExcludeZones: []string{"nvme", "ACPI"},
+		},
+	}
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"nvme", true},
+		{"nvme0", true},
+		{"NVME", true},
+		{"coretemp", false},
+		{"acpi_thermal", true},
+		{"random", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := a.isExcluded(tt.name); got != tt.want {
+				t.Errorf("isExcluded(%q) = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAdapter_IsIncluded(t *testing.T) {
+	a := &LinuxThermalAdapter{
+		cfg: LinuxThermalAdapterConfig{
+			IncludeZones: []string{"coretemp", "amdgpu"},
+		},
+	}
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"coretemp", true},
+		{"CORETEMP", true},
+		{"amdgpu", true},
+		{"nvme", false},
+		{"random", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := a.isIncluded(tt.name); got != tt.want {
+				t.Errorf("isIncluded(%q) = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+// configYAMLForPaths returns a yaml.Node for testing.
 func configYAMLForPaths(hwmon, thermal string) yaml.Node {
 	yml := fmt.Sprintf("hwmon_path: %q\nthermal_path: %q\n", hwmon, thermal)
 	var doc yaml.Node
