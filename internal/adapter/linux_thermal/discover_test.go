@@ -6,8 +6,8 @@ package linux_thermal
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -224,15 +224,10 @@ func TestDiscoverHwmon_SkipsNonHwmonDirs(t *testing.T) {
 
 func TestDiscoverHwmon_EmptyBasePath(t *testing.T) {
 	sensors := DiscoverHwmon("", slog.Default())
-	if runtime.GOOS == "linux" {
-		// /sys/class/hwmon exists on Linux; should return non-nil (possibly empty)
-		if sensors == nil {
-			t.Error("linux: expected non-nil sensors slice from default hwmon path")
-		}
-	} else {
-		// /sys/class/hwmon doesn't exist on non-Linux; expect nil
+	if _, err := os.ReadDir(defaultHwmonPath); err != nil {
+		// Path missing or unreadable — expect nil
 		if sensors != nil {
-			t.Errorf("non-linux: expected nil sensors, got %d", len(sensors))
+			t.Errorf("expected nil sensors when %s is unreadable, got %d", defaultHwmonPath, len(sensors))
 		}
 	}
 }

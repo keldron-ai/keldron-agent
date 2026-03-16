@@ -356,7 +356,8 @@ func TestAdapter_DoubleStartReturnsError(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() { _ = a.Start(ctx) }()
+	errCh := make(chan error, 1)
+	go func() { errCh <- a.Start(ctx) }()
 
 	waitForCondition(t, a.IsRunning, 2*time.Second, "first Start did not enter running state")
 
@@ -368,6 +369,15 @@ func TestAdapter_DoubleStartReturnsError(t *testing.T) {
 	cancel()
 
 	waitForCondition(t, func() bool { return !a.IsRunning() }, 2*time.Second, "adapter did not stop")
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("first Start returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("first Start did not return after cancellation")
+	}
 }
 
 func TestAdapter_ReadingsChannel(t *testing.T) {
