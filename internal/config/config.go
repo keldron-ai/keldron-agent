@@ -180,7 +180,7 @@ type OutputConfig struct {
 // HubConfig holds hub aggregator settings.
 type HubConfig struct {
 	Enabled        bool          `yaml:"enabled"`
-	mdnsEnabled    *bool         `yaml:"mdns_enabled"` // nil = default true when Enabled
+	mdnsEnabled    *bool         // set by UnmarshalYAML; nil = default true when Enabled
 	StaticPeers    []string      `yaml:"static_peers"`
 	ListenPort     int           `yaml:"listen_port"`
 	ScrapeInterval time.Duration `yaml:"scrape_interval"`
