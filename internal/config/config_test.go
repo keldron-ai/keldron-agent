@@ -713,6 +713,118 @@ func TestApplyEnvOverrides_HubAndCloud(t *testing.T) {
 	}
 }
 
+func TestHubConfig_MDNSEnabled_YAMLRoundTrip(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{
+			name: "hub_enabled_mdns_not_set_defaults_true",
+			yaml: `
+agent:
+  device_name: test
+  poll_interval: 30s
+  log_level: info
+adapters:
+  apple_silicon:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9100
+hub:
+  enabled: true
+  listen_port: 9200
+  scrape_interval: 30s
+`,
+			want: true,
+		},
+		{
+			name: "hub_enabled_mdns_explicit_false",
+			yaml: `
+agent:
+  device_name: test
+  poll_interval: 30s
+  log_level: info
+adapters:
+  apple_silicon:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9100
+hub:
+  enabled: true
+  listen_port: 9200
+  scrape_interval: 30s
+  mdns_enabled: false
+`,
+			want: false,
+		},
+		{
+			name: "hub_disabled_mdns_explicit_true",
+			yaml: `
+agent:
+  device_name: test
+  poll_interval: 30s
+  log_level: info
+adapters:
+  apple_silicon:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9100
+hub:
+  enabled: false
+  mdns_enabled: true
+`,
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTemp(t, tt.yaml)
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.Hub.MDNSEnabled(); got != tt.want {
+				t.Errorf("MDNSEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHubConfig_MDNSEnabled_EnvOverride(t *testing.T) {
+	yaml := `
+agent:
+  device_name: test
+  poll_interval: 30s
+  log_level: info
+adapters:
+  apple_silicon:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9100
+hub:
+  enabled: true
+  listen_port: 9200
+  scrape_interval: 30s
+  mdns_enabled: true
+`
+	path := writeTemp(t, yaml)
+
+	t.Setenv("KELDRON_HUB_MDNS_ENABLED", "false")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Hub.MDNSEnabled() {
+		t.Error("MDNSEnabled() = true after env override to false, want false")
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

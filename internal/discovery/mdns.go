@@ -161,12 +161,10 @@ func IsLocalAddress(host string) bool {
 	return false
 }
 
-// IsSelf returns true if the discovered address/deviceName refers to this agent.
-// Used by the hub to filter self-discovery.
+// IsSelf returns true if the discovered address refers to this agent.
+// It requires a verified local-address + port match rather than relying on
+// human-readable deviceName which is not guaranteed to be unique.
 func IsSelf(addr, deviceName, selfDeviceName string, selfPrometheusPort int) bool {
-	if deviceName != "" && selfDeviceName != "" && deviceName == selfDeviceName {
-		return true
-	}
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		return false

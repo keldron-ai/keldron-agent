@@ -6,6 +6,7 @@ package discovery
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -146,11 +147,11 @@ func TestIsSelf(t *testing.T) {
 		selfPrometheusPort int
 		want               bool
 	}{
-		{"192.168.1.50:9100", "my-mac", "my-mac", 9100, true}, // device_name match
-		{"192.168.1.50:9100", "other", "my-mac", 9100, false}, // different device
-		{"127.0.0.1:9100", "other", "my-mac", 9100, true},     // local + same port
-		{"127.0.0.1:9200", "other", "my-mac", 9100, false},    // local but different port
-		{"8.8.8.8:9100", "other", "my-mac", 9100, false},      // remote
+		{"192.168.1.50:9100", "my-mac", "my-mac", 9100, false}, // same name but remote IP
+		{"192.168.1.50:9100", "other", "my-mac", 9100, false},  // different device, remote IP
+		{"127.0.0.1:9100", "other", "my-mac", 9100, true},      // local + same port
+		{"127.0.0.1:9200", "other", "my-mac", 9100, false},     // local but different port
+		{"8.8.8.8:9100", "other", "my-mac", 9100, false},       // remote
 	}
 	for _, tt := range tests {
 		got := IsSelf(tt.addr, tt.deviceName, tt.selfDeviceName, tt.selfPrometheusPort)
@@ -170,13 +171,13 @@ func TestBrowserOnFound(t *testing.T) {
 	}
 	defer adv.Stop()
 
-	var foundAddr, foundName string
 	done := make(chan struct{})
+	var once sync.Once
 	browser := NewBrowser(
 		func(addr, name string) {
-			foundAddr = addr
-			foundName = name
-			close(done)
+			if name == "browser-test-device" {
+				once.Do(func() { close(done) })
+			}
 		},
 		nil,
 	)
@@ -189,21 +190,8 @@ func TestBrowserOnFound(t *testing.T) {
 
 	select {
 	case <-done:
-		if foundAddr == "" {
-			t.Error("onFound: addr should not be empty")
-		}
-		if foundName != "browser-test-device" {
-			t.Errorf("onFound: deviceName = %q, want browser-test-device", foundName)
-		}
+		// Found our test advertiser
 	case <-ctx.Done():
 		t.Skip("mDNS discovery timed out (local network may not support multicast)")
 	}
-}
-
-func TestPeerRegistryDeduplication(t *testing.T) {
-	// Test that AddPeer deduplicates - this is in hub package, but we document
-	// the expected behavior. The hub's PeerRegistry.AddPeer already does this.
-	// We test the discovery package's IsSelf and IsLocalAddress.
-	// Deduplication is in hub.PeerRegistry - covered by hub tests.
-	_ = IsSelf("127.0.0.1:9100", "me", "me", 9100)
 }
