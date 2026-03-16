@@ -4,26 +4,12 @@
 package linux_thermal
 
 import (
+	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 )
-
-func mustMkdirAll(t *testing.T, path string) {
-	t.Helper()
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", path, err)
-	}
-}
-
-func mustWriteFile(t *testing.T, path string, data []byte) {
-	t.Helper()
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-}
 
 func TestClassifySensorType(t *testing.T) {
 	tests := []struct {
@@ -238,7 +224,12 @@ func TestDiscoverHwmon_SkipsNonHwmonDirs(t *testing.T) {
 
 func TestDiscoverHwmon_EmptyBasePath(t *testing.T) {
 	sensors := DiscoverHwmon("", slog.Default())
-	if runtime.GOOS != "linux" {
+	if runtime.GOOS == "linux" {
+		// /sys/class/hwmon exists on Linux; should return non-nil (possibly empty)
+		if sensors == nil {
+			t.Error("linux: expected non-nil sensors slice from default hwmon path")
+		}
+	} else {
 		// /sys/class/hwmon doesn't exist on non-Linux; expect nil
 		if sensors != nil {
 			t.Errorf("non-linux: expected nil sensors, got %d", len(sensors))
@@ -392,7 +383,7 @@ func TestDiscoverThermalZones_MultipleZones(t *testing.T) {
 		{"x86_pkg_temp", "65000"},
 		{"acpitz", "50000"},
 	} {
-		zone := filepath.Join(dir, "thermal_zone"+string(rune('0'+i)))
+		zone := filepath.Join(dir, fmt.Sprintf("thermal_zone%d", i))
 		mustMkdirAll(t, zone)
 		mustWriteFile(t, filepath.Join(zone, "type"), []byte(zt.typ+"\n"))
 		mustWriteFile(t, filepath.Join(zone, "temp"), []byte(zt.temp+"\n"))
