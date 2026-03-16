@@ -113,8 +113,19 @@ func (r *ROCmConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // LinuxThermalConfig holds Linux thermal adapter settings.
 type LinuxThermalConfig struct {
-	Enabled   *bool  `yaml:"enabled"`
-	HwmonPath string `yaml:"hwmon_path"`
+	Enabled      *bool    `yaml:"enabled"`
+	HwmonPath    string   `yaml:"hwmon_path"`
+	ThermalPath  string   `yaml:"thermal_path"`
+	IncludeZones []string `yaml:"include_zones"`
+	ExcludeZones []string `yaml:"exclude_zones"`
+	Raw          yaml.Node `yaml:"-"`
+}
+
+// UnmarshalYAML preserves the full YAML node for adapter-specific decoding.
+func (l *LinuxThermalConfig) UnmarshalYAML(value *yaml.Node) error {
+	l.Raw = *value
+	type plain LinuxThermalConfig
+	return value.Decode((*plain)(l))
 }
 
 // SNMPPDUConfig holds SNMP PDU adapter settings.
@@ -335,7 +346,8 @@ func defaultConfigLoad() *configLoad {
 		},
 		Adapters: AdaptersConfig{
 			LinuxThermal: LinuxThermalConfig{
-				HwmonPath: "/sys/class/hwmon",
+				HwmonPath:   "/sys/class/hwmon",
+				ThermalPath: "/sys/class/thermal",
 			},
 		},
 		Sender: SenderConfig{
@@ -503,7 +515,7 @@ func ToAdapterMap(a *AdaptersConfig, pollInterval time.Duration) map[string]Adap
 		add("rocm", true, a.ROCm.Raw)
 	}
 	if v := a.LinuxThermal.Enabled; v != nil && *v {
-		add("linux_thermal", true, yaml.Node{})
+		add("linux_thermal", true, a.LinuxThermal.Raw)
 	}
 	if v := a.SNMPPDU.Enabled; v != nil && *v {
 		add("snmp_pdu", true, a.SNMPPDU.Raw)
@@ -651,8 +663,12 @@ func ApplyAutoDetection(load *configLoad) {
 		load.Adapters.ROCm.Enabled = &v
 	}
 	if load.Adapters.LinuxThermal.Enabled == nil {
-		_, err := os.Stat("/sys/class/hwmon")
-		v := err == nil
+		v := runtime.GOOS == "linux"
+		if v {
+			if _, err := os.Stat("/sys/class/hwmon"); err != nil {
+				v = false
+			}
+		}
 		load.Adapters.LinuxThermal.Enabled = &v
 	}
 	if load.Adapters.Kubernetes.Enabled == nil {

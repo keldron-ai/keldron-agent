@@ -93,6 +93,7 @@ func run() int {
 	registry := adapter.NewRegistry()
 	registerPlatformAdapters(registry)
 	registerNvidia(registry)
+	registerLinuxAdapters(registry)
 	registry.Register("dcgm", dcgm.New)
 	registry.Register("rocm", rocm.New)
 	registry.Register("fake", fake.New)

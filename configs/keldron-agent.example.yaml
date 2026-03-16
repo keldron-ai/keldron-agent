@@ -62,8 +62,11 @@ adapters:
 
   # --- Linux thermal (fallback when no GPU adapters) ---
   linux_thermal:
-    enabled: false
+    enabled: false             # Auto: true on Linux when /sys/class/hwmon exists
     hwmon_path: "/sys/class/hwmon"
+    thermal_path: "/sys/class/thermal"
+    include_zones: []          # Empty = all zones
+    exclude_zones: []          # e.g. ["nvme0"] to skip NVMe temps
 
   # --- SNMP PDU (disabled by default) ---
   snmp_pdu:
