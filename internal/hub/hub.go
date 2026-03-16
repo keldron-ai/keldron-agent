@@ -190,6 +190,7 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 				Name:   mf.Name,
 				Help:   mf.Help,
 				Type:   mf.Type,
+				Unit:   mf.Unit,
 				Metric: metrics,
 			}
 		}
