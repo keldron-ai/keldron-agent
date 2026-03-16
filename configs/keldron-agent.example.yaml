@@ -109,11 +109,12 @@ output:
   stdout: false                  # Print JSON lines to stdout
   prometheus: true               # Expose /metrics endpoint
   prometheus_port: 9100          # Prometheus scrape port
+  mdns_advertise: true           # Advertise via mDNS for zero-config discovery (set false to disable)
 
 # --- Hub aggregator (peer aggregation) ---
 hub:
   enabled: false
-  mdns_enabled: false            # Auto-discover peers via mDNS
+  mdns_enabled: true             # Auto-discover peers via mDNS (default: true when hub enabled)
   static_peers: []               # e.g. ["192.168.1.10:9100", "192.168.1.11:9100"]
   listen_port: 9200              # Hub API port
   scrape_interval: "30s"         # How often to scrape peer /metrics

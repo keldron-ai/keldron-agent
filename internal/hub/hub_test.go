@@ -123,6 +123,16 @@ func TestPeerRegistry_AddRemoveUpdateHealth(t *testing.T) {
 	}
 }
 
+func TestPeerRegistry_Deduplication(t *testing.T) {
+	r := NewPeerRegistry()
+	r.AddPeer("192.168.1.50:9100")
+	r.AddPeer("192.168.1.50:9100") // duplicate
+	peers := r.GetPeers()
+	if len(peers) != 1 {
+		t.Errorf("AddPeer twice with same address: got %d peers, want 1 (deduplication)", len(peers))
+	}
+}
+
 func findPeer(peers []*Peer, addr string) *Peer {
 	for _, p := range peers {
 		if p.Address == addr {

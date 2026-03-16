@@ -23,6 +23,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
+	"github.com/keldron-ai/keldron-agent/internal/discovery"
 	"github.com/keldron-ai/keldron-agent/internal/fake"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/hub"
@@ -151,6 +152,7 @@ func run() int {
 	var outputBridgeDone chan struct{}
 	var senderDone chan error
 	var bufferDone chan error
+	var mdnsAdvertiser *discovery.MDNSAdvertiser
 
 	if isLocalMode {
 		if cfg.Output.Prometheus {
@@ -185,13 +187,24 @@ func run() int {
 			outputs = append(outputs, std)
 		}
 		if cfg.Hub.Enabled {
-			h := hub.NewHub(cfg.Hub, cfg.Agent.DeviceName, logger.With("component", "hub"))
+			h := hub.NewHub(cfg.Hub, cfg.Agent.DeviceName, cfg.Output.PrometheusPort, logger.With("component", "hub"))
 			outputs = append(outputs, h)
 			go func() {
 				if err := h.Start(ctx); err != nil && err != http.ErrServerClosed {
 					logger.Error("Hub server stopped", "error", err)
 				}
 			}()
+		}
+
+		// mDNS advertisement: every agent advertises for zero-config discovery
+		if cfg.Output.Prometheus && cfg.Output.MDNSAdvertise {
+			mdnsAdvertiser = discovery.NewAdvertiserSafe(
+				cfg.Agent.DeviceName,
+				cfg.Output.PrometheusPort,
+				version,
+				1,
+				logger.With("component", "mdns"),
+			)
 		}
 
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
@@ -279,6 +292,9 @@ func run() int {
 	if isLocalMode {
 		// Wait for output bridge to finish
 		<-outputBridgeDone
+		if mdnsAdvertiser != nil {
+			mdnsAdvertiser.Stop()
+		}
 		for _, out := range outputs {
 			if err := out.Close(); err != nil {
 				logger.Error("output close error", "error", err)

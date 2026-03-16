@@ -16,6 +16,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/keldron-ai/keldron-agent/internal/config"
+	"github.com/keldron-ai/keldron-agent/internal/discovery"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
@@ -27,6 +28,7 @@ type Hub struct {
 	scraper          *Scraper
 	api              *FleetAPI
 	deviceName       string
+	prometheusPort   int
 	logger           *slog.Logger
 	httpServer       *http.Server
 	localDevices     []PeerDevice
@@ -49,8 +51,9 @@ type hubSummaryMetrics struct {
 	scrapeErrors   prometheus.Counter
 }
 
-// NewHub creates a new Hub.
-func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
+// NewHub creates a new Hub. prometheusPort is used for self-filtering when
+// the hub discovers itself via mDNS.
+func NewHub(cfg config.HubConfig, deviceName string, prometheusPort int, logger *slog.Logger) *Hub {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -93,14 +96,15 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 	)
 
 	h := &Hub{
-		config:      cfg,
-		registry:    registry,
-		scraper:     scraper,
-		deviceName:  deviceName,
-		logger:      logger,
-		peerMetrics: make(map[string]map[string]*dto.MetricFamily),
-		hubSummary:  hubSummary,
-		hubRegistry: hubReg,
+		config:         cfg,
+		registry:       registry,
+		scraper:        scraper,
+		deviceName:     deviceName,
+		prometheusPort: prometheusPort,
+		logger:         logger,
+		peerMetrics:    make(map[string]map[string]*dto.MetricFamily),
+		hubSummary:     hubSummary,
+		hubRegistry:    hubReg,
 	}
 
 	h.api = NewFleetAPI(func() FleetState {
@@ -132,8 +136,25 @@ func (h *Hub) Start(ctx context.Context) error {
 			h.registry.AddPeer(addr)
 		}
 	}
-	if h.config.MDNSEnabled {
-		h.logger.Info("mDNS discovery not yet implemented (OSS-022)")
+	if h.config.MDNSEnabled() {
+		browser := discovery.NewBrowser(
+			func(addr, name string) {
+				if discovery.IsSelf(addr, name, h.deviceName, h.prometheusPort) {
+					return
+				}
+				h.logger.Info("discovered peer via mDNS", "peer", name, "address", addr)
+				h.registry.AddPeer(addr)
+			},
+			func(addr string) {
+				h.logger.Info("peer disappeared from mDNS", "address", addr)
+				h.registry.MarkUnhealthy(addr)
+			},
+		)
+		go func() {
+			if err := browser.Start(ctx); err != nil && ctx.Err() == nil {
+				h.logger.Warn("mDNS discovery unavailable — using static peers only", "error", err)
+			}
+		}()
 	}
 
 	// Build merged /metrics handler

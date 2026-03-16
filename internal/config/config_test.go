@@ -647,6 +647,28 @@ func TestHolder_Subscribe_Unsubscribe(t *testing.T) {
 	}
 }
 
+func TestHubConfig_MDNSEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  HubConfig
+		want bool
+	}{
+		{"nil_default_when_enabled", HubConfig{Enabled: true}, true},
+		{"nil_default_when_disabled", HubConfig{Enabled: false}, false},
+		{"explicit_true", HubConfig{Enabled: true, mdnsEnabled: boolPtr(true)}, true},
+		{"explicit_false_overrides", HubConfig{Enabled: true, mdnsEnabled: boolPtr(false)}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.MDNSEnabled(); got != tt.want {
+				t.Errorf("MDNSEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+
 func TestValidate_HubEnabledNoPort(t *testing.T) {
 	cfg := Defaults()
 	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
