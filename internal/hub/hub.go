@@ -36,7 +36,6 @@ type Hub struct {
 	peerMetrics      map[string]map[string]*dto.MetricFamily // peerID -> MetricFamilies cache
 	peerMetricsMu    sync.RWMutex
 	hubSummary       *hubSummaryMetrics
-	hubRegistry      prometheus.Gatherer
 	lastScrapeErrors int64
 	lastScrapeMu     sync.Mutex
 	shutdownOnce     sync.Once
@@ -64,7 +63,6 @@ func NewHub(cfg config.HubConfig, deviceName string, prometheusPort int, logger 
 	}
 	scraper := NewScraper(interval, registry, logger)
 
-	hubReg := prometheus.NewRegistry()
 	hubSummary := &hubSummaryMetrics{
 		peersTotal: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "keldron_hub_peers_total",
@@ -87,7 +85,9 @@ func NewHub(cfg config.HubConfig, deviceName string, prometheusPort int, logger 
 			Help: "Cumulative scrape failures",
 		}),
 	}
-	hubReg.MustRegister(
+	// Register with the default registry so hub metrics appear on the main
+	// Prometheus /metrics endpoint (port 9100) as well as the hub's own port.
+	prometheus.MustRegister(
 		hubSummary.peersTotal,
 		hubSummary.peersHealthy,
 		hubSummary.devicesTotal,
@@ -104,7 +104,6 @@ func NewHub(cfg config.HubConfig, deviceName string, prometheusPort int, logger 
 		logger:         logger,
 		peerMetrics:    make(map[string]map[string]*dto.MetricFamily),
 		hubSummary:     hubSummary,
-		hubRegistry:    hubReg,
 	}
 
 	h.api = NewFleetAPI(func() FleetState {
@@ -294,13 +293,8 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		}
 		h.lastScrapeMu.Unlock()
 
-		// Gather hub summary metrics — log and continue on error (same
-		// policy as local gather) so /metrics serves partial results.
-		hubFamilies, err := h.hubRegistry.Gather()
-		if err != nil {
-			h.logger.Warn("failed to gather hub summary metrics, continuing with collected metrics", "error", err)
-		}
-		mergeInto(hubFamilies)
+		// Hub summary metrics are registered with the default registry,
+		// so they are already included in the local gather above.
 
 		out := make([]*dto.MetricFamily, 0, len(merged))
 		for _, mf := range merged {
