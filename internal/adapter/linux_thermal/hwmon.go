@@ -1,5 +1,3 @@
-//go:build linux
-
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Keldron (keldron.ai)
 
@@ -15,9 +13,9 @@ import (
 
 // HwmonSensor represents a single temperature sensor from hwmon.
 type HwmonSensor struct {
-	Path       string  // e.g. /sys/class/hwmon/hwmon0
-	Name       string  // e.g. "coretemp"
-	SensorType string  // "cpu", "gpu", "nvme", "soc", "other"
+	Path       string // e.g. /sys/class/hwmon/hwmon0
+	Name       string // e.g. "coretemp"
+	SensorType string // "cpu", "gpu", "nvme", "soc", "other"
 	TempC      float64
 	TempMaxC   float64 // -1 if unavailable
 	TempCritC  float64 // -1 if unavailable
