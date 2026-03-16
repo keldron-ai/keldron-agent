@@ -198,7 +198,10 @@ func (h *HubConfig) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(value.Content); i += 2 {
 			if value.Content[i].Value == "mdns_enabled" {
-				b := parseBool(value.Content[i+1].Value)
+				var b bool
+				if err := value.Content[i+1].Decode(&b); err != nil {
+					return fmt.Errorf("hub.mdns_enabled: %w", err)
+				}
 				h.mdnsEnabled = &b
 				break
 			}
@@ -590,8 +593,9 @@ func ApplyEnvOverrides(load *configLoad) {
 		load.Hub.Enabled = parseBool(v)
 	}
 	if v := os.Getenv("KELDRON_HUB_MDNS_ENABLED"); v != "" {
-		b := parseBool(v)
-		load.Hub.mdnsEnabled = &b
+		if b, err := strconv.ParseBool(v); err == nil {
+			load.Hub.mdnsEnabled = &b
+		}
 	}
 	if v := os.Getenv("KELDRON_HUB_STATIC_PEERS"); v != "" {
 		load.Hub.StaticPeers = strings.Split(v, ",")
