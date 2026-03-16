@@ -1,6 +1,6 @@
 #!/bin/bash
 # full-diagnostic.sh — Comprehensive keldron-agent test suite
-# Run from /Users/ransomhorne/Documents/keldron-agent/
+# Run from the repository root.
 # Tests: build, local monitoring, risk scoring, hub mode, fleet API, all endpoints
 
 set -uo pipefail
@@ -34,16 +34,22 @@ warn() {
     ((WARN++))
 }
 
+cleanup() {
+    pkill -f keldron-agent 2>/dev/null || true
+    pkill -f "agent.*--local" 2>/dev/null || true
+    rm -f /tmp/keldron-test-local.yaml /tmp/keldron-test-hub.yaml
+    rm -f /tmp/keldron-diag-local.log /tmp/keldron-diag-hub.log
+}
+trap cleanup EXIT INT TERM
+
 echo ""
 echo "${CYAN}═══════════════════════════════════════════════════${NC}"
 echo "${CYAN}  Keldron Agent — Full Diagnostic Suite${NC}"
 echo "${CYAN}═══════════════════════════════════════════════════${NC}"
 echo ""
 
-# ─── CLEANUP ───
 echo "🧹 Cleaning up stale processes..."
-pkill -f keldron-agent 2>/dev/null || true
-pkill -f "agent.*--local" 2>/dev/null || true
+cleanup
 sleep 2
 
 # ═══════════════════════════════════════════
@@ -169,7 +175,7 @@ TEMP=$(echo "$METRICS_RAW" | grep 'keldron_gpu_temperature_celsius{' | awk '{pri
 [ -n "$TEMP" ]
 check "keldron_gpu_temperature_celsius present" $?
 if [ -n "$TEMP" ]; then
-    TEMP_OK=$(echo "$TEMP > 0" | bc -l 2>/dev/null || echo "0")
+    TEMP_OK=$(awk "BEGIN{print ($TEMP > 0) ? 1 : 0}" 2>/dev/null || echo "0")
     [ "$TEMP_OK" = "1" ]
     check "Temperature is non-zero (${TEMP}°C)" $?
 fi
@@ -481,9 +487,10 @@ echo "${CYAN}── Section 6: Docker ──${NC}"
 if command -v docker &> /dev/null; then
     echo "  → Docker build"
     docker build -t keldron-agent:diag-test . > /dev/null 2>&1
-    check "Docker build succeeds" $?
+    BUILD_EXIT=$?
+    check "Docker build succeeds" $BUILD_EXIT
 
-    if [ $? -eq 0 ]; then
+    if [ "$BUILD_EXIT" -eq 0 ]; then
         IMG_SIZE=$(docker image inspect keldron-agent:diag-test --format='{{.Size}}' 2>/dev/null || echo "0")
         IMG_SIZE_MB=$((IMG_SIZE / 1024 / 1024))
         echo "    Image size: ${IMG_SIZE_MB}MB"
@@ -506,9 +513,7 @@ fi
 # ═══════════════════════════════════════════
 echo ""
 echo "${CYAN}── Cleanup ──${NC}"
-pkill -f keldron-agent 2>/dev/null || true
-rm -f /tmp/keldron-test-local.yaml /tmp/keldron-test-hub.yaml
-rm -f /tmp/keldron-diag-local.log /tmp/keldron-diag-hub.log
+cleanup
 echo "  Cleaned up temp files and processes"
 
 # ═══════════════════════════════════════════
