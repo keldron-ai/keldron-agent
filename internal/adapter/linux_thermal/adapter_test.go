@@ -14,22 +14,52 @@ import (
 	"testing"
 	"time"
 
+	"github.com/keldron-ai/keldron-agent/internal/adapter"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"gopkg.in/yaml.v3"
 )
+
+// RawReading type alias for use in tests that construct adapters directly.
+type RawReading = adapter.RawReading
+
+func adapterMustMkdirAll(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+}
+
+func adapterMustWriteFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// waitForCondition polls fn every 10ms until it returns true or timeout expires.
+func waitForCondition(t *testing.T, fn func() bool, timeout time.Duration, msg string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for !fn() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !fn() {
+		t.Fatal(msg)
+	}
+}
 
 func TestAdapter_Collect(t *testing.T) {
 	dir := t.TempDir()
 
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"))
 
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
+	adapterMustMkdirAll(t, zone0)
+	adapterMustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	adapterMustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
 
 	ltCfg := LinuxThermalAdapterConfig{
 		HwmonPath:   dir,
@@ -91,9 +121,9 @@ func TestAdapter_Collect(t *testing.T) {
 func TestAdapter_CollectGPUSensor(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("amdgpu\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("70000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("amdgpu\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("70000\n"))
 
 	ltCfg := LinuxThermalAdapterConfig{HwmonPath: dir, ThermalPath: t.TempDir()}
 	ltCfg.applyDefaults()
@@ -118,14 +148,14 @@ func TestAdapter_ExcludeZones(t *testing.T) {
 	dir := t.TempDir()
 
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("nvme\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("nvme\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"))
 
 	hwmon1 := filepath.Join(dir, "hwmon1")
-	os.MkdirAll(hwmon1, 0755)
-	os.WriteFile(filepath.Join(hwmon1, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon1)
+	adapterMustWriteFile(t, filepath.Join(hwmon1, "name"), []byte("coretemp\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"))
 
 	a := &LinuxThermalAdapter{
 		cfg: LinuxThermalAdapterConfig{
@@ -156,14 +186,14 @@ func TestAdapter_IncludeZones(t *testing.T) {
 	dir := t.TempDir()
 
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("nvme\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("nvme\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("45000\n"))
 
 	hwmon1 := filepath.Join(dir, "hwmon1")
-	os.MkdirAll(hwmon1, 0755)
-	os.WriteFile(filepath.Join(hwmon1, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon1)
+	adapterMustWriteFile(t, filepath.Join(hwmon1, "name"), []byte("coretemp\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon1, "temp1_input"), []byte("55000\n"))
 
 	a := &LinuxThermalAdapter{
 		cfg: LinuxThermalAdapterConfig{
@@ -189,14 +219,14 @@ func TestAdapter_IncludeZones(t *testing.T) {
 func TestAdapter_IncludeZones_ThermalZone(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
+	adapterMustMkdirAll(t, zone0)
+	adapterMustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	adapterMustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
 
 	zone1 := filepath.Join(dir, "thermal_zone1")
-	os.MkdirAll(zone1, 0755)
-	os.WriteFile(filepath.Join(zone1, "type"), []byte("acpitz\n"), 0644)
-	os.WriteFile(filepath.Join(zone1, "temp"), []byte("50000\n"), 0644)
+	adapterMustMkdirAll(t, zone1)
+	adapterMustWriteFile(t, filepath.Join(zone1, "type"), []byte("acpitz\n"))
+	adapterMustWriteFile(t, filepath.Join(zone1, "temp"), []byte("50000\n"))
 
 	a := &LinuxThermalAdapter{
 		cfg: LinuxThermalAdapterConfig{
@@ -243,9 +273,9 @@ func TestAdapter_MetricKeyForSensorType(t *testing.T) {
 func TestAdapter_PollAndStats(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"))
 
 	a := &LinuxThermalAdapter{
 		cfg: LinuxThermalAdapterConfig{
@@ -297,9 +327,9 @@ func TestAdapter_Name(t *testing.T) {
 func TestAdapter_StartStop(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"), 0644)
+	adapterMustMkdirAll(t, hwmon0)
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	adapterMustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("50000\n"))
 
 	rawNode := configYAMLForPaths(dir, t.TempDir())
 	cfg := config.AdapterConfig{
@@ -321,13 +351,9 @@ func TestAdapter_StartStop(t *testing.T) {
 	go func() {
 		errCh <- adpt.Start(ctx)
 	}()
-	time.Sleep(50 * time.Millisecond)
 
-	// Should be running
 	lta := adpt.(*LinuxThermalAdapter)
-	if !lta.IsRunning() {
-		t.Error("should be running after Start")
-	}
+	waitForCondition(t, lta.IsRunning, 2*time.Second, "adapter did not enter running state")
 
 	// Stop via Stop method
 	if err := adpt.Stop(context.Background()); err != nil {
@@ -358,7 +384,8 @@ func TestAdapter_DoubleStartReturnsError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = a.Start(ctx) }()
-	time.Sleep(50 * time.Millisecond)
+
+	waitForCondition(t, a.IsRunning, 2*time.Second, "first Start did not enter running state")
 
 	// Second start should fail
 	err := a.Start(ctx)
@@ -366,7 +393,8 @@ func TestAdapter_DoubleStartReturnsError(t *testing.T) {
 		t.Error("expected error on double start")
 	}
 	cancel()
-	time.Sleep(50 * time.Millisecond)
+
+	waitForCondition(t, func() bool { return !a.IsRunning() }, 2*time.Second, "adapter did not stop")
 }
 
 func TestAdapter_ReadingsChannel(t *testing.T) {

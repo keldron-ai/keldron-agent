@@ -7,8 +7,23 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
+
+func mustMkdirAll(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+}
+
+func mustWriteFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
 
 func TestClassifySensorType(t *testing.T) {
 	tests := []struct {
@@ -44,18 +59,18 @@ func TestDiscoverHwmon_MockSysfs(t *testing.T) {
 
 	// hwmon0: coretemp with label, max, crit
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_label"), []byte("Package id 0\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_max"), []byte("100000\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_crit"), []byte("105000\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_label"), []byte("Package id 0\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_max"), []byte("100000\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_crit"), []byte("105000\n"))
 
 	// hwmon1: nvme (no label, no max/crit)
 	hwmon1 := filepath.Join(dir, "hwmon1")
-	os.MkdirAll(hwmon1, 0755)
-	os.WriteFile(filepath.Join(hwmon1, "name"), []byte("nvme\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon1, "temp1_input"), []byte("45000\n"), 0644)
+	mustMkdirAll(t, hwmon1)
+	mustWriteFile(t, filepath.Join(hwmon1, "name"), []byte("nvme\n"))
+	mustWriteFile(t, filepath.Join(hwmon1, "temp1_input"), []byte("45000\n"))
 
 	logger := slog.Default()
 	sensors := DiscoverHwmon(dir, logger)
@@ -94,12 +109,12 @@ func TestDiscoverHwmon_MockSysfs(t *testing.T) {
 func TestDiscoverHwmon_MultipleTempInputs(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_label"), []byte("Package id 0\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp2_input"), []byte("58000\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp2_label"), []byte("Core 0\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_label"), []byte("Package id 0\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp2_input"), []byte("58000\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp2_label"), []byte("Core 0\n"))
 
 	sensors := DiscoverHwmon(dir, slog.Default())
 	if len(sensors) != 2 {
@@ -137,8 +152,8 @@ func TestDiscoverHwmon_NilLogger(t *testing.T) {
 func TestDiscoverHwmon_MissingNameFile(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"))
 	// no "name" file
 
 	sensors := DiscoverHwmon(dir, slog.Default())
@@ -150,8 +165,8 @@ func TestDiscoverHwmon_MissingNameFile(t *testing.T) {
 func TestDiscoverHwmon_MissingTempFile(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
 	// No temp1_input
 
 	sensors := DiscoverHwmon(dir, slog.Default())
@@ -163,9 +178,9 @@ func TestDiscoverHwmon_MissingTempFile(t *testing.T) {
 func TestDiscoverHwmon_MalformedValue(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("bad\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("bad\n"))
 
 	sensors := DiscoverHwmon(dir, slog.Default())
 	if len(sensors) != 0 {
@@ -176,11 +191,11 @@ func TestDiscoverHwmon_MalformedValue(t *testing.T) {
 func TestDiscoverHwmon_MalformedMaxCrit(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_max"), []byte("bad\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_crit"), []byte("bad\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("62000\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_max"), []byte("bad\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_crit"), []byte("bad\n"))
 
 	sensors := DiscoverHwmon(dir, slog.Default())
 	if len(sensors) != 1 {
@@ -197,9 +212,9 @@ func TestDiscoverHwmon_MalformedMaxCrit(t *testing.T) {
 func TestDiscoverHwmon_NegativeTemperature(t *testing.T) {
 	dir := t.TempDir()
 	hwmon0 := filepath.Join(dir, "hwmon0")
-	os.MkdirAll(hwmon0, 0755)
-	os.WriteFile(filepath.Join(hwmon0, "name"), []byte("coretemp\n"), 0644)
-	os.WriteFile(filepath.Join(hwmon0, "temp1_input"), []byte("-5000\n"), 0644)
+	mustMkdirAll(t, hwmon0)
+	mustWriteFile(t, filepath.Join(hwmon0, "name"), []byte("coretemp\n"))
+	mustWriteFile(t, filepath.Join(hwmon0, "temp1_input"), []byte("-5000\n"))
 
 	sensors := DiscoverHwmon(dir, slog.Default())
 	if len(sensors) != 1 {
@@ -212,10 +227,8 @@ func TestDiscoverHwmon_NegativeTemperature(t *testing.T) {
 
 func TestDiscoverHwmon_SkipsNonHwmonDirs(t *testing.T) {
 	dir := t.TempDir()
-	// Create a non-hwmon directory
-	os.MkdirAll(filepath.Join(dir, "notahwmon"), 0755)
-	// Create a regular file
-	os.WriteFile(filepath.Join(dir, "somefile"), []byte("data"), 0644)
+	mustMkdirAll(t, filepath.Join(dir, "notahwmon"))
+	mustWriteFile(t, filepath.Join(dir, "somefile"), []byte("data"))
 
 	sensors := DiscoverHwmon(dir, slog.Default())
 	if len(sensors) != 0 {
@@ -224,18 +237,21 @@ func TestDiscoverHwmon_SkipsNonHwmonDirs(t *testing.T) {
 }
 
 func TestDiscoverHwmon_EmptyBasePath(t *testing.T) {
-	// Empty basePath should default to /sys/class/hwmon (won't exist on macOS, returns nil)
 	sensors := DiscoverHwmon("", slog.Default())
-	// On macOS this returns nil (no /sys/class/hwmon), on Linux it might return sensors
-	_ = sensors
+	if runtime.GOOS != "linux" {
+		// /sys/class/hwmon doesn't exist on non-Linux; expect nil
+		if sensors != nil {
+			t.Errorf("non-linux: expected nil sensors, got %d", len(sensors))
+		}
+	}
 }
 
 func TestDiscoverThermalZones_MockSysfs(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	mustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
 
 	zones := DiscoverThermalZones(dir, slog.Default())
 	if len(zones) != 1 {
@@ -250,13 +266,13 @@ func TestDiscoverThermalZones_MockSysfs(t *testing.T) {
 func TestDiscoverThermalZones_WithTripPoints(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_0_type"), []byte("passive\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_0_temp"), []byte("90000\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_1_type"), []byte("critical\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_1_temp"), []byte("105000\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	mustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_0_type"), []byte("passive\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_0_temp"), []byte("90000\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_1_type"), []byte("critical\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_1_temp"), []byte("105000\n"))
 
 	zones := DiscoverThermalZones(dir, slog.Default())
 	if len(zones) != 1 {
@@ -277,13 +293,13 @@ func TestDiscoverThermalZones_WithTripPoints(t *testing.T) {
 func TestDiscoverThermalZones_MalformedTripPointTemp(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_0_type"), []byte("passive\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_0_temp"), []byte("bad\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_1_type"), []byte("critical\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "trip_point_1_temp"), []byte("105000\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	mustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_0_type"), []byte("passive\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_0_temp"), []byte("bad\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_1_type"), []byte("critical\n"))
+	mustWriteFile(t, filepath.Join(zone0, "trip_point_1_temp"), []byte("105000\n"))
 
 	zones := DiscoverThermalZones(dir, slog.Default())
 	if len(zones) != 1 {
@@ -323,8 +339,8 @@ func TestDiscoverThermalZones_NilLogger(t *testing.T) {
 func TestDiscoverThermalZones_MissingTypeFile(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("65000\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "temp"), []byte("65000\n"))
 	// No "type" file
 
 	zones := DiscoverThermalZones(dir, slog.Default())
@@ -336,8 +352,8 @@ func TestDiscoverThermalZones_MissingTypeFile(t *testing.T) {
 func TestDiscoverThermalZones_MissingTempFile(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
 	// No "temp" file
 
 	zones := DiscoverThermalZones(dir, slog.Default())
@@ -349,9 +365,9 @@ func TestDiscoverThermalZones_MissingTempFile(t *testing.T) {
 func TestDiscoverThermalZones_MalformedTemp(t *testing.T) {
 	dir := t.TempDir()
 	zone0 := filepath.Join(dir, "thermal_zone0")
-	os.MkdirAll(zone0, 0755)
-	os.WriteFile(filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"), 0644)
-	os.WriteFile(filepath.Join(zone0, "temp"), []byte("notanumber\n"), 0644)
+	mustMkdirAll(t, zone0)
+	mustWriteFile(t, filepath.Join(zone0, "type"), []byte("x86_pkg_temp\n"))
+	mustWriteFile(t, filepath.Join(zone0, "temp"), []byte("notanumber\n"))
 
 	zones := DiscoverThermalZones(dir, slog.Default())
 	if len(zones) != 0 {
@@ -361,8 +377,8 @@ func TestDiscoverThermalZones_MalformedTemp(t *testing.T) {
 
 func TestDiscoverThermalZones_SkipsNonZoneDirs(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "cooling_device0"), 0755)
-	os.WriteFile(filepath.Join(dir, "somefile"), []byte("data"), 0644)
+	mustMkdirAll(t, filepath.Join(dir, "cooling_device0"))
+	mustWriteFile(t, filepath.Join(dir, "somefile"), []byte("data"))
 
 	zones := DiscoverThermalZones(dir, slog.Default())
 	if len(zones) != 0 {
@@ -377,9 +393,9 @@ func TestDiscoverThermalZones_MultipleZones(t *testing.T) {
 		{"acpitz", "50000"},
 	} {
 		zone := filepath.Join(dir, "thermal_zone"+string(rune('0'+i)))
-		os.MkdirAll(zone, 0755)
-		os.WriteFile(filepath.Join(zone, "type"), []byte(zt.typ+"\n"), 0644)
-		os.WriteFile(filepath.Join(zone, "temp"), []byte(zt.temp+"\n"), 0644)
+		mustMkdirAll(t, zone)
+		mustWriteFile(t, filepath.Join(zone, "type"), []byte(zt.typ+"\n"))
+		mustWriteFile(t, filepath.Join(zone, "temp"), []byte(zt.temp+"\n"))
 	}
 
 	zones := DiscoverThermalZones(dir, slog.Default())
