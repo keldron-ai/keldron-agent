@@ -171,6 +171,7 @@ func (h *Hub) Start(ctx context.Context) error {
 	h.logger.Info("Hub mode active — fleet API at http://localhost:"+strconv.Itoa(h.config.ListenPort)+"/api/v1/fleet",
 		"port", h.config.ListenPort)
 	if err := h.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		scraperCancel()
 		return err
 	}
 	return nil
