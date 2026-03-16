@@ -38,6 +38,7 @@ type Hub struct {
 	lastScrapeErrors int64
 	lastScrapeMu     sync.Mutex
 	shutdownOnce     sync.Once
+	scraperCancel    context.CancelFunc
 }
 
 type hubSummaryMetrics struct {
@@ -111,7 +112,11 @@ func NewHub(cfg config.HubConfig, deviceName string, logger *slog.Logger) *Hub {
 
 	scraper.SetPeerMetricsCallback(func(peerID string, families map[string]*dto.MetricFamily) {
 		h.peerMetricsMu.Lock()
-		h.peerMetrics[peerID] = families
+		if len(families) == 0 {
+			delete(h.peerMetrics, peerID)
+		} else {
+			h.peerMetrics[peerID] = families
+		}
 		h.peerMetricsMu.Unlock()
 	})
 
@@ -131,9 +136,6 @@ func (h *Hub) Start(ctx context.Context) error {
 		h.logger.Info("mDNS discovery not yet implemented (OSS-022)")
 	}
 
-	// Start scraper
-	go h.scraper.Start(ctx)
-
 	// Build merged /metrics handler
 	gatherer := h.buildMetricsGatherer()
 	mux := http.NewServeMux()
@@ -149,14 +151,22 @@ func (h *Hub) Start(ctx context.Context) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Derived context for scraper so it can be cancelled independently on shutdown.
+	scraperCtx, scraperCancel := context.WithCancel(ctx)
+	h.scraperCancel = scraperCancel
+
 	go func() {
 		<-ctx.Done()
 		h.shutdownOnce.Do(func() {
+			h.scraperCancel()
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = h.httpServer.Shutdown(shutdownCtx)
 		})
 	}()
+
+	// Start scraper after server is set up so it runs while the server is active.
+	go h.scraper.Start(scraperCtx)
 
 	h.logger.Info("Hub mode active — fleet API at http://localhost:"+strconv.Itoa(h.config.ListenPort)+"/api/v1/fleet",
 		"port", h.config.ListenPort)
@@ -169,6 +179,19 @@ func (h *Hub) Start(ctx context.Context) error {
 func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 	return prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
 		merged := make(map[string]*dto.MetricFamily)
+
+		// cloneMetricFamily creates a new MetricFamily with its own Metric
+		// slice so appending into merged never mutates cached objects.
+		cloneMetricFamily := func(mf *dto.MetricFamily) *dto.MetricFamily {
+			metrics := make([]*dto.Metric, len(mf.Metric))
+			copy(metrics, mf.Metric)
+			return &dto.MetricFamily{
+				Name:   mf.Name,
+				Help:   mf.Help,
+				Type:   mf.Type,
+				Metric: metrics,
+			}
+		}
 
 		mergeInto := func(families []*dto.MetricFamily) {
 			for _, mf := range families {
@@ -185,7 +208,7 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 						existing.Type = mf.Type
 					}
 				} else {
-					merged[name] = mf
+					merged[name] = cloneMetricFamily(mf)
 				}
 			}
 		}
@@ -197,18 +220,8 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		}
 		mergeInto(local)
 
-		// Gather peer metrics from cache
-		h.peerMetricsMu.RLock()
-		for _, families := range h.peerMetrics {
-			for _, mf := range families {
-				if mf != nil {
-					mergeInto([]*dto.MetricFamily{mf})
-				}
-			}
-		}
-		h.peerMetricsMu.RUnlock()
-
-		// Update hub summary
+		// Update hub summary (computed before peer metrics merge so we have the
+		// current peer list to filter stale cache entries).
 		peers := h.registry.GetPeers()
 		healthy := 0
 		for _, p := range peers {
@@ -223,6 +236,24 @@ func (h *Hub) buildMetricsGatherer() prometheus.Gatherer {
 		for _, p := range peers {
 			totalDevices += len(p.Devices)
 		}
+
+		// Gather peer metrics from cache, only for currently registered peers.
+		registeredPeerIDs := make(map[string]bool, len(peers))
+		for _, p := range peers {
+			registeredPeerIDs[p.ID] = true
+		}
+		h.peerMetricsMu.RLock()
+		for peerID, families := range h.peerMetrics {
+			if !registeredPeerIDs[peerID] {
+				continue
+			}
+			for _, mf := range families {
+				if mf != nil {
+					mergeInto([]*dto.MetricFamily{mf})
+				}
+			}
+		}
+		h.peerMetricsMu.RUnlock()
 
 		h.hubSummary.peersTotal.Set(float64(len(peers)))
 		h.hubSummary.peersHealthy.Set(float64(healthy))
@@ -269,6 +300,9 @@ func (h *Hub) Close() error {
 	}
 	var shutdownErr error
 	h.shutdownOnce.Do(func() {
+		if h.scraperCancel != nil {
+			h.scraperCancel()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		shutdownErr = h.httpServer.Shutdown(ctx)
