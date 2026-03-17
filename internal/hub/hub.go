@@ -377,6 +377,8 @@ func telemetryToPeerDevices(readings []normalizer.TelemetryPoint, scores []scori
 		if used, ok1 := m["mem_used_bytes"]; ok1 {
 			if total, ok2 := m["mem_total_bytes"]; ok2 && total > 0 {
 				d.MemoryPressure = used / total
+				d.MemoryUsedBytes = used
+				d.MemoryTotalBytes = total
 			}
 		}
 

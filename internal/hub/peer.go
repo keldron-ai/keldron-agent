@@ -10,17 +10,19 @@ import (
 
 // PeerDevice holds device metrics scraped from a peer agent.
 type PeerDevice struct {
-	DeviceID       string
-	DeviceModel    string
-	DeviceVendor   string
-	BehaviorClass  string
-	TemperatureC   float64
-	PowerW         float64
-	Utilization    float64
-	RiskComposite  float64
-	RiskSeverity   string // "normal", "warning", "critical"
-	MemoryPressure float64
-	LastUpdated    time.Time
+	DeviceID         string
+	DeviceModel      string
+	DeviceVendor     string
+	BehaviorClass    string
+	TemperatureC     float64
+	PowerW           float64
+	Utilization      float64
+	RiskComposite    float64
+	RiskSeverity     string // "normal", "warning", "critical"
+	MemoryPressure   float64
+	MemoryUsedBytes  float64 // 0 = unknown
+	MemoryTotalBytes float64 // 0 = unknown
+	LastUpdated      time.Time
 }
 
 // Peer represents a peer agent on the network.

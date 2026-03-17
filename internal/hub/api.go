@@ -54,13 +54,15 @@ type peerResponse struct {
 }
 
 type deviceResponse struct {
-	DeviceID      string  `json:"device_id"`
-	DeviceModel   string  `json:"device_model"`
-	TemperatureC  float64 `json:"temperature_c"`
-	PowerW        float64 `json:"power_w"`
-	Utilization   float64 `json:"utilization"`
-	RiskComposite float64 `json:"risk_composite"`
-	RiskSeverity  string  `json:"risk_severity"`
+	DeviceID         string  `json:"device_id"`
+	DeviceModel      string  `json:"device_model"`
+	TemperatureC     float64 `json:"temperature_c"`
+	PowerW           float64 `json:"power_w"`
+	Utilization      float64 `json:"utilization"`
+	RiskComposite    float64 `json:"risk_composite"`
+	RiskSeverity     string  `json:"risk_severity"`
+	MemoryUsedBytes  float64 `json:"memory_used_bytes,omitempty"`
+	MemoryTotalBytes float64 `json:"memory_total_bytes,omitempty"`
 }
 
 type summaryResponse struct {
@@ -139,13 +141,15 @@ func devicesToResponse(devices []PeerDevice) []deviceResponse {
 	out := make([]deviceResponse, len(devices))
 	for i, d := range devices {
 		out[i] = deviceResponse{
-			DeviceID:      d.DeviceID,
-			DeviceModel:   d.DeviceModel,
-			TemperatureC:  d.TemperatureC,
-			PowerW:        d.PowerW,
-			Utilization:   d.Utilization,
-			RiskComposite: d.RiskComposite,
-			RiskSeverity:  d.RiskSeverity,
+			DeviceID:         d.DeviceID,
+			DeviceModel:      d.DeviceModel,
+			TemperatureC:     d.TemperatureC,
+			PowerW:           d.PowerW,
+			Utilization:      d.Utilization,
+			RiskComposite:    d.RiskComposite,
+			RiskSeverity:     d.RiskSeverity,
+			MemoryUsedBytes:  d.MemoryUsedBytes,
+			MemoryTotalBytes: d.MemoryTotalBytes,
 		}
 	}
 	return out
