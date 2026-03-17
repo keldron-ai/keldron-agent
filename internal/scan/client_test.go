@@ -92,11 +92,8 @@ func TestFetchFleet_Unreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unreachable hub")
 	}
-	if !errors.Is(err, ErrNoPeers) {
-		// Should be connection error, not ErrNoPeers
-		if errors.Is(err, ErrNoPeers) {
-			t.Error("should not be ErrNoPeers for connection failure")
-		}
+	if errors.Is(err, ErrNoPeers) {
+		t.Error("connection failure should not be classified as ErrNoPeers")
 	}
 }
 

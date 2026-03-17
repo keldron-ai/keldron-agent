@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/keldron-ai/keldron-agent/registry"
 )
@@ -206,10 +208,14 @@ func colorRisk(risk float64) string {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
-	return s[:max-1] + "…"
+	return string(runes[:max-1]) + "…"
 }
 
 func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
@@ -268,9 +274,41 @@ func renderCloudTeaser(w io.Writer, apiKey string) {
 	if apiKey == "" {
 		fmt.Fprintln(w, "ℹ  History, GPU Age, and job tracking available with Keldron Cloud → keldron.ai/cloud")
 	} else {
-		fmt.Fprintln(w, "☁  Connected to Keldron Cloud · 180-day history · Fleet age: 1.2x")
+		metrics, err := fetchCloudMetrics(apiKey)
+		if err != nil {
+			fmt.Fprintln(w, "☁  Connected to Keldron Cloud")
+		} else {
+			fmt.Fprintf(w, "☁  Connected to Keldron Cloud · %s history · Fleet age: %s\n", metrics.HistoryWindow, metrics.FleetAge)
+		}
 	}
 	fmt.Fprint(w, ansiReset)
+}
+
+type cloudMetrics struct {
+	FleetAge      string `json:"fleet_age"`
+	HistoryWindow string `json:"history_window"`
+}
+
+func fetchCloudMetrics(apiKey string) (*cloudMetrics, error) {
+	req, err := http.NewRequest("GET", "https://api.keldron.ai/v1/fleet/metrics", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("cloud API returned status %d", resp.StatusCode)
+	}
+	var m cloudMetrics
+	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // RenderJSON writes the fleet response as formatted JSON to w.

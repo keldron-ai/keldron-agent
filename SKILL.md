@@ -349,13 +349,13 @@ If `keldron scan --json` fails (e.g., connection refused), tell the user: "Fleet
 |-----------|----------------|
 | All healthy | Short: "All N devices healthy. Highest risk score is X on {device_id}. Fleet looks good." |
 | Any WARNING/CRITICAL | Lead with issues: "Heads up — {device_id} is at WARNING (risk score X). Primary driver is thermal stress at Y°C..." then summarize healthy count |
-| "Full table" / "Give me the full fleet table" | Suggest: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view." |
+| "Full table" / "Give me the full fleet table" | Suggest: "Run `keldron scan` in your terminal for the full-colored table, or `keldron scan --watch 5` for a live view." |
 
 **Primary driver:** When `risk_severity` is WARNING or CRITICAL, infer from `temperature_c` (e.g., "thermal stress at 71°C") as the primary driver. If temperature is low, use "elevated risk score" as fallback. For thermal context, you can approximate "X% of thermal limit" if you know typical limits (e.g., 80°C for many GPUs).
 
 **Example interactions:**
 
-```
+```text
 User: "How's my fleet doing?"
 Skill: runs `keldron scan --json`
 Response: "Your fleet has 9 devices, all healthy. Risk scores range from 8 to 28. Highest is m4-mini-01 at 28 — nothing to worry about."
@@ -366,7 +366,7 @@ Response: "m4-mini-03 is at WARNING with a risk score of 65. Junction temperatur
 
 User: "Give me the full fleet table"
 Skill: suggests `keldron scan` or `keldron scan --watch 5`
-Response: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
+Response: "Run `keldron scan` in your terminal for the full-colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
 ```
 
 #### "How are all my machines doing?" / "Which machine is running hottest?" / "Are any of my machines at risk?"

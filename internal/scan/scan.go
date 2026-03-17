@@ -24,7 +24,6 @@ const (
 func Run(args []string) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	hub := fs.String("hub", "localhost:9200", "hub address (host:port)")
-	_ = fs.String("fleet", "all", "fleet scope (all)")
 	device := fs.String("device", "", "filter to device matching name/id")
 	watch := fs.Int("watch", 0, "refresh interval in seconds (min 2, 0=disabled)")
 	jsonOut := fs.Bool("json", false, "output raw JSON")
