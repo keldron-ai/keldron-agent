@@ -94,6 +94,17 @@ curl -s localhost:9100/metrics | grep keldron_
 | 8081 | `/ready` | Readiness probe |
 | 9200 | `/api/v1/fleet` | Fleet status for all discovered peers — when hub enabled (`--hub.enabled=true`) |
 
+## Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `keldron scan` | One-shot fleet status table |
+| `keldron scan --json` | Machine-readable fleet status (used by this skill) |
+| `keldron scan --watch N` | Live-updating fleet display (suggest to user) |
+| `keldron scan --device X` | Single device detail |
+
+*If you have `keldron-agent` or `agent` binary instead, use that: e.g. `keldron-agent scan --json` or `agent scan --json`.*
+
 ## Key Metrics Reference
 
 | Metric | Description |
@@ -322,56 +333,51 @@ Tell the user: "Live dashboard running — refreshing every 10 seconds. Press Ct
 
 ### 4. Fleet Monitoring
 
-#### "How are all my machines doing?"
+**Trigger phrases:** "how are my GPUs doing", "show me my fleet", "fleet status", "what's the status of my hardware", "any hardware issues", "is anything running hot", "check my machines", "how's my fleet doing"
 
-First check hub availability:
-```bash
-curl -s localhost:9200/api/v1/fleet
+**Preferred method:** Run `keldron scan --json` (or `keldron-agent scan --json` / `agent scan --json` if that's what's installed). Do NOT parse ANSI-colored terminal output — always use `--json` for machine parsing.
+
+If `keldron scan --json` fails (e.g., connection refused), tell the user: "Fleet hub isn't available. Start the agent with `--hub.enabled=true` to monitor multiple machines."
+
+**Parse the JSON response:**
+- `summary`: `total_devices`, `healthy`, `warning`, `critical`
+- `peers[].devices[]`: `device_id`, `device_model`, `temperature_c`, `risk_composite`, `risk_severity` (string: "normal" | "warning" | "critical")
+
+**Response logic:**
+
+| Condition | Response style |
+|-----------|----------------|
+| All healthy | Short: "All N devices healthy. Highest risk score is X on {device_id}. Fleet looks good." |
+| Any WARNING/CRITICAL | Lead with issues: "Heads up — {device_id} is at WARNING (risk score X). Primary driver is thermal stress at Y°C..." then summarize healthy count |
+| "Full table" / "Give me the full fleet table" | Suggest: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view." |
+
+**Primary driver:** When `risk_severity` is WARNING or CRITICAL, infer from `temperature_c` (e.g., "thermal stress at 71°C") as the primary driver. If temperature is low, use "elevated risk score" as fallback. For thermal context, you can approximate "X% of thermal limit" if you know typical limits (e.g., 80°C for many GPUs).
+
+**Example interactions:**
+
+```
+User: "How's my fleet doing?"
+Skill: runs `keldron scan --json`
+Response: "Your fleet has 9 devices, all healthy. Risk scores range from 8 to 28. Highest is m4-mini-01 at 28 — nothing to worry about."
+
+User: "Is anything running hot?"
+Skill: runs `keldron scan --json`
+Response: "m4-mini-03 is at WARNING with a risk score of 65. Junction temperature is 71°C (89% of thermal limit). That's the primary driver. Everything else in the fleet is green."
+
+User: "Give me the full fleet table"
+Skill: suggests `keldron scan` or `keldron scan --watch 5`
+Response: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
 ```
 
-If the hub is not running, tell the user: "Fleet hub isn't available on port 9200. Start the agent with `--hub.enabled=true` to monitor multiple machines."
+#### "How are all my machines doing?" / "Which machine is running hottest?" / "Are any of my machines at risk?"
 
-If available, parse the JSON response. For each peer: report device model, temperature, risk score, severity. Sort by risk score descending. Highlight any in warning or critical.
+Run `keldron scan --json` and respond per the logic above. For "hottest", find the device with the highest `temperature_c` across all peers. For "at risk", filter to `risk_severity` of "warning" or "critical".
 
-#### "Which machine is running hottest?"
+**Fallback:** If `keldron scan` is not available, use `curl -s localhost:9200/api/v1/fleet` and parse the JSON. Same response logic applies.
 
-Run:
-```bash
-curl -s localhost:9200/api/v1/fleet
-```
+#### "Show me the fleet dashboard" / "Give me the full fleet table"
 
-Find the device with the highest `keldron_gpu_temperature_celsius` across all peers.
-Report: "{device_model} on {hostname} is the hottest at {temp}°C."
-
-#### "Are any of my machines at risk?"
-
-Run:
-```bash
-curl -s localhost:9200/api/v1/fleet
-```
-
-Filter to severity >= 1. If none: "All clear — everything's running normal across your fleet."
-If any: list them with device model, temperature, risk score, and severity.
-
-#### "Show me the fleet dashboard"
-
-Run:
-```bash
-curl -s localhost:9200/api/v1/fleet
-```
-
-Format as:
-```text
-╔══════════════════════════════════════════════════╗
-║  🌐 Fleet Dashboard — {count} machines           ║
-╠══════════════════════════════════════════════════╣
-║  {hostname1}  {model}  {temp}°C  {severity_badge} ║
-║  {hostname2}  {model}  {temp}°C  {severity_badge} ║
-║  ...                                              ║
-╠══════════════════════════════════════════════════╣
-║  Total: {n} GPUs | {ok} ✅ OK | {warn} ⚠️ | {crit} 🔴 ║
-╚══════════════════════════════════════════════════╝
-```
+Do NOT render the table inline. Suggest: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
 
 ### 5. Configuration & Management
 
@@ -422,6 +428,10 @@ curl -s localhost:9100/healthz
 ```
 Report the healthz response to confirm it's back up.
 
+## Proactive Behavior
+
+- **After setup:** When initial agent setup completes and telemetry is verified flowing, suggest: "Your agent is running. You can check fleet status anytime by asking me 'how's my fleet doing?' or by running `keldron scan` in your terminal."
+
 ## Rules
 
 - **Always check agent health first.** Before any query, verify the agent is running: `curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'`. A non-zero exit code means the agent is down — offer to start it with `agent --local`.
@@ -430,7 +440,8 @@ Report the healthz response to confirm it's back up.
 - **Alert loops run in the background.** Tell the user what you're watching, how often, and what thresholds will trigger an alert.
 - **When the user says "text me" or "alert me", set up a polling loop.** Do not just explain how alerts could work — actually write and execute the monitoring script.
 - **When the user says "dashboard", render one.** Do not just link to Grafana or explain options — fetch the metrics and format the output.
-- **For fleet queries, check hub availability first.** If the hub is not running on port 9200, explain how to enable it with `--hub.enabled=true`.
+- **For fleet queries, use `keldron scan --json`.** Do not parse ANSI-colored terminal output. Always use `--json` for machine parsing; suggest `keldron scan` or `keldron scan --watch N` when the user wants the full table in their terminal.
+- **For fleet queries, check hub availability first.** If the hub is not running on port 9200 (or `keldron scan --json` fails), explain how to enable it with `--hub.enabled=true`.
 - **On Apple Silicon, high swap = model too large.** If `keldron_system_swap_used_bytes` is high, suggest a smaller or quantized model.
 - **The agent itself never requires sudo.** It runs unprivileged on all platforms. Docker on Linux may require `sudo` or docker-group membership — see the installation note above.
 - **Use the metric labels.** Device model and name are in the metric labels — extract and use them in responses for a personalized experience.
