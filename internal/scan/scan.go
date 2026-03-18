@@ -5,11 +5,15 @@ package scan
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +28,8 @@ const (
 func Run(args []string) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	hub := fs.String("hub", "localhost:9200", "hub address (host:port)")
+	port := fs.Int("port", 0, "agent API port (default 9200 or from config)")
+	promPort := fs.Int("prometheus-port", 0, "Prometheus metrics port for fallback (default 9100)")
 	device := fs.String("device", "", "filter to device matching name/id")
 	watch := fs.Int("watch", 0, "refresh interval in seconds (min 2, 0=disabled)")
 	jsonOut := fs.Bool("json", false, "output raw JSON")
@@ -45,13 +51,34 @@ func Run(args []string) int {
 		DeviceFilter: *device,
 	}
 
-	// Load config for cloud teaser (best effort)
-	if cfg, err := config.Load(*configPath); err == nil {
-		opts.CloudAPIKey = cfg.Cloud.APIKey
+	// Load config for cloud teaser and port resolution (best effort)
+	var cfg *config.Config
+	if c, err := config.Load(*configPath); err == nil {
+		cfg = c
+		opts.CloudAPIKey = c.Cloud.APIKey
 	}
 
+	apiPort := *port
+	prometheusPort := *promPort
+	if cfg != nil {
+		if apiPort == 0 {
+			apiPort = cfg.API.Port
+		}
+		if prometheusPort == 0 {
+			prometheusPort = cfg.Output.PrometheusPort
+		}
+	}
+	if apiPort == 0 {
+		apiPort = 9200
+	}
+	if prometheusPort == 0 {
+		prometheusPort = 9100
+	}
+
+	host := parseHostFromAddr(*hub)
+
 	if *jsonOut {
-		return runJSON(*hub, opts)
+		return runJSON(host, apiPort, *hub, opts)
 	}
 
 	// Pre-fetch cloud state once so render loops don't block on network I/O
@@ -62,27 +89,93 @@ func Run(args []string) int {
 		if interval < 2 {
 			interval = 2
 		}
-		return runWatch(*hub, opts, time.Duration(interval)*time.Second)
+		return runWatch(host, apiPort, prometheusPort, *hub, opts, time.Duration(interval)*time.Second)
 	}
 
-	return runOnce(*hub, opts)
+	return runOnce(host, apiPort, prometheusPort, *hub, opts)
 }
 
-func runOnce(hubAddr string, opts RenderOpts) int {
+// parseHostFromAddr extracts host from "host:port" or "http://host:port".
+func parseHostFromAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port, use as host
+		if addr != "" {
+			return addr
+		}
+		return "127.0.0.1"
+	}
+	if host == "" {
+		return "127.0.0.1"
+	}
+	return host
+}
+
+// buildAPIBaseURL returns http://host:port for the agent API.
+func buildAPIBaseURL(host string, port int) string {
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func runOnce(host string, apiPort, prometheusPort int, hubAddr string, opts RenderOpts) int {
+	apiBase := buildAPIBaseURL(host, apiPort)
+
+	// 1. Try agent API first
+	status, err := FetchStatus(apiBase)
+	if err == nil {
+		risk, errRisk := FetchRisk(apiBase)
+		if errRisk == nil {
+			RenderDashboard(os.Stdout, status, risk, opts)
+			return 0
+		}
+		// Status ok but risk failed - still render with status (risk may be empty)
+		RenderDashboard(os.Stdout, status, nil, opts)
+		return 0
+	}
+
+	// 2. Try hub fleet API
 	fleet, err := FetchFleet(hubAddr)
-	if err != nil && !errors.Is(err, ErrNoPeers) {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-	if fleet == nil {
-		fleet = &FleetResponse{}
+	if err == nil || errors.Is(err, ErrNoPeers) {
+		if fleet == nil {
+			fleet = &FleetResponse{}
+		}
+		RenderTable(os.Stdout, fleet, opts)
+		return 0
 	}
 
-	RenderTable(os.Stdout, fleet, opts)
-	return 0
+	// 3. Fall back to Prometheus
+	prom, err := FetchFromPrometheus(host, prometheusPort)
+	if err == nil {
+		status, risk := prom.ToStatusRisk()
+		if !opts.Quiet {
+			fmt.Fprintln(os.Stderr, "(using legacy Prometheus endpoint — upgrade agent for full dashboard)")
+		}
+		RenderDashboard(os.Stdout, status, risk, opts)
+		return 0
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: cannot reach agent API at %s, hub at %s, or Prometheus at %s:%d. Is the agent running?\n", apiBase, hubAddr, host, prometheusPort)
+	return 1
 }
 
-func runJSON(hubAddr string, opts RenderOpts) int {
+func runJSON(host string, apiPort int, hubAddr string, opts RenderOpts) int {
+	apiBase := buildAPIBaseURL(host, apiPort)
+
+	// 1. Try agent status API first
+	status, err := FetchStatus(apiBase)
+	if err == nil {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(status); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+
+	// 2. Fall back to fleet JSON
 	fleet, err := FetchFleet(hubAddr)
 	if err != nil && !errors.Is(err, ErrNoPeers) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -94,7 +187,6 @@ func runJSON(hubAddr string, opts RenderOpts) int {
 
 	if opts.DeviceFilter != "" || opts.Sort != SortRisk {
 		devices := FilterAndSortDevices(AllDevices(fleet), opts)
-		// Rebuild a single-peer fleet with the filtered/sorted devices
 		healthy, warning, critical := 0, 0, 0
 		for _, d := range devices {
 			switch d.RiskSeverity {
@@ -139,27 +231,61 @@ const (
 	ansiReturnClear = "\r\033[2K"
 )
 
-func runWatch(hubAddr string, opts RenderOpts, interval time.Duration) int {
+func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts RenderOpts, watchInterval time.Duration) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	for {
-		fleet, err := FetchFleet(hubAddr)
-		if err != nil && !errors.Is(err, ErrNoPeers) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
-		}
-		if fleet == nil {
-			fleet = &FleetResponse{}
-		}
+	apiBase := buildAPIBaseURL(host, apiPort)
+	useLegacyNote := false
 
-		// Clear screen and redraw
-		fmt.Fprint(os.Stdout, clearScreen)
-		RenderTable(os.Stdout, fleet, opts)
+	for {
+		interval := watchInterval
+
+		// 1. Try agent API
+		status, errStatus := FetchStatus(apiBase)
+		if errStatus == nil {
+			risk, errRisk := FetchRisk(apiBase)
+			if errRisk != nil {
+				risk = nil
+			}
+			// Use poll_interval_s from status for refresh
+			if status.Agent.PollIntervalS >= 2 {
+				interval = time.Duration(status.Agent.PollIntervalS) * time.Second
+			}
+			fmt.Fprint(os.Stdout, clearScreen)
+			RenderDashboard(os.Stdout, status, risk, opts)
+		} else {
+			// 2. Try fleet
+			fleet, err := FetchFleet(hubAddr)
+			if err == nil || errors.Is(err, ErrNoPeers) {
+				if fleet == nil {
+					fleet = &FleetResponse{}
+				}
+				fmt.Fprint(os.Stdout, clearScreen)
+				RenderTable(os.Stdout, fleet, opts)
+			} else {
+				// 3. Try Prometheus
+				prom, err := FetchFromPrometheus(host, prometheusPort)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: cannot reach agent API, hub, or Prometheus. Is the agent running?\n")
+					return 1
+				}
+				status, risk := prom.ToStatusRisk()
+				if !useLegacyNote {
+					useLegacyNote = true
+					fmt.Fprintln(os.Stderr, "(using legacy Prometheus endpoint — upgrade agent for full dashboard)")
+				}
+				fmt.Fprint(os.Stdout, clearScreen)
+				RenderDashboard(os.Stdout, status, risk, opts)
+			}
+		}
 
 		now := time.Now().UTC()
 		lastUpdated := now.Format("15:04:05")
 		secs := int(interval.Seconds())
+		if secs < 2 {
+			secs = 2
+		}
 
 		// Countdown: update status line every second
 		fmt.Fprintf(os.Stdout, "\nLast updated: %s UTC · Next refresh in %ds\n", lastUpdated, secs)
@@ -174,7 +300,6 @@ func runWatch(hubAddr string, opts RenderOpts, interval time.Duration) int {
 				break
 			}
 
-			// First update: cursor is on line below, need to go up. Later: overwrite in place.
 			if s == secs-1 {
 				fmt.Fprint(os.Stdout, ansiUpClear)
 			} else {
