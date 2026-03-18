@@ -271,6 +271,8 @@ func parseMetricsFromFamilies(families map[string]*dto.MetricFamily) ([]PeerDevi
 		"keldron_risk_composite",
 		"keldron_risk_severity",
 		"keldron_gpu_memory_pressure_ratio",
+		"keldron_gpu_memory_used_bytes",
+		"keldron_gpu_memory_total_bytes",
 	} {
 		mf, ok := families[name]
 		if !ok || mf == nil {
@@ -314,6 +316,10 @@ func parseMetricsFromFamilies(families map[string]*dto.MetricFamily) ([]PeerDevi
 				d.RiskSeverity = severityFromFloat(v)
 			case "keldron_gpu_memory_pressure_ratio":
 				d.MemoryPressure = v
+			case "keldron_gpu_memory_used_bytes":
+				d.MemoryUsedBytes = v
+			case "keldron_gpu_memory_total_bytes":
+				d.MemoryTotalBytes = v
 			}
 		}
 	}

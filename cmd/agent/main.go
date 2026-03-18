@@ -29,6 +29,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/hub"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
+	"github.com/keldron-ai/keldron-agent/internal/scan"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
 )
@@ -41,6 +42,11 @@ func main() {
 }
 
 func run() int {
+	// Scan subcommand: one-shot fleet query, does not start the agent
+	if len(os.Args) > 1 && os.Args[1] == "scan" {
+		return scan.Run(os.Args[2:])
+	}
+
 	configPath := flag.String("config", "./keldron-agent.yaml", "path to YAML config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	localMode := flag.Bool("local", false, "run in local-only mode (no cloud streaming)")
