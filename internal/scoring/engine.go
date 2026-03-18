@@ -168,7 +168,9 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 		out.Composite = composite
 		out.Severity = ClassifySeverity(composite, out.BehaviorClass)
 		if state != nil {
+			delta := composite - state.LastComposite
 			out.Trend = ComputeTrend(composite, state.LastComposite)
+			out.TrendDelta = delta
 			state.LastComposite = composite
 			state.LastUpdate = time.Now()
 		} else {

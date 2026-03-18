@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
+	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
@@ -217,7 +219,26 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
+
+		var stateHolder *api.StateHolder
+		if cfg.API.Enabled {
+			stateHolder = api.NewStateHolder()
+		}
+		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
+
+		// API server for dashboard (OSS-028)
+		if cfg.API.Enabled {
+			apiServer := api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
+			addr := cfg.API.Host + ":" + strconv.Itoa(cfg.API.Port)
+			if cfg.API.Host == "" {
+				addr = "127.0.0.1:" + strconv.Itoa(cfg.API.Port)
+			}
+			go func() {
+				if err := apiServer.Start(addr); err != nil && err != http.ErrServerClosed {
+					logger.Error("API server failed", "error", err)
+				}
+			}()
+		}
 	} else {
 		// Cloud mode: buffer + sender
 		var err error
@@ -338,17 +359,23 @@ func run() int {
 
 // runOutputBridge reads from the normalizer output channel, batches by poll interval,
 // computes risk scores, and calls Update on all outputs. Closes done when finished.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+// stateHolder is optional; when set, it receives batch and scores for the API.
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, interval time.Duration, done chan struct{}, logger *slog.Logger) {
 	defer close(done)
 
 	flushBatch := func(batch []normalizer.TelemetryPoint) {
-		if len(batch) == 0 || len(outputs) == 0 {
+		if len(batch) == 0 {
 			return
 		}
 		scores := scoreEngine.Score(batch)
-		for _, out := range outputs {
-			if err := out.Update(batch, scores); err != nil {
-				logger.Error("output update error", "error", err)
+		if stateHolder != nil {
+			stateHolder.Update(batch, scores)
+		}
+		if len(outputs) > 0 {
+			for _, out := range outputs {
+				if err := out.Update(batch, scores); err != nil {
+					logger.Error("output update error", "error", err)
+				}
 			}
 		}
 	}

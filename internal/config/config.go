@@ -23,6 +23,7 @@ type Config struct {
 	Agent       AgentConfig              `yaml:"agent"`
 	Adapters    map[string]AdapterConfig `yaml:"-"` // Populated from AdaptersConfig for registry
 	Output      OutputConfig             `yaml:"output"`
+	API         APIConfig                `yaml:"api"`
 	Hub         HubConfig                `yaml:"hub"`
 	Cloud       CloudConfig              `yaml:"cloud"`
 	RackMapping map[string]string        `yaml:"rack_mapping"`
@@ -36,12 +37,20 @@ type configLoad struct {
 	Agent       AgentConfig       `yaml:"agent"`
 	Adapters    AdaptersConfig    `yaml:"adapters"`
 	Output      OutputConfig      `yaml:"output"`
+	API         APIConfig         `yaml:"api"`
 	Hub         HubConfig         `yaml:"hub"`
 	Cloud       CloudConfig       `yaml:"cloud"`
 	RackMapping map[string]string `yaml:"rack_mapping"`
 	Sender      SenderConfig      `yaml:"sender"`
 	Buffer      BufferConfig      `yaml:"buffer"`
 	Health      HealthConfig      `yaml:"health"`
+}
+
+// APIConfig holds dashboard API settings (OSS-028).
+type APIConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Port    int    `yaml:"port"`
+	Host    string `yaml:"host"` // default "127.0.0.1"
 }
 
 // AgentConfig holds core agent settings.
@@ -302,6 +311,11 @@ func Defaults() *Config {
 			PrometheusPort: 9100,
 			MDNSAdvertise:  true,
 		},
+		API: APIConfig{
+			Enabled: true,
+			Port:    9200,
+			Host:    "127.0.0.1",
+		},
 		Hub: HubConfig{
 			Enabled:        false,
 			StaticPeers:    nil,
@@ -339,6 +353,11 @@ func defaultConfigLoad() *configLoad {
 			Prometheus:     true,
 			PrometheusPort: 9100,
 			MDNSAdvertise:  true,
+		},
+		API: APIConfig{
+			Enabled: true,
+			Port:    9200,
+			Host:    "127.0.0.1",
 		},
 		Hub: HubConfig{
 			ListenPort:     9200,
@@ -441,6 +460,7 @@ func toConfig(load *configLoad) *Config {
 	cfg := &Config{
 		Agent:       load.Agent,
 		Output:      load.Output,
+		API:         load.API,
 		Hub:         load.Hub,
 		Cloud:       load.Cloud,
 		RackMapping: load.RackMapping,
@@ -454,6 +474,13 @@ func toConfig(load *configLoad) *Config {
 	}
 	if cfg.Cloud.APIKey != "" && cfg.Cloud.Endpoint == "" {
 		cfg.Cloud.Endpoint = defaultCloudEndpoint
+	}
+	// API defaults when not set in YAML
+	if cfg.API.Port == 0 {
+		cfg.API.Port = 9200
+	}
+	if cfg.API.Host == "" {
+		cfg.API.Host = "127.0.0.1"
 	}
 	// Derive Agent.ID from DeviceName or hostname
 	if cfg.Agent.ID == "" {
@@ -586,6 +613,17 @@ func ApplyEnvOverrides(load *configLoad) {
 	if v := os.Getenv("KELDRON_ADAPTERS_SLURM_ENABLED"); v != "" {
 		b := parseBool(v)
 		load.Adapters.Slurm.Enabled = &b
+	}
+	if v := os.Getenv("KELDRON_API_ENABLED"); v != "" {
+		load.API.Enabled = parseBool(v)
+	}
+	if v := os.Getenv("KELDRON_API_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			load.API.Port = p
+		}
+	}
+	if v := os.Getenv("KELDRON_API_HOST"); v != "" {
+		load.API.Host = v
 	}
 	if v := os.Getenv("KELDRON_OUTPUT_STDOUT"); v != "" {
 		load.Output.Stdout = parseBool(v)
@@ -738,6 +776,13 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.Hub.Enabled && cfg.Hub.ScrapeInterval <= 0 {
 		return fmt.Errorf("hub.scrape_interval must be > 0 when hub.enabled is true")
+	}
+
+	if cfg.API.Enabled && (cfg.API.Port < 1 || cfg.API.Port > 65535) {
+		return fmt.Errorf("api.port must be between 1 and 65535 (got %d)", cfg.API.Port)
+	}
+	if cfg.API.Enabled && cfg.Hub.Enabled && cfg.API.Port == cfg.Hub.ListenPort {
+		return fmt.Errorf("api.port and hub.listen_port must differ when both api.enabled and hub.enabled are true (use hub.listen_port: 9300 when API is enabled)")
 	}
 
 	for name, acfg := range cfg.Adapters {

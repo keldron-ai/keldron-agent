@@ -18,8 +18,9 @@ type RiskScoreOutput struct {
 	Power             float64
 	Volatility        float64
 	FleetPenalty      float64
-	Severity          string // "normal", "warning", "critical"
-	Trend             string // "rising", "falling", "stable"
+	Severity          string  // "normal", "warning", "critical"
+	Trend             string  // "rising", "falling", "stable"
+	TrendDelta        float64 // composite - previous composite (for API)
 	TimeToHotspot     *float64
 	BehaviorClass     string
 	WarmingUp         bool

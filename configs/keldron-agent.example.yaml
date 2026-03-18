@@ -114,6 +114,13 @@ output:
   prometheus_port: 9100          # Prometheus scrape port
   mdns_advertise: true           # Advertise via mDNS for zero-config discovery (set false to disable)
 
+# --- Dashboard API (OSS-028) ---
+api:
+  enabled: true                  # HTTP + WebSocket API for dashboard
+  port: 9200                     # Port for dashboard and API
+  # host: "127.0.0.1"            # Bind address — default localhost only; use 0.0.0.0 for remote access
+  # When hub.enabled and api.enabled both true, use hub.listen_port: 9300 to avoid port conflict
+
 # --- Hub aggregator (peer aggregation) ---
 hub:
   enabled: false

@@ -684,6 +684,23 @@ func TestValidate_HubEnabledNoPort(t *testing.T) {
 	}
 }
 
+func TestValidate_APIAndHubPortConflict(t *testing.T) {
+	cfg := Defaults()
+	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+	cfg.API.Enabled = true
+	cfg.API.Port = 9200
+	cfg.Hub.Enabled = true
+	cfg.Hub.ListenPort = 9200
+
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected error for api.port and hub.listen_port conflict")
+	}
+	if !strings.Contains(err.Error(), "api.port") || !strings.Contains(err.Error(), "hub.listen_port") {
+		t.Errorf("error %q should mention api.port and hub.listen_port", err.Error())
+	}
+}
+
 func TestApplyEnvOverrides_HubAndCloud(t *testing.T) {
 	load := defaultConfigLoad()
 	os.Setenv("KELDRON_HUB_ENABLED", "true")
@@ -732,6 +749,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
@@ -752,6 +771,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
@@ -806,6 +827,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
