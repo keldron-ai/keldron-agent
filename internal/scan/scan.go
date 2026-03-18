@@ -51,8 +51,11 @@ func Run(args []string) int {
 	}
 
 	if *jsonOut {
-		return runJSON(*hub)
+		return runJSON(*hub, opts)
 	}
+
+	// Pre-fetch cloud state once so render loops don't block on network I/O
+	opts.Cloud = FetchCloudState(opts.CloudAPIKey)
 
 	if *watch > 0 {
 		interval := *watch
@@ -79,7 +82,7 @@ func runOnce(hubAddr string, opts RenderOpts) int {
 	return 0
 }
 
-func runJSON(hubAddr string) int {
+func runJSON(hubAddr string, opts RenderOpts) int {
 	fleet, err := FetchFleet(hubAddr)
 	if err != nil && !errors.Is(err, ErrNoPeers) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -87,6 +90,39 @@ func runJSON(hubAddr string) int {
 	}
 	if fleet == nil {
 		fleet = &FleetResponse{}
+	}
+
+	if opts.DeviceFilter != "" || opts.Sort != SortRisk {
+		devices := FilterAndSortDevices(AllDevices(fleet), opts)
+		// Rebuild a single-peer fleet with the filtered/sorted devices
+		healthy, warning, critical := 0, 0, 0
+		for _, d := range devices {
+			switch d.RiskSeverity {
+			case "warning":
+				warning++
+			case "critical":
+				critical++
+			default:
+				healthy++
+			}
+		}
+		fleet = &FleetResponse{
+			Timestamp: fleet.Timestamp,
+			Peers: []PeerResponse{{
+				ID:      "filtered",
+				Address: "filtered",
+				Healthy: true,
+				Devices: devices,
+			}},
+			Summary: SummaryResponse{
+				TotalDevices: len(devices),
+				Healthy:      healthy,
+				Warning:      warning,
+				Critical:     critical,
+				TotalPeers:   1,
+				HealthyPeers: 1,
+			},
+		}
 	}
 
 	if err := RenderJSON(os.Stdout, fleet); err != nil {

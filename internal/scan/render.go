@@ -37,12 +37,36 @@ const (
 	SortPower SortOrder = "power"
 )
 
+// CloudState holds pre-fetched cloud metrics to avoid network I/O during rendering.
+type CloudState struct {
+	Connected     bool
+	HistoryWindow string
+	FleetAge      string
+}
+
+// FetchCloudState performs the cloud metrics fetch once and returns cached state.
+func FetchCloudState(apiKey string) *CloudState {
+	if apiKey == "" {
+		return nil
+	}
+	metrics, err := fetchCloudMetrics(apiKey)
+	if err != nil {
+		return &CloudState{Connected: false}
+	}
+	return &CloudState{
+		Connected:     true,
+		HistoryWindow: metrics.HistoryWindow,
+		FleetAge:      metrics.FleetAge,
+	}
+}
+
 // RenderOpts configures table rendering.
 type RenderOpts struct {
 	Quiet        bool // No header, footer, or cloud teaser
 	Sort         SortOrder
-	DeviceFilter string // Substring to filter devices (empty = all)
-	CloudAPIKey  string // For cloud teaser line
+	DeviceFilter string      // Substring to filter devices (empty = all)
+	CloudAPIKey  string      // For cloud teaser line
+	Cloud        *CloudState // Pre-fetched cloud state (nil = no API key)
 }
 
 // AllDevices returns a flat list of devices from the fleet response.
@@ -154,7 +178,7 @@ func RenderTable(w io.Writer, fleet *FleetResponse, opts RenderOpts) {
 	if !opts.Quiet {
 		fmt.Fprintln(w)
 		renderFooter(w, devices, opts)
-		renderCloudTeaser(w, opts.CloudAPIKey)
+		renderCloudTeaser(w, opts.Cloud)
 	}
 }
 
@@ -220,7 +244,11 @@ func truncate(s string, max int) string {
 
 func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
 	if len(devices) == 0 {
-		fmt.Fprintln(w, "Fleet scan: hub is running but no peers discovered. Check mDNS or static peer config.")
+		if opts.DeviceFilter != "" {
+			fmt.Fprintf(w, "No devices matched filter %q.\n", opts.DeviceFilter)
+		} else {
+			fmt.Fprintln(w, "Fleet scan: hub is running but no peers discovered. Check mDNS or static peer config.")
+		}
 		return
 	}
 
@@ -269,17 +297,14 @@ func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
 	}
 }
 
-func renderCloudTeaser(w io.Writer, apiKey string) {
+func renderCloudTeaser(w io.Writer, cloud *CloudState) {
 	fmt.Fprint(w, ansiDim)
-	if apiKey == "" {
+	if cloud == nil {
 		fmt.Fprintln(w, "ℹ  History, GPU Age, and job tracking available with Keldron Cloud → keldron.ai/cloud")
+	} else if cloud.Connected {
+		fmt.Fprintf(w, "☁  Connected to Keldron Cloud · %s history · Fleet age: %s\n", cloud.HistoryWindow, cloud.FleetAge)
 	} else {
-		metrics, err := fetchCloudMetrics(apiKey)
-		if err != nil {
-			fmt.Fprintln(w, "☁  Connected to Keldron Cloud")
-		} else {
-			fmt.Fprintf(w, "☁  Connected to Keldron Cloud · %s history · Fleet age: %s\n", metrics.HistoryWindow, metrics.FleetAge)
-		}
+		fmt.Fprintln(w, "☁  Connected to Keldron Cloud")
 	}
 	fmt.Fprint(w, ansiReset)
 }

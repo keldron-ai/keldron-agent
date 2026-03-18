@@ -98,10 +98,12 @@ curl -s localhost:9100/metrics | grep keldron_
 
 | Command | Description |
 |---------|-------------|
-| `keldron scan` | One-shot fleet status table |
+| `keldron scan` | One-shot fleet status table (connects to local hub by default) |
+| `keldron scan --hub HOST:PORT` | Point scan at a remote hub (default: `localhost:9200`) |
 | `keldron scan --json` | Machine-readable fleet status (used by this skill) |
 | `keldron scan --watch N` | Live-updating fleet display (suggest to user) |
-| `keldron scan --device X` | Single device detail |
+| `keldron scan --device X` | Filter to devices matching name/id |
+| `keldron scan --sort ORDER` | Sort by: `risk` (default), `name`, `temp`, `power` |
 
 *If you have `keldron-agent` or `agent` binary instead, use that: e.g. `keldron-agent scan --json` or `agent scan --json`.*
 
@@ -335,7 +337,7 @@ Tell the user: "Live dashboard running — refreshing every 10 seconds. Press Ct
 
 **Trigger phrases:** "how are my GPUs doing", "show me my fleet", "fleet status", "what's the status of my hardware", "any hardware issues", "is anything running hot", "check my machines", "how's my fleet doing"
 
-**Preferred method:** Run `keldron scan --json` (or `keldron-agent scan --json` / `agent scan --json` if that's what's installed). Do NOT parse ANSI-colored terminal output — always use `--json` for machine parsing.
+**Preferred method:** Run `keldron scan --json` (or `keldron-agent scan --json` / `agent scan --json` if that's what's installed). Use `--hub HOST:PORT` to point at a remote hub (default: `localhost:9200`), and `--sort {risk|name|temp|power}` to control ordering. Do NOT parse ANSI-colored terminal output — always use `--json` for machine parsing.
 
 If `keldron scan --json` fails (e.g., connection refused), tell the user: "Fleet hub isn't available. Start the agent with `--hub.enabled=true` to monitor multiple machines."
 
