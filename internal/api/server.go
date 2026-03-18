@@ -326,7 +326,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	client := s.hub.tryAdd(conn)
 	if client == nil {
-		http.Error(w, "too many WebSocket clients", http.StatusServiceUnavailable)
+		_ = conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseTryAgainLater, "too many WebSocket clients"))
 		_ = conn.Close()
 		return
 	}
