@@ -379,7 +379,7 @@ Run `keldron scan --json` and respond per the logic above. For "hottest", find t
 
 #### "Show me the fleet dashboard" / "Give me the full fleet table"
 
-Do NOT render the table inline. Suggest: "Run `keldron scan` in your terminal for the full colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
+Do NOT render the table inline. Suggest: "Run `keldron scan` in your terminal for the full-colored table, or `keldron scan --watch 5` for a live view that refreshes every 5 seconds."
 
 ### 5. Configuration & Management
 

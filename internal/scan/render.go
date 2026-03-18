@@ -283,8 +283,8 @@ func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
 		}
 	} else {
 		avg := sumRisk / float64(len(devices))
-		minR, maxR := sumRisk, 0.0
-		for _, d := range devices {
+		minR, maxR := devices[0].RiskComposite, devices[0].RiskComposite
+		for _, d := range devices[1:] {
 			if d.RiskComposite < minR {
 				minR = d.RiskComposite
 			}
@@ -304,7 +304,7 @@ func renderCloudTeaser(w io.Writer, cloud *CloudState) {
 	} else if cloud.Connected {
 		fmt.Fprintf(w, "☁  Connected to Keldron Cloud · %s history · Fleet age: %s\n", cloud.HistoryWindow, cloud.FleetAge)
 	} else {
-		fmt.Fprintln(w, "☁  Connected to Keldron Cloud")
+		fmt.Fprintln(w, "⚠  Keldron Cloud configured but unreachable")
 	}
 	fmt.Fprint(w, ansiReset)
 }
