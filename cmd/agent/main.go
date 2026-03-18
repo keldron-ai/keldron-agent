@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -53,6 +54,7 @@ func run() int {
 	configPath := flag.String("config", "./keldron-agent.yaml", "path to YAML config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	localMode := flag.Bool("local", false, "run in local-only mode (no cloud streaming)")
+	quiet := flag.Bool("quiet", false, "disable stdout output (use when running in background with scan --watch)")
 	showHelp := flag.Bool("help", false, "show usage")
 	flag.Parse()
 
@@ -72,15 +74,20 @@ func run() int {
 		return 1
 	}
 
-	// Initialize structured logger.
-	slog.SetDefault(initLogger(cfg.Agent.LogLevel))
+	// Initialize structured logger. When --quiet, redirect slog to stderr so
+	// stdout stays clean for scan --watch dashboard (agent runs in background).
+	var logWriter io.Writer = os.Stdout
+	if *quiet {
+		logWriter = os.Stderr
+	}
+	slog.SetDefault(initLogger(cfg.Agent.LogLevel, logWriter))
 
 	// Config holder for hot-reload support (S-006).
 	cfgHolder := config.NewHolder(cfg)
 
 	// Subscribe to log_level changes for hot-reload.
 	cfgHolder.Subscribe(func(cfg *config.Config) {
-		slog.SetDefault(initLogger(cfg.Agent.LogLevel))
+		slog.SetDefault(initLogger(cfg.Agent.LogLevel, logWriter))
 	})
 
 	// Log effective config summary (mask cloud API key when set).
@@ -93,6 +100,7 @@ func run() int {
 		"output_stdout", cfg.Output.Stdout,
 		"output_prometheus", cfg.Output.Prometheus,
 		"output_prometheus_port", cfg.Output.PrometheusPort,
+		"quiet", *quiet,
 	)
 	if cfg.Cloud.APIKey != "" {
 		slog.Info("cloud configured", "api_key", config.MaskedCloudAPIKey(cfg.Cloud.APIKey), "endpoint", cfg.Cloud.Endpoint)
@@ -201,7 +209,7 @@ func run() int {
 				}
 			}()
 		}
-		if cfg.Output.Stdout {
+		if cfg.Output.Stdout && !*quiet {
 			std := output.NewStdout(os.Stdout, version, activeAdapters)
 			outputs = append(outputs, std)
 		}
@@ -471,7 +479,7 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 	}
 }
 
-func initLogger(level string) *slog.Logger {
+func initLogger(level string, w io.Writer) *slog.Logger {
 	var logLevel slog.Level
 	switch level {
 	case "debug":
@@ -484,7 +492,7 @@ func initLogger(level string) *slog.Logger {
 		logLevel = slog.LevelInfo
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level: logLevel,
 	})
 	return slog.New(handler)
