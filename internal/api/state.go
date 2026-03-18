@@ -46,7 +46,7 @@ func (h *StateHolder) Update(batch []normalizer.TelemetryPoint, scores []scoring
 	healthCopy := make(map[string]*health.DeviceHealthSnapshot)
 	if healthSnapshots != nil {
 		for k, v := range healthSnapshots {
-			healthCopy[k] = v
+			healthCopy[k] = v.Clone()
 		}
 	}
 
@@ -73,7 +73,7 @@ func (h *StateHolder) Get() ([]normalizer.TelemetryPoint, []scoring.RiskScoreOut
 	scores := append([]scoring.RiskScoreOutput(nil), h.scores...)
 	healthCopy := make(map[string]*health.DeviceHealthSnapshot, len(h.health))
 	for k, v := range h.health {
-		healthCopy[k] = v
+		healthCopy[k] = v.Clone()
 	}
 	return batch, scores, healthCopy
 }

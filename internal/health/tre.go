@@ -19,14 +19,14 @@ type TRETracker struct {
 	mu        sync.Mutex
 	tdrState  *TDRState
 	prevState WorkloadState
-	prevUtil  float64
 	prevAt    time.Time
 
-	inRecovery    bool
-	recoveryStart time.Time
-	peakTemp      float64
-	holdStart     time.Time
-	holdActive    bool
+	inRecovery     bool
+	recoveryStart  time.Time
+	peakTemp       float64
+	currentPeakMax float64 // running max temp during current peak period
+	holdStart      time.Time
+	holdActive     bool
 
 	recoveries []RecoveryEvent
 }
@@ -44,26 +44,33 @@ func (t *TRETracker) Update(state WorkloadState, tempC float64, at time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Detect job end: transition from peak to non-peak (util dropped from >70% to <15%)
-	// We use state transition: prevState was peak, current state is not peak
+	// Track running max temperature during peak period
+	if state == StatePeak {
+		if t.prevState != StatePeak {
+			// Entering peak — reset running max
+			t.currentPeakMax = tempC
+		} else if tempC > t.currentPeakMax {
+			t.currentPeakMax = tempC
+		}
+	}
+
+	// Detect job end: transition from peak to non-peak
 	justExitedPeak := t.prevState == StatePeak && state != StatePeak
 
 	if justExitedPeak {
 		// Enter recovery mode (need idle baseline from TDR)
 		if _, ok := t.tdrState.IdleMedian(); !ok {
 			t.prevState = state
-			t.prevUtil = 0
 			t.prevAt = at
 			return
 		}
 		t.inRecovery = true
 		t.recoveryStart = at
-		t.peakTemp = tempC
+		t.peakTemp = t.currentPeakMax
 		t.holdActive = false
 	}
 
 	t.prevState = state
-	t.prevUtil = 0 // we don't have util here, but state captures it
 	t.prevAt = at
 
 	if !t.inRecovery {

@@ -124,9 +124,9 @@ func (e *Engine) buildSnapshot(state *deviceState) *DeviceHealthSnapshot {
 // Returns nil if the device has no data.
 func (e *Engine) Snapshot(deviceID string) *DeviceHealthSnapshot {
 	e.mu.RLock()
-	state, ok := e.devices[deviceID]
-	e.mu.RUnlock()
+	defer e.mu.RUnlock()
 
+	state, ok := e.devices[deviceID]
 	if !ok {
 		return nil
 	}
@@ -137,9 +137,9 @@ func (e *Engine) Snapshot(deviceID string) *DeviceHealthSnapshot {
 // TRE is not included (event-driven, fetched via status endpoint).
 func (e *Engine) SnapshotForWS(deviceID string) *HealthSummary {
 	e.mu.RLock()
-	state, ok := e.devices[deviceID]
-	e.mu.RUnlock()
+	defer e.mu.RUnlock()
 
+	state, ok := e.devices[deviceID]
 	if !ok {
 		return nil
 	}

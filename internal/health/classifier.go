@@ -20,7 +20,6 @@ const (
 const (
 	idleThresholdPct = 10
 	peakThresholdPct = 70
-	peakToIdlePct    = 15
 	idleWindow       = 5 * time.Minute
 	peakWindow       = 2 * time.Minute
 )

@@ -76,6 +76,31 @@ type HealthSummary struct {
 	PerfPerWatt      *float64 `json:"perf_per_watt,omitempty"`
 }
 
+// Clone returns a deep copy of the snapshot.
+func (s *DeviceHealthSnapshot) Clone() *DeviceHealthSnapshot {
+	if s == nil {
+		return nil
+	}
+	c := &DeviceHealthSnapshot{}
+	if s.ThermalDynamicRange != nil {
+		v := *s.ThermalDynamicRange
+		c.ThermalDynamicRange = &v
+	}
+	if s.ThermalRecovery != nil {
+		v := *s.ThermalRecovery
+		c.ThermalRecovery = &v
+	}
+	if s.PerfPerWatt != nil {
+		v := *s.PerfPerWatt
+		c.PerfPerWatt = &v
+	}
+	if s.ThermalStability != nil {
+		v := *s.ThermalStability
+		c.ThermalStability = &v
+	}
+	return c
+}
+
 // ToHealthSummary converts a DeviceHealthSnapshot to a lightweight HealthSummary for WebSocket.
 func (s *DeviceHealthSnapshot) ToHealthSummary() *HealthSummary {
 	if s == nil {

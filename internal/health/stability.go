@@ -68,13 +68,13 @@ func (s *StabilityTracker) Result() *ThermalStabilityResult {
 		}
 	}
 
-	stdDev := stdDev(s.sustainedLoadSamples)
-	rating := stabilityRating(stdDev)
+	sd := stdDev(s.sustainedLoadSamples)
+	rating := stabilityRating(sd)
 
 	return &ThermalStabilityResult{
 		Available:          true,
 		UnderSustainedLoad: true,
-		StabilityCelsius:   stdDev,
+		StabilityCelsius:   sd,
 		Rating:             rating,
 	}
 }
