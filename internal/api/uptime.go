@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,19 +52,31 @@ func linuxUptime() float64 {
 
 var boottimeSecRe = regexp.MustCompile(`sec\s*=\s*(\d+)`)
 
+var (
+	darwinBoot     time.Time
+	darwinBootOnce sync.Once
+	darwinBootOK   bool
+)
+
 func darwinUptime() float64 {
-	out, err := exec.Command("sysctl", "-n", "kern.boottime").Output()
-	if err != nil {
+	darwinBootOnce.Do(func() {
+		out, err := exec.Command("sysctl", "-n", "kern.boottime").Output()
+		if err != nil {
+			return
+		}
+		m := boottimeSecRe.FindStringSubmatch(string(out))
+		if len(m) < 2 {
+			return
+		}
+		sec, err := strconv.ParseInt(m[1], 10, 64)
+		if err != nil {
+			return
+		}
+		darwinBoot = time.Unix(sec, 0)
+		darwinBootOK = true
+	})
+	if !darwinBootOK {
 		return 0
 	}
-	m := boottimeSecRe.FindStringSubmatch(string(out))
-	if len(m) < 2 {
-		return 0
-	}
-	sec, err := strconv.ParseInt(m[1], 10, 64)
-	if err != nil {
-		return 0
-	}
-	boot := time.Unix(sec, 0)
-	return time.Since(boot).Seconds()
+	return time.Since(darwinBoot).Seconds()
 }

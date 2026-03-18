@@ -4,11 +4,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"runtime"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,7 +24,7 @@ import (
 type Server struct {
 	stateHolder    *StateHolder
 	hub            *wsHub
-	mux            *http.ServeMux
+	httpServer     *http.Server
 	version        string
 	pollInterval   time.Duration
 	activeAdapters []string
@@ -34,21 +36,23 @@ func NewServer(holder *StateHolder, version string, pollInterval time.Duration, 
 	hub := newWSHub()
 	holder.SetBroadcastTarget(hub)
 
+	mux := http.NewServeMux()
+
 	s := &Server{
 		stateHolder:    holder,
 		hub:            hub,
-		mux:            http.NewServeMux(),
+		httpServer:     &http.Server{Handler: corsMiddleware(mux)},
 		version:        version,
 		pollInterval:   pollInterval,
 		activeAdapters: activeAdapters,
 		cloudConnected: cloudConnected,
 	}
 
-	s.mux.HandleFunc("GET /api/v1/status", s.handleStatus)
-	s.mux.HandleFunc("GET /api/v1/risk", s.handleRisk)
-	s.mux.HandleFunc("GET /api/v1/processes", s.handleProcesses)
-	s.mux.HandleFunc("GET /ws/telemetry", s.handleWebSocket)
-	s.mux.HandleFunc("GET /", HandleFrontend)
+	mux.HandleFunc("GET /api/v1/status", s.handleStatus)
+	mux.HandleFunc("GET /api/v1/risk", s.handleRisk)
+	mux.HandleFunc("GET /api/v1/processes", s.handleProcesses)
+	mux.HandleFunc("GET /ws/telemetry", s.handleWebSocket)
+	mux.HandleFunc("GET /", HandleFrontend)
 
 	return s
 }
@@ -56,12 +60,48 @@ func NewServer(holder *StateHolder, version string, pollInterval time.Duration, 
 // Start starts the HTTP server. Blocks until the server stops.
 func (s *Server) Start(addr string) error {
 	slog.Info("API server starting", "addr", addr)
-	return http.ListenAndServe(addr, corsMiddleware(s.mux))
+	s.httpServer.Addr = addr
+	return s.httpServer.ListenAndServe()
+}
+
+// Shutdown gracefully stops the HTTP server and closes WebSocket connections.
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.hub.closeAll()
+	return s.httpServer.Shutdown(ctx)
+}
+
+// corsAllowedOrigins returns the configured CORS origins from CORS_ALLOWED_ORIGINS env.
+// If unset, returns nil (allow all — local dev default).
+func corsAllowedOrigins() []string {
+	v := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		allowed := corsAllowedOrigins()
+		if len(allowed) == 0 {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		} else {
+			for _, a := range allowed {
+				if strings.EqualFold(origin, a) {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					break
+				}
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == "OPTIONS" {
@@ -189,7 +229,7 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 	}
 
 	model := deviceModelFromPoint(pt)
-	spec := registry.Lookup(model)
+	spec := registry.Lookup(registry.NormalizeModelName(model))
 	if sc.BehaviorClass != "" {
 		spec.BehaviorClass = sc.BehaviorClass
 	}
@@ -251,7 +291,7 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 			},
 			Correlated: SubScoreDetail{
 				Score:                sc.FleetPenalty,
-				Weight:               0.20,
+				Weight:               scoring.W_CORRELATED,
 				WeightedContribution: sc.FleetPenalty,
 				Details: map[string]interface{}{
 					"note": "Single device mode — no zone correlation available",
@@ -278,26 +318,28 @@ func (s *Server) handleProcesses(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	if s.hub.clientCount() >= maxWebSocketClients {
-		http.Error(w, "too many WebSocket clients", http.StatusServiceUnavailable)
-		return
-	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Warn("WebSocket upgrade failed", "error", err)
 		return
 	}
 
-	s.hub.add(conn)
-	defer s.hub.remove(conn)
+	client := s.hub.tryAdd(conn)
+	if client == nil {
+		http.Error(w, "too many WebSocket clients", http.StatusServiceUnavailable)
+		_ = conn.Close()
+		return
+	}
+	defer s.hub.removeClient(client)
 
 	// Send current state immediately
 	batch, scores := s.stateHolder.Get()
 	if len(batch) > 0 {
 		msg := buildTelemetryUpdate(batch, scores)
 		if data, err := json.Marshal(msg); err == nil {
+			client.writeMu.Lock()
 			_ = conn.WriteMessage(websocket.TextMessage, data)
+			client.writeMu.Unlock()
 		}
 	}
 
@@ -320,13 +362,6 @@ func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {
 		for _, k := range []string{"device_model", "gpu_model", "gpu_name", "model"} {
 			if v, ok := pt.Tags[k]; ok && v != "" {
 				return v
-			}
-		}
-	}
-	if pt.Metrics != nil {
-		for _, k := range []string{"gpu_name", "model", "device_model"} {
-			if v, ok := pt.Metrics[k]; ok {
-				return strconv.FormatFloat(v, 'f', -1, 64)
 			}
 		}
 	}

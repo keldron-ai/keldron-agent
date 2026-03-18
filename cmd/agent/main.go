@@ -162,6 +162,7 @@ func run() int {
 	var senderDone chan error
 	var bufferDone chan error
 	var mdnsAdvertiser *discovery.MDNSAdvertiser
+	var apiServer *api.Server
 
 	if isLocalMode {
 		if cfg.Output.Prometheus {
@@ -228,7 +229,7 @@ func run() int {
 
 		// API server for dashboard (OSS-028)
 		if cfg.API.Enabled {
-			apiServer := api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
+			apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
 			addr := cfg.API.Host + ":" + strconv.Itoa(cfg.API.Port)
 			if cfg.API.Host == "" {
 				addr = "127.0.0.1:" + strconv.Itoa(cfg.API.Port)
@@ -320,6 +321,11 @@ func run() int {
 	if isLocalMode {
 		// Wait for output bridge to finish
 		<-outputBridgeDone
+		if apiServer != nil {
+			if err := apiServer.Shutdown(shutdownCtx); err != nil {
+				logger.Error("API server shutdown error", "error", err)
+			}
+		}
 		if mdnsAdvertiser != nil {
 			mdnsAdvertiser.Stop()
 		}

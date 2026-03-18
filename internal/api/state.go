@@ -37,9 +37,14 @@ func (h *StateHolder) SetBroadcastTarget(hub *wsHub) {
 
 // Update stores the latest batch and scores, and broadcasts to WebSocket clients.
 func (h *StateHolder) Update(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) {
+	bCopy := make([]normalizer.TelemetryPoint, len(batch))
+	copy(bCopy, batch)
+	sCopy := make([]scoring.RiskScoreOutput, len(scores))
+	copy(sCopy, scores)
+
 	h.mu.Lock()
-	h.batch = batch
-	h.scores = scores
+	h.batch = bCopy
+	h.scores = sCopy
 	hub := h.hub
 	h.mu.Unlock()
 
@@ -111,7 +116,7 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 
 func getMetricFloat(m map[string]float64, keys ...string) float64 {
 	for _, k := range keys {
-		if v, ok := m[k]; ok && v >= 0 {
+		if v, ok := m[k]; ok {
 			return v
 		}
 	}

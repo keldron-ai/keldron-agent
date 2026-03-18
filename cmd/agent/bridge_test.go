@@ -61,7 +61,7 @@ func TestOutputBridge_FlushesToPrometheus(t *testing.T) {
 
 	// Use a very short flush interval for the test.
 	scoreEngine := scoring.NewScoreEngine(0.12)
-	go runOutputBridge(ctx, ch, outputs, scoreEngine, 50*time.Millisecond, done, logger)
+	go runOutputBridge(ctx, ch, outputs, scoreEngine, nil, 50*time.Millisecond, done, logger)
 
 	// Wait for at least one flush.
 	time.Sleep(200 * time.Millisecond)
@@ -139,7 +139,7 @@ func TestFullPipeline_AdapterToPrometheus(t *testing.T) {
 	// Start output bridge with short interval.
 	scoreEngine := scoring.NewScoreEngine(0.12)
 	done := make(chan struct{})
-	go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, 50*time.Millisecond, done, logger)
+	go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, nil, 50*time.Millisecond, done, logger)
 
 	// Send a raw reading (as the Apple Silicon adapter would).
 	adapterCh <- adapter.RawReading{

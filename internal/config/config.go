@@ -784,6 +784,9 @@ func Validate(cfg *Config) error {
 	if cfg.API.Enabled && cfg.Hub.Enabled && cfg.API.Port == cfg.Hub.ListenPort {
 		return fmt.Errorf("api.port and hub.listen_port must differ when both api.enabled and hub.enabled are true (use hub.listen_port: 9300 when API is enabled)")
 	}
+	if cfg.API.Enabled && cfg.Output.Prometheus && cfg.API.Port == cfg.Output.PrometheusPort {
+		return fmt.Errorf("api.port and output.prometheus_port must differ when both api.enabled and output.prometheus are true")
+	}
 
 	for name, acfg := range cfg.Adapters {
 		if acfg.Enabled && acfg.PollInterval < time.Second {
