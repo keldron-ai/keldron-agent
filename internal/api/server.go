@@ -381,6 +381,8 @@ func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {
 }
 
 // latestPoint returns the point with the most recent timestamp from batch.
+// batch must be non-empty; callers (handleStatus, handleRisk, buildTelemetryUpdate)
+// guard with len(batch) == 0 checks before calling.
 func latestPoint(batch []normalizer.TelemetryPoint) normalizer.TelemetryPoint {
 	best := batch[0]
 	for _, pt := range batch[1:] {
