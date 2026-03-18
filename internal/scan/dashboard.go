@@ -6,6 +6,7 @@ package scan
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/keldron-ai/keldron-agent/internal/api"
@@ -21,6 +22,26 @@ const (
 	colorCyan   = "\033[36m"
 	colorDim    = "\033[2m"
 )
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// visibleLen returns the visible (non-ANSI) rune count of s.
+func visibleLen(s string) int {
+	return len([]rune(ansiRe.ReplaceAllString(s, "")))
+}
+
+// padRight pads s with spaces to visible width n, truncating with "…" if too long.
+// ANSI escape sequences are excluded from width calculation.
+func padRight(s string, n int) string {
+	vl := visibleLen(s)
+	if vl >= n {
+		// Truncate by visible characters — strip ANSI, truncate, lose color.
+		plain := ansiRe.ReplaceAllString(s, "")
+		runes := []rune(plain)
+		return string(runes[:n-1]) + "…"
+	}
+	return s + strings.Repeat(" ", n-vl)
+}
 
 const dashboardWidth = 52
 
@@ -90,14 +111,6 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 	boxMid := "╠" + strings.Repeat("═", dashboardWidth-2) + "╣"
 	boxBot := "╚" + strings.Repeat("═", dashboardWidth-2) + "╝"
 	boxLine := "║"
-
-	padRight := func(s string, n int) string {
-		runes := []rune(s)
-		if len(runes) >= n {
-			return string(runes[:n-1]) + "…"
-		}
-		return s + strings.Repeat(" ", n-len(runes))
-	}
 
 	contentWidth := dashboardWidth - 4 // "║ " + " ║"
 
@@ -222,13 +235,6 @@ func formatUptime(secs float64) string {
 }
 
 func renderHealthSection(w io.Writer, boxLine string, contentWidth int, h *health.DeviceHealthSnapshot, powerW float64) {
-	padRight := func(s string, n int) string {
-		runes := []rune(s)
-		if len(runes) >= n {
-			return string(runes[:n-1]) + "…"
-		}
-		return s + strings.Repeat(" ", n-len(runes))
-	}
 	line := func(icon, left, right string) {
 		content := fmt.Sprintf("  %s %-18s  %s", icon, left, right)
 		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(content, contentWidth), boxLine)
@@ -237,8 +243,8 @@ func renderHealthSection(w io.Writer, boxLine string, contentWidth int, h *healt
 	// TDR
 	if h != nil && h.ThermalDynamicRange != nil && h.ThermalDynamicRange.Available {
 		tdr := h.ThermalDynamicRange
-		ratingColor := ratingColor(tdr.Rating)
-		line("🌡️ Thermal Range", fmt.Sprintf("%.1f°C", tdr.TDRCelsius), ratingColor+"● "+tdr.Rating+colorReset)
+		ratingCol := ratingColor(tdr.Rating)
+		line("🌡️ Thermal Range", fmt.Sprintf("%.1f°C", tdr.TDRCelsius), ratingCol+"● "+tdr.Rating+colorReset)
 		detail := fmt.Sprintf("%.0f°C idle → %.0f°C peak", tdr.IdleTempC, tdr.PeakTempC)
 		line("   ", detail, "")
 	} else {
@@ -248,8 +254,8 @@ func renderHealthSection(w io.Writer, boxLine string, contentWidth int, h *healt
 	// TRE
 	if h != nil && h.ThermalRecovery != nil && h.ThermalRecovery.Available && h.ThermalRecovery.RecoveryCount > 0 {
 		tre := h.ThermalRecovery
-		ratingColor := ratingColor(tre.Rating)
-		line("⏱️ Recovery", fmt.Sprintf("~%ds", tre.LastRecoverySec), ratingColor+"● "+tre.Rating+colorReset)
+		ratingCol := ratingColor(tre.Rating)
+		line("⏱️ Recovery", fmt.Sprintf("~%ds", tre.LastRecoverySec), ratingCol+"● "+tre.Rating+colorReset)
 	} else {
 		line("⏱️ Recovery", "—", "(no recovery events)")
 	}
@@ -269,8 +275,8 @@ func renderHealthSection(w io.Writer, boxLine string, contentWidth int, h *healt
 	// Stability
 	if h != nil && h.ThermalStability != nil && h.ThermalStability.Available && h.ThermalStability.UnderSustainedLoad {
 		stab := h.ThermalStability
-		ratingColor := ratingColor(stab.Rating)
-		line("📊 Stability", fmt.Sprintf("±%.1f°C", stab.StabilityCelsius), ratingColor+"● "+stab.Rating+colorReset)
+		ratingCol := ratingColor(stab.Rating)
+		line("📊 Stability", fmt.Sprintf("±%.1f°C", stab.StabilityCelsius), ratingCol+"● "+stab.Rating+colorReset)
 	} else {
 		line("📊 Stability", "—", "(no sustained load)")
 	}

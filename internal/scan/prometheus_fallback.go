@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/keldron-ai/keldron-agent/internal/api"
+	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
 
 const prometheusTimeout = 5 * time.Second
@@ -25,7 +26,6 @@ type PrometheusData struct {
 	Telemetry api.TelemetryInfo
 	Risk      api.RiskResponse
 	Agent     api.AgentInfo
-	Health    *struct{} // nil - Prometheus has no health metrics
 }
 
 // FetchFromPrometheus fetches and parses /metrics from the given host and port.
@@ -163,8 +163,8 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		warning, critical = 72.0, 87.0
 	}
 
-	// Weights from scoring (approximate)
-	thermalWeight, powerWeight, volWeight, corrWeight := 0.50, 0.31, 0.19, 0.20
+	// Use authoritative weights from scoring engine
+	thermalWeight, powerWeight, volWeight, corrWeight := scoring.W_THERMAL, scoring.W_POWER, scoring.W_VOLATILITY, scoring.W_CORRELATED
 
 	return &PrometheusData{
 		Device: api.DeviceInfo{
@@ -208,7 +208,6 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 			AdaptersActive: []string{"prometheus"},
 			CloudConnected: false,
 		},
-		Health: nil,
 	}, nil
 }
 
