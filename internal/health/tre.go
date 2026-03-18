@@ -12,6 +12,7 @@ const (
 	treHoldDuration   = 60 * time.Second
 	treTimeout        = 600 * time.Second
 	treBaselineMargin = 2.0 // °C
+	treRecoveryWindow = 24 * time.Hour
 )
 
 // TRETracker tracks Thermal Recovery Efficiency (cooldown time after load ends).
@@ -102,6 +103,7 @@ func (t *TRETracker) Update(state WorkloadState, tempC float64, at time.Time) {
 			t.holdActive = true
 		} else if at.Sub(t.holdStart) >= treHoldDuration {
 			// Recovery complete
+			t.pruneRecoveries(at)
 			recoverySec := int(at.Sub(t.recoveryStart).Seconds())
 			t.recoveries = append(t.recoveries, RecoveryEvent{
 				Timestamp:       at,
@@ -131,6 +133,8 @@ func (t *TRETracker) Result() *TREResult {
 		}
 	}
 
+	t.pruneRecoveries(time.Now())
+
 	if len(t.recoveries) == 0 {
 		return &TREResult{
 			Available: true,
@@ -155,6 +159,19 @@ func (t *TRETracker) Result() *TREResult {
 		Rating:            rating,
 		RecoveryCount:     len(t.recoveries),
 		SessionAvgSec:     avgSec,
+	}
+}
+
+// pruneRecoveries removes entries older than the 24-hour rolling window.
+func (t *TRETracker) pruneRecoveries(now time.Time) {
+	cutoff := now.Add(-treRecoveryWindow)
+	i := 0
+	for i < len(t.recoveries) && t.recoveries[i].Timestamp.Before(cutoff) {
+		i++
+	}
+	if i > 0 {
+		copy(t.recoveries, t.recoveries[i:])
+		t.recoveries = t.recoveries[:len(t.recoveries)-i]
 	}
 }
 

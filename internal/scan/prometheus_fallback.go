@@ -5,8 +5,11 @@ package scan
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"runtime"
+	"sort"
+	"strconv"
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
@@ -31,8 +34,8 @@ type PrometheusData struct {
 // FetchFromPrometheus fetches and parses /metrics from the given host and port.
 // Returns data suitable for dashboard rendering, or an error.
 func FetchFromPrometheus(host string, port int) (*PrometheusData, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
-	url := "http://" + addr + "/metrics"
+	hostPort := net.JoinHostPort(host, strconv.Itoa(port))
+	url := "http://" + hostPort + "/metrics"
 	client := &http.Client{Timeout: prometheusTimeout}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -84,13 +87,50 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		}
 	}
 
+	// Sort family names for deterministic iteration order
+	familyNames := make([]string, 0, len(families))
+	for name := range families {
+		familyNames = append(familyNames, name)
+	}
+	sort.Strings(familyNames)
+
 	// Collect metrics - take first metric of each type (single device)
 	var tempC, powerW, utilRatio, memUsed, memTotal, riskComposite float64
 	var riskThermal, riskPower, riskVolatility, riskFleetPenalty float64
 	riskSeverity := "normal"
 	uptime := 0.0
 
-	for name, mf := range families {
+	// Extract device metadata deterministically: scan all families in sorted order
+	// and use the first non-empty values found.
+	for _, name := range familyNames {
+		mf := families[name]
+		if mf == nil || len(mf.Metric) == 0 {
+			continue
+		}
+		m := mf.Metric[0]
+		if deviceID == "" {
+			if id := getLabel(m.Label, "device_id"); id != "" {
+				deviceID = id
+			}
+		}
+		if deviceModel == "" {
+			if dm := getLabel(m.Label, "device_model"); dm != "" {
+				deviceModel = dm
+			}
+		}
+		if bc := getLabel(m.Label, "behavior_class"); bc != "" && behaviorClass == "consumer_active_cooled" {
+			behaviorClass = bc
+		}
+	}
+	if deviceID == "" && deviceModel != "" {
+		deviceID = deviceModel + ":0"
+	}
+	if deviceID == "" {
+		deviceID = "default"
+	}
+
+	for _, name := range familyNames {
+		mf := families[name]
 		if mf == nil || len(mf.Metric) == 0 {
 			continue
 		}
@@ -98,19 +138,6 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		v := float64(0)
 		if m.Gauge != nil {
 			v = m.Gauge.GetValue()
-		}
-		if deviceID == "" {
-			deviceID = getLabel(m.Label, "device_id")
-			deviceModel = getLabel(m.Label, "device_model")
-			if bc := getLabel(m.Label, "behavior_class"); bc != "" {
-				behaviorClass = bc
-			}
-			if deviceID == "" && deviceModel != "" {
-				deviceID = deviceModel + ":0"
-			}
-			if deviceID == "" {
-				deviceID = "default"
-			}
 		}
 
 		switch name {

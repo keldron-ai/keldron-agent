@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -96,11 +97,32 @@ func Run(args []string) int {
 	return runOnce(host, apiPort, prometheusPort, *hub, opts)
 }
 
-// parseHostFromAddr extracts host from "host:port" or "http://host:port".
+// parseHostFromAddr extracts host from "host:port", "http://host:port/path", etc.
 func parseHostFromAddr(addr string) string {
 	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return "127.0.0.1"
+	}
+
+	// If the address looks like a URL (has a scheme), use url.Parse for robust handling.
+	if strings.Contains(addr, "://") {
+		if u, err := url.Parse(addr); err == nil && u.Host != "" {
+			h := u.Hostname()
+			if h != "" {
+				return h
+			}
+		}
+	}
+
+	// Strip scheme prefix if present without "://" (shouldn't happen, but be safe)
 	addr = strings.TrimPrefix(addr, "http://")
 	addr = strings.TrimPrefix(addr, "https://")
+
+	// Remove any path component
+	if idx := strings.Index(addr, "/"); idx != -1 {
+		addr = addr[:idx]
+	}
+
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		// No port, use as host
