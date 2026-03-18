@@ -172,9 +172,11 @@ func run() int {
 		activeAdapters = append(activeAdapters, a.Name())
 	}
 
-	// Initialize StateHolder for API (independent of local/cloud mode).
+	// Initialize StateHolder and health engine for API (independent of local/cloud mode).
+	var healthEngine *health.Engine
 	if cfg.API.Enabled {
 		stateHolder = api.NewStateHolder()
+		healthEngine = health.NewEngine()
 	}
 
 	if isLocalMode {
@@ -227,7 +229,7 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
 	} else {
 		// Cloud mode: buffer + sender
 		normCh := norm.Output()
@@ -262,7 +264,7 @@ func run() int {
 
 			scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 			outputBridgeDone = make(chan struct{})
-			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
+			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
 		}
 
 		var err error
@@ -409,7 +411,8 @@ func run() int {
 // runOutputBridge reads from the normalizer output channel, batches by poll interval,
 // computes risk scores, and calls Update on all outputs. Closes done when finished.
 // stateHolder is optional; when set, it receives batch and scores for the API.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+// healthEngine is optional; when set with stateHolder, it computes device health metrics.
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, healthEngine *health.Engine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
 	defer close(done)
 
 	flushBatch := func(batch []normalizer.TelemetryPoint) {
@@ -417,8 +420,12 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 			return
 		}
 		scores := scoreEngine.Score(batch)
+		var healthSnapshots map[string]*health.DeviceHealthSnapshot
+		if healthEngine != nil {
+			healthSnapshots = healthEngine.Update(batch)
+		}
 		if stateHolder != nil {
-			stateHolder.Update(batch, scores)
+			stateHolder.Update(batch, scores, healthSnapshots)
 		}
 		if len(outputs) > 0 {
 			for _, out := range outputs {

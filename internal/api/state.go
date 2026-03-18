@@ -8,17 +8,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 )
 
-// StateHolder holds the latest telemetry batch and risk scores for the API.
+// StateHolder holds the latest telemetry batch, risk scores, and health for the API.
 // The output bridge calls Update after each flush; API handlers and WebSocket
 // broadcast read from Get.
 type StateHolder struct {
 	mu     sync.RWMutex
 	batch  []normalizer.TelemetryPoint
 	scores []scoring.RiskScoreOutput
+	health map[string]*health.DeviceHealthSnapshot
 	hub    *wsHub
 }
 
@@ -35,41 +37,53 @@ func (h *StateHolder) SetBroadcastTarget(hub *wsHub) {
 	h.hub = hub
 }
 
-// Update stores the latest batch and scores, and broadcasts to WebSocket clients.
-func (h *StateHolder) Update(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) {
+// Update stores the latest batch, scores, and health, and broadcasts to WebSocket clients.
+func (h *StateHolder) Update(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput, healthSnapshots map[string]*health.DeviceHealthSnapshot) {
 	bCopy := make([]normalizer.TelemetryPoint, len(batch))
 	copy(bCopy, batch)
 	sCopy := make([]scoring.RiskScoreOutput, len(scores))
 	copy(sCopy, scores)
+	healthCopy := make(map[string]*health.DeviceHealthSnapshot)
+	if healthSnapshots != nil {
+		for k, v := range healthSnapshots {
+			healthCopy[k] = v
+		}
+	}
 
 	h.mu.Lock()
 	h.batch = bCopy
 	h.scores = sCopy
+	h.health = healthCopy
 	hub := h.hub
 	h.mu.Unlock()
 
 	if hub != nil && len(batch) > 0 {
-		msg := buildTelemetryUpdate(batch, scores)
+		msg := buildTelemetryUpdate(batch, scores, healthSnapshots)
 		if data, err := json.Marshal(msg); err == nil {
 			hub.broadcast(data)
 		}
 	}
 }
 
-// Get returns a copy of the latest batch and scores.
-func (h *StateHolder) Get() ([]normalizer.TelemetryPoint, []scoring.RiskScoreOutput) {
+// Get returns a copy of the latest batch, scores, and health.
+func (h *StateHolder) Get() ([]normalizer.TelemetryPoint, []scoring.RiskScoreOutput, map[string]*health.DeviceHealthSnapshot) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	batch := append([]normalizer.TelemetryPoint(nil), h.batch...)
 	scores := append([]scoring.RiskScoreOutput(nil), h.scores...)
-	return batch, scores
+	healthCopy := make(map[string]*health.DeviceHealthSnapshot, len(h.health))
+	for k, v := range h.health {
+		healthCopy[k] = v
+	}
+	return batch, scores, healthCopy
 }
 
-// buildTelemetryUpdate creates a TelemetryUpdate message from batch and scores.
-func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) TelemetryUpdate {
+// buildTelemetryUpdate creates a TelemetryUpdate message from batch, scores, and health.
+func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput, healthSnapshots map[string]*health.DeviceHealthSnapshot) TelemetryUpdate {
 	var ts string
 	var telemetry TelemetryShort
 	var risk RiskShort
+	var healthSummary *health.HealthSummary
 
 	if len(batch) > 0 {
 		pt := latestPoint(batch)
@@ -102,6 +116,12 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 				Trend:          sc.Trend,
 			}
 		}
+		if healthSnapshots != nil {
+			did := deviceIDFromPoint(pt)
+			if snap := healthSnapshots[did]; snap != nil {
+				healthSummary = snap.ToHealthSummary()
+			}
+		}
 	}
 
 	return TelemetryUpdate{
@@ -109,6 +129,7 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 		Timestamp: ts,
 		Telemetry: telemetry,
 		Risk:      risk,
+		Health:    healthSummary,
 	}
 }
 

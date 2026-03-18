@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
+	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 	"github.com/keldron-ai/keldron-agent/registry"
@@ -121,7 +122,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	batch, scores := s.stateHolder.Get()
+	batch, scores, healthMap := s.stateHolder.Get()
 	if len(batch) == 0 {
 		writeJSON(w, http.StatusServiceUnavailable, StatusResponse{
 			Device: DeviceInfo{Hostname: adapter.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH},
@@ -199,6 +200,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var healthResp *health.DeviceHealthSnapshot
+	if healthMap != nil {
+		healthResp = healthMap[deviceIDFromPoint(pt)]
+	}
+
 	resp := StatusResponse{
 		Device: DeviceInfo{
 			Hostname:      adapter.Hostname(),
@@ -217,12 +223,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			AdaptersActive: s.activeAdapters,
 			CloudConnected: s.cloudConnected,
 		},
+		Health: healthResp,
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
-	batch, scores := s.stateHolder.Get()
+	batch, scores, _ := s.stateHolder.Get()
 	if len(batch) == 0 || len(scores) == 0 {
 		writeJSON(w, http.StatusServiceUnavailable, RiskResponse{Timestamp: time.Now().UTC().Format(time.RFC3339)})
 		return
@@ -345,9 +352,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer s.hub.removeClient(client)
 
 	// Send current state immediately
-	batch, scores := s.stateHolder.Get()
+	batch, scores, healthMap := s.stateHolder.Get()
 	if len(batch) > 0 {
-		msg := buildTelemetryUpdate(batch, scores)
+		msg := buildTelemetryUpdate(batch, scores, healthMap)
 		if data, err := json.Marshal(msg); err == nil {
 			client.writeMu.Lock()
 			_ = conn.WriteMessage(websocket.TextMessage, data)
