@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/keldron-ai/keldron-agent/internal/adapter"
+	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
@@ -205,6 +206,63 @@ func TestFullPipeline_AdapterToPrometheus(t *testing.T) {
 	}
 
 	close(adapterCh)
+	cancel()
+	<-done
+}
+
+// TestOutputBridge_StateHolder verifies that a non-nil StateHolder receives
+// batch and scores from the output bridge.
+func TestOutputBridge_StateHolder(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ch := make(chan normalizer.TelemetryPoint, 16)
+	ch <- normalizer.TelemetryPoint{
+		ID:          "01TEST",
+		AgentID:     "agent-test",
+		AdapterName: "apple_silicon",
+		Source:      "macbook-pro",
+		RackID:      "unknown",
+		Timestamp:   time.Now(),
+		ReceivedAt:  time.Now(),
+		Metrics: map[string]float64{
+			"temperature_c":       45.0,
+			"power_usage_w":       10.0,
+			"gpu_utilization_pct": 30.0,
+			"mem_total_bytes":     36507222016,
+			"mem_used_bytes":      12884901888,
+			"gpu_id":              0,
+		},
+		Tags: map[string]string{
+			"gpu_model":              "M4-Pro",
+			"thermal_pressure_state": "nominal",
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	scoreEngine := scoring.NewScoreEngine(0.12)
+	stateHolder := api.NewStateHolder()
+
+	go runOutputBridge(ctx, ch, nil, scoreEngine, stateHolder, 50*time.Millisecond, done, logger)
+
+	// Wait for at least one flush.
+	time.Sleep(200 * time.Millisecond)
+
+	batch, scores := stateHolder.Get()
+	if len(batch) == 0 {
+		t.Fatal("StateHolder.Get() returned empty batch, expected at least 1 point")
+	}
+	if batch[0].Source != "macbook-pro" {
+		t.Errorf("batch[0].Source = %q, want %q", batch[0].Source, "macbook-pro")
+	}
+	if len(scores) == 0 {
+		t.Fatal("StateHolder.Get() returned empty scores, expected at least 1 score")
+	}
+	if scores[0].Composite < 0 {
+		t.Errorf("scores[0].Composite = %f, expected >= 0", scores[0].Composite)
+	}
+
+	close(ch)
 	cancel()
 	<-done
 }

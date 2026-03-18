@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -163,6 +164,18 @@ func run() int {
 	var bufferDone chan error
 	var mdnsAdvertiser *discovery.MDNSAdvertiser
 	var apiServer *api.Server
+	var stateHolder *api.StateHolder
+
+	// Build adapter name list once (used by outputs and API).
+	activeAdapters := make([]string, 0, len(running))
+	for _, a := range running {
+		activeAdapters = append(activeAdapters, a.Name())
+	}
+
+	// Initialize StateHolder for API (independent of local/cloud mode).
+	if cfg.API.Enabled {
+		stateHolder = api.NewStateHolder()
+	}
 
 	if isLocalMode {
 		if cfg.Output.Prometheus {
@@ -172,12 +185,6 @@ func run() int {
 		}
 		if cfg.Hub.Enabled {
 			slog.Info("running as hub — local monitoring + fleet aggregation")
-		}
-
-		// Build adapter name list once for all outputs.
-		activeAdapters := make([]string, 0, len(running))
-		for _, a := range running {
-			activeAdapters = append(activeAdapters, a.Name())
 		}
 
 		// Build outputs
@@ -220,30 +227,33 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-
-		var stateHolder *api.StateHolder
-		if cfg.API.Enabled {
-			stateHolder = api.NewStateHolder()
-		}
 		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
-
-		// API server for dashboard (OSS-028)
-		if cfg.API.Enabled {
-			apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
-			addr := cfg.API.Host + ":" + strconv.Itoa(cfg.API.Port)
-			if cfg.API.Host == "" {
-				addr = "127.0.0.1:" + strconv.Itoa(cfg.API.Port)
-			}
-			go func() {
-				if err := apiServer.Start(addr); err != nil && err != http.ErrServerClosed {
-					logger.Error("API server failed", "error", err)
-				}
-			}()
-		}
 	} else {
 		// Cloud mode: buffer + sender
+		normCh := norm.Output()
+
+		// When the API is enabled in cloud mode, tee the normalizer output to both
+		// the buffer manager and the output bridge (for StateHolder/API scoring).
+		if cfg.API.Enabled {
+			bufCh := make(chan normalizer.TelemetryPoint, 256)
+			bridgeCh := make(chan normalizer.TelemetryPoint, 256)
+			go func() {
+				defer close(bufCh)
+				defer close(bridgeCh)
+				for pt := range normCh {
+					bufCh <- pt
+					bridgeCh <- pt
+				}
+			}()
+			normCh = bufCh
+
+			scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
+			outputBridgeDone = make(chan struct{})
+			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		}
+
 		var err error
-		bufMgr, err = buffer.NewManager(cfg.Buffer, norm.Output(), logger.With("component", "buffer"))
+		bufMgr, err = buffer.NewManager(cfg.Buffer, normCh, logger.With("component", "buffer"))
 		if err != nil {
 			slog.Error("failed to create buffer manager", "error", err)
 			return 1
@@ -258,6 +268,21 @@ func run() int {
 		senderDone = make(chan error, 1)
 		go func() {
 			senderDone <- sndr.Start(ctx)
+		}()
+	}
+
+	// API server for dashboard (OSS-028) — works in both local and cloud modes.
+	if cfg.API.Enabled {
+		apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
+		host := cfg.API.Host
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		addr := net.JoinHostPort(host, strconv.Itoa(cfg.API.Port))
+		go func() {
+			if err := apiServer.Start(addr); err != nil && err != http.ErrServerClosed {
+				logger.Error("API server failed", "error", err)
+			}
 		}()
 	}
 
@@ -318,14 +343,19 @@ func run() int {
 	processed, rejected := norm.Stats()
 	slog.Info("normalizer stats", "processed", processed, "rejected", rejected)
 
-	if isLocalMode {
-		// Wait for output bridge to finish
+	// Wait for output bridge to finish (runs in both local and cloud+API modes).
+	if outputBridgeDone != nil {
 		<-outputBridgeDone
-		if apiServer != nil {
-			if err := apiServer.Shutdown(shutdownCtx); err != nil {
-				logger.Error("API server shutdown error", "error", err)
-			}
+	}
+
+	// Shut down the API server (works in both modes).
+	if apiServer != nil {
+		if err := apiServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("API server shutdown error", "error", err)
 		}
+	}
+
+	if isLocalMode {
 		if mdnsAdvertiser != nil {
 			mdnsAdvertiser.Stop()
 		}

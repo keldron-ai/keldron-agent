@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,12 +71,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// defaultCORSOrigins are the origins allowed by default when no explicit
+// allowlist is configured, covering common local development URLs.
+var defaultCORSOrigins = []string{
+	"http://localhost",
+	"http://127.0.0.1",
+	"http://[::1]",
+}
+
 // corsAllowedOrigins returns the configured CORS origins from CORS_ALLOWED_ORIGINS env.
-// If unset, returns nil (allow all — local dev default).
+// If unset, returns a localhost-only default for safe local development.
 func corsAllowedOrigins() []string {
 	v := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if v == "" {
-		return nil
+		return defaultCORSOrigins
 	}
 	parts := strings.Split(v, ",")
 	out := make([]string, 0, len(parts))
@@ -91,12 +100,10 @@ func corsAllowedOrigins() []string {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		allowed := corsAllowedOrigins()
-		if len(allowed) == 0 {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-		} else {
+		if origin != "" {
+			allowed := corsAllowedOrigins()
 			for _, a := range allowed {
-				if strings.EqualFold(origin, a) {
+				if strings.EqualFold(origin, a) || strings.HasPrefix(strings.ToLower(origin), strings.ToLower(a)+":") {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 					break
 				}
@@ -122,7 +129,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pt := batch[0]
+	pt := latestPoint(batch)
 	m := pt.Metrics
 	if m == nil {
 		m = make(map[string]float64)
@@ -182,8 +189,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var risk RiskSummary
-	if len(scores) > 0 {
-		sc := scores[0]
+	if sc, ok := matchScore(pt, scores); ok {
 		risk = RiskSummary{
 			CompositeScore: sc.Composite,
 			Severity:       sc.Severity,
@@ -221,8 +227,12 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pt := batch[0]
-	sc := scores[0]
+	pt := latestPoint(batch)
+	sc, ok := matchScore(pt, scores)
+	if !ok {
+		writeJSON(w, http.StatusServiceUnavailable, RiskResponse{Timestamp: pt.Timestamp.UTC().Format(time.RFC3339)})
+		return
+	}
 	m := pt.Metrics
 	if m == nil {
 		m = make(map[string]float64)
@@ -307,14 +317,14 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleProcesses(w http.ResponseWriter, r *http.Request) {
-	note := "Process enumeration not available for this adapter"
+	note := "Process enumeration not yet implemented"
 	resp := ProcessResponse{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Processes: []GPUProcess{},
 		Supported: false,
 		Note:      &note,
 	}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusNotImplemented, resp)
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -367,4 +377,37 @@ func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {
 		}
 	}
 	return "unknown"
+}
+
+// latestPoint returns the point with the most recent timestamp from batch.
+func latestPoint(batch []normalizer.TelemetryPoint) normalizer.TelemetryPoint {
+	best := batch[0]
+	for _, pt := range batch[1:] {
+		if pt.Timestamp.After(best.Timestamp) {
+			best = pt
+		}
+	}
+	return best
+}
+
+// deviceIDFromPoint mirrors the scoring engine's device ID derivation.
+func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
+	if pt.Metrics != nil {
+		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
+			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
+		}
+	}
+	return pt.Source
+}
+
+// matchScore finds the score matching the given point's device ID, or returns
+// a zero-value score and false.
+func matchScore(pt normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) (scoring.RiskScoreOutput, bool) {
+	did := deviceIDFromPoint(pt)
+	for _, sc := range scores {
+		if sc.DeviceID == did {
+			return sc, true
+		}
+	}
+	return scoring.RiskScoreOutput{}, false
 }

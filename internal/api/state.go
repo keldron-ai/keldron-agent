@@ -72,7 +72,7 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 	var risk RiskShort
 
 	if len(batch) > 0 {
-		pt := batch[0]
+		pt := latestPoint(batch)
 		ts = pt.Timestamp.UTC().Format(time.RFC3339)
 		m := pt.Metrics
 		if m == nil {
@@ -95,14 +95,12 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 		if telemetry.ThermalState == "" {
 			telemetry.ThermalState = "nominal"
 		}
-	}
-
-	if len(scores) > 0 {
-		s := scores[0]
-		risk = RiskShort{
-			CompositeScore: s.Composite,
-			Severity:       s.Severity,
-			Trend:          s.Trend,
+		if sc, ok := matchScore(pt, scores); ok {
+			risk = RiskShort{
+				CompositeScore: sc.Composite,
+				Severity:       sc.Severity,
+				Trend:          sc.Trend,
+			}
 		}
 	}
 

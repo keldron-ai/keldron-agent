@@ -15,18 +15,23 @@ import (
 
 const maxWebSocketClients = 10
 
+// defaultLocalhostOrigins are the origins allowed by default when no explicit
+// allowlist is configured, covering common local development URLs.
+var defaultLocalhostOrigins = []string{
+	"http://localhost",
+	"http://127.0.0.1",
+	"http://[::1]",
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			return true
+			return true // non-browser clients (curl, etc.)
 		}
 		allowed := allowedWSOrigins()
-		if len(allowed) == 0 {
-			return true // no restriction configured — allow all (local dev default)
-		}
 		for _, a := range allowed {
-			if strings.EqualFold(origin, a) {
+			if strings.EqualFold(origin, a) || strings.HasPrefix(strings.ToLower(origin), strings.ToLower(a)+":") {
 				return true
 			}
 		}
@@ -35,11 +40,11 @@ var upgrader = websocket.Upgrader{
 }
 
 // allowedWSOrigins returns the configured allowed origins for WebSocket
-// connections. If ALLOWED_WS_ORIGINS is unset, returns nil (allow all).
+// connections. If ALLOWED_WS_ORIGINS is unset, returns a localhost-only default.
 func allowedWSOrigins() []string {
 	v := os.Getenv("ALLOWED_WS_ORIGINS")
 	if v == "" {
-		return nil
+		return defaultLocalhostOrigins
 	}
 	parts := strings.Split(v, ",")
 	out := make([]string, 0, len(parts))
