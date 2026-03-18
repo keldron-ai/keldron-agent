@@ -4,6 +4,7 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	clearScreen = "\033[2J\033[H"
+	clearScreen = "\033[H\033[2J"
 )
 
 // Run executes the scan command. Returns exit code.
@@ -241,6 +242,9 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 	for {
 		interval := watchInterval
 
+		// Buffer the entire frame before writing — prevents partial renders.
+		var buf bytes.Buffer
+
 		// 1. Try agent API
 		status, errStatus := FetchStatus(apiBase)
 		if errStatus == nil {
@@ -252,8 +256,7 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 			if status.Agent.PollIntervalS >= 2 {
 				interval = time.Duration(status.Agent.PollIntervalS) * time.Second
 			}
-			fmt.Fprint(os.Stdout, clearScreen)
-			RenderDashboard(os.Stdout, status, risk, opts)
+			RenderDashboard(&buf, status, risk, opts)
 		} else {
 			// 2. Try fleet
 			fleet, err := FetchFleet(hubAddr)
@@ -261,8 +264,7 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 				if fleet == nil {
 					fleet = &FleetResponse{}
 				}
-				fmt.Fprint(os.Stdout, clearScreen)
-				RenderTable(os.Stdout, fleet, opts)
+				RenderTable(&buf, fleet, opts)
 			} else {
 				// 3. Try Prometheus
 				prom, err := FetchFromPrometheus(host, prometheusPort)
@@ -275,10 +277,14 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 					useLegacyNote = true
 					fmt.Fprintln(os.Stderr, "(using legacy Prometheus endpoint — upgrade agent for full dashboard)")
 				}
-				fmt.Fprint(os.Stdout, clearScreen)
-				RenderDashboard(os.Stdout, status, risk, opts)
+				RenderDashboard(&buf, status, risk, opts)
 			}
 		}
+
+		// Clear screen and write the complete frame atomically (single write)
+		frame := buf.String()
+		fmt.Fprint(os.Stdout, clearScreen+frame)
+		os.Stdout.Sync()
 
 		now := time.Now().UTC()
 		lastUpdated := now.Format("15:04:05")

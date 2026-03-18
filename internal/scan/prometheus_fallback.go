@@ -153,15 +153,12 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		memPct = memUsed / memTotal * 100
 	}
 
-	// Default thresholds for consumer_active_cooled
-	warning, critical := 65.0, 82.0
-	if behaviorClass == "datacenter_sustained" {
-		warning, critical = 60.0, 80.0
-	} else if behaviorClass == "soc_integrated" {
-		warning, critical = 70.0, 85.0
-	} else if behaviorClass == "sbc_constrained" {
-		warning, critical = 72.0, 87.0
+	// Use authoritative thresholds from scoring engine
+	thresholds, ok := scoring.SeverityThresholds[behaviorClass]
+	if !ok {
+		thresholds = scoring.SeverityThresholds["consumer_active_cooled"]
 	}
+	warning, critical := thresholds[0], thresholds[1]
 
 	// Use authoritative weights from scoring engine
 	thermalWeight, powerWeight, volWeight, corrWeight := scoring.W_THERMAL, scoring.W_POWER, scoring.W_VOLATILITY, scoring.W_CORRELATED

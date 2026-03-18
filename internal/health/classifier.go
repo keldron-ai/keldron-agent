@@ -12,9 +12,9 @@ import (
 type WorkloadState string
 
 const (
-	StateIdle   WorkloadState = "idle"   // util < 10% sustained 5+ min
-	StateActive WorkloadState = "active" // util 10-70%
-	StatePeak   WorkloadState = "peak"   // util > 70% sustained 2+ min
+	StateIdle   WorkloadState = "idle"   // all buffered samples < 10% over 5-min window
+	StateActive WorkloadState = "active" // neither idle nor peak
+	StatePeak   WorkloadState = "peak"   // all buffered samples > 70% over 2-min window
 )
 
 const (

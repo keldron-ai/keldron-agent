@@ -8,6 +8,7 @@ require (
 	github.com/gosnmp/gosnmp v1.43.2
 	github.com/grid-x/modbus v0.0.0-20260122103929-e192bc287e6e
 	github.com/libp2p/zeroconf/v2 v2.2.0
+	github.com/mattn/go-runewidth v0.0.21
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
@@ -23,6 +24,7 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect

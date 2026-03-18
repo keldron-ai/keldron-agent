@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 )
@@ -25,16 +27,17 @@ const (
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// visibleLen returns the visible (non-ANSI) rune count of s.
+// visibleLen returns the terminal display width of s, ignoring ANSI escape
+// codes. Uses go-runewidth for correct emoji and CJK character handling.
 func visibleLen(s string) int {
-	return len([]rune(ansiRe.ReplaceAllString(s, "")))
+	return runewidth.StringWidth(ansiRe.ReplaceAllString(s, ""))
 }
 
 // padRight pads s with spaces to visible width n, truncating with "…" if too long.
 // ANSI escape sequences are excluded from width calculation.
 func padRight(s string, n int) string {
 	vl := visibleLen(s)
-	if vl >= n {
+	if vl > n {
 		// Truncate by visible characters — strip ANSI, truncate, lose color.
 		plain := ansiRe.ReplaceAllString(s, "")
 		runes := []rune(plain)
@@ -43,7 +46,23 @@ func padRight(s string, n int) string {
 	return s + strings.Repeat(" ", n-vl)
 }
 
-const dashboardWidth = 52
+// padRightNoTruncate pads s with spaces to visible width n. Never truncates.
+// Use for dashboard box lines so full text (e.g. "Establishing baseline") renders.
+func padRightNoTruncate(s string, n int) string {
+	vl := visibleLen(s)
+	if vl >= n {
+		return s
+	}
+	return s + strings.Repeat(" ", n-vl)
+}
+
+const boxInnerWidth = 50 // chars between ║ and ║; matches top border (╔ + 50×═ + ╗)
+
+// boxLine returns a full box content line: ║ + content (padded to boxInnerWidth) + ║.
+// Content may include ANSI codes; padding uses visible length.
+func boxLine(content string) string {
+	return "║" + padRightNoTruncate(content, boxInnerWidth) + "║"
+}
 
 // ratingColor returns ANSI color for health/risk rating.
 func ratingColor(rating string) string {
@@ -107,12 +126,9 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 		}
 	}
 
-	boxTop := "╔" + strings.Repeat("═", dashboardWidth-2) + "╗"
-	boxMid := "╠" + strings.Repeat("═", dashboardWidth-2) + "╣"
-	boxBot := "╚" + strings.Repeat("═", dashboardWidth-2) + "╝"
-	boxLine := "║"
-
-	contentWidth := dashboardWidth - 4 // "║ " + " ║"
+	boxTop := "╔" + strings.Repeat("═", boxInnerWidth) + "╗"
+	boxMid := "╠" + strings.Repeat("═", boxInnerWidth) + "╣"
+	boxBot := "╚" + strings.Repeat("═", boxInnerWidth) + "╝"
 
 	if !opts.Quiet {
 		fmt.Fprintln(w, boxTop)
@@ -120,7 +136,7 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 		if hostname == "" {
 			hostname = "Unknown"
 		}
-		fmt.Fprintf(w, "%s  🖥️  %s%s\n", boxLine, padRight(hostname, contentWidth-4), boxLine)
+		fmt.Fprintln(w, boxLine("  🖥️  "+hostname))
 		hw := d.Hardware
 		if hw == "" {
 			hw = "unknown"
@@ -130,11 +146,11 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 			adapter = "unknown"
 		}
 		header2 := fmt.Sprintf("%s · %s · %s · v%s", hw, d.OS, adapter, a.Version)
-		fmt.Fprintf(w, "%s  %s%s\n", boxLine, padRight(header2, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine("  "+header2))
 		fmt.Fprintln(w, boxMid)
 
 		// TELEMETRY
-		fmt.Fprintf(w, "%s  TELEMETRY%s\n", boxLine, padRight("", contentWidth-10)+boxLine)
+		fmt.Fprintln(w, boxLine("  TELEMETRY"))
 		tempStr := "—"
 		if t.TemperatureC > 0 {
 			tempStr = fmt.Sprintf("%.1f°C", t.TemperatureC)
@@ -144,16 +160,16 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 			thermalState = "nominal"
 		}
 		telLine := fmt.Sprintf("  🌡️ Temperature     %-8s  %s", tempStr, thermalState)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(telLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(telLine))
 		utilBar := utilizationBar(t.GPUUtilizationPct)
 		utilLine := fmt.Sprintf("  ⚡ GPU Utilization  %s %5.1f%%", utilBar, t.GPUUtilizationPct)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(utilLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(utilLine))
 		powerStr := "—"
 		if t.PowerDrawW > 0 {
 			powerStr = fmt.Sprintf("%.2fW", t.PowerDrawW)
 		}
 		powerLine := fmt.Sprintf("  🔌 Power Draw      %s", powerStr)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(powerLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(powerLine))
 		memStr := "—"
 		if t.MemoryTotalBytes > 0 {
 			usedGB := float64(t.MemoryUsedBytes) / (1024 * 1024 * 1024)
@@ -161,12 +177,12 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 			memStr = fmt.Sprintf("%.1f / %.1f GB   %5.1f%%", usedGB, totalGB, t.MemoryUsedPct)
 		}
 		memLine := fmt.Sprintf("  🧠 Memory          %s", memStr)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(memLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(memLine))
 		fmt.Fprintln(w, boxMid)
 
 		// RISK ANALYSIS
-		riskHeader := "  RISK ANALYSIS" + padRight("", contentWidth-28) + "Score  Wt"
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(riskHeader, contentWidth), boxLine)
+		riskHeader := "  RISK ANALYSIS" + strings.Repeat(" ", 26) + "Score  Wt"
+		fmt.Fprintln(w, boxLine(riskHeader))
 		sevColor := riskColor(r.CompositeScore, warning, critical)
 		sevDot := ratingColor(r.Severity)
 		compStr := fmt.Sprintf("%.2f", r.CompositeScore)
@@ -174,23 +190,22 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 			compStr = fmt.Sprintf("%.1f", r.CompositeScore)
 		}
 		compLine := fmt.Sprintf("  🎯 Composite        %s%-6s%s  %s● %s%s", sevColor, compStr, colorReset, sevDot, r.Severity, colorReset)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(compLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(compLine))
 		thermLine := fmt.Sprintf("     Thermal          %-6s  (×%.2f)", fmt.Sprintf("%.2f", subScores.Thermal.Score), subScores.Thermal.Weight)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(thermLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(thermLine))
 		powerRiskLine := fmt.Sprintf("     Power            %-6s  (×%.2f)", fmt.Sprintf("%.2f", subScores.Power.Score), subScores.Power.Weight)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(powerRiskLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(powerRiskLine))
 		volLine := fmt.Sprintf("     Volatility       %-6s  (×%.2f)", fmt.Sprintf("%.2f", subScores.Volatility.Score), subScores.Volatility.Weight)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(volLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(volLine))
 		corrLine := fmt.Sprintf("     Correlated       %-6s  (×%.2f)", fmt.Sprintf("%.2f", subScores.Correlated.Score), subScores.Correlated.Weight)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(corrLine, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(corrLine))
 		trendStr := fmt.Sprintf("  Trend: %s (Δ %+.2f)", trendSymbol(r.Trend), r.TrendDelta)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(trendStr, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(trendStr))
 		fmt.Fprintln(w, boxMid)
 
 		// DEVICE HEALTH
-		healthHeader := "  DEVICE HEALTH" + padRight("", contentWidth-16)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(healthHeader, contentWidth), boxLine)
-		renderHealthSection(w, boxLine, contentWidth, status.Health, t.PowerDrawW)
+		fmt.Fprintln(w, boxLine("  DEVICE HEALTH"))
+		renderHealthSection(w, status.Health, t.PowerDrawW)
 		fmt.Fprintln(w, boxMid)
 
 		// Footer
@@ -201,7 +216,7 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 			cloudStr = "✓"
 		}
 		footer := fmt.Sprintf("  Uptime: %s · Poll: %s · Cloud: %s", uptimeStr, pollStr, cloudStr)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(footer, contentWidth), boxLine)
+		fmt.Fprintln(w, boxLine(footer))
 		fmt.Fprintln(w, boxBot)
 	}
 }
@@ -234,10 +249,19 @@ func formatUptime(secs float64) string {
 	return fmt.Sprintf("%dm", m)
 }
 
-func renderHealthSection(w io.Writer, boxLine string, contentWidth int, h *health.DeviceHealthSnapshot, powerW float64) {
-	line := func(icon, left, right string) {
-		content := fmt.Sprintf("  %s %-18s  %s", icon, left, right)
-		fmt.Fprintf(w, "%s%s%s\n", boxLine, padRight(content, contentWidth), boxLine)
+func renderHealthSection(w io.Writer, h *health.DeviceHealthSnapshot, powerW float64) {
+	line := func(icon, val, status string) {
+		const labelCol = 20 // fixed display-width column for icon+label
+		iconW := visibleLen(icon)
+		pad := labelCol - iconW
+		if pad < 1 {
+			pad = 1
+		}
+		content := "  " + icon + strings.Repeat(" ", pad) + val
+		if status != "" {
+			content += "  " + status
+		}
+		fmt.Fprintln(w, boxLine(content))
 	}
 
 	// TDR

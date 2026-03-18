@@ -31,8 +31,11 @@ type TRETracker struct {
 	recoveries []RecoveryEvent
 }
 
-// NewTRETracker creates a new TRE tracker. tdrState must not be nil.
+// NewTRETracker creates a new TRE tracker. Panics if tdrState is nil.
 func NewTRETracker(tdrState *TDRState) *TRETracker {
+	if tdrState == nil {
+		panic("health: NewTRETracker requires non-nil tdrState")
+	}
 	return &TRETracker{
 		tdrState:   tdrState,
 		recoveries: make([]RecoveryEvent, 0, 32),
