@@ -71,6 +71,9 @@ type RenderOpts struct {
 
 // AllDevices returns a flat list of devices from the fleet response.
 func AllDevices(fleet *FleetResponse) []DeviceResponse {
+	if fleet == nil {
+		return nil
+	}
 	var out []DeviceResponse
 	for _, p := range fleet.Peers {
 		out = append(out, p.Devices...)
@@ -117,6 +120,9 @@ func FilterAndSortDevices(devices []DeviceResponse, opts RenderOpts) []DeviceRes
 
 // RenderTable writes the fleet table and footer to w.
 func RenderTable(w io.Writer, fleet *FleetResponse, opts RenderOpts) {
+	if fleet == nil {
+		fleet = &FleetResponse{}
+	}
 	devices := FilterAndSortDevices(AllDevices(fleet), opts)
 
 	if !opts.Quiet {
@@ -192,13 +198,15 @@ func formatVRAM(d DeviceResponse) string {
 }
 
 func statusDisplay(severity string) (string, string) {
-	switch severity {
+	switch strings.ToLower(severity) {
 	case "critical":
 		return "CRIT", ansiRed
 	case "warning":
 		return "WARN", ansiYellow
-	default:
+	case "normal", "":
 		return "OK", ansiGreen
+	default:
+		return "UNKNOWN", ansiYellow
 	}
 }
 
