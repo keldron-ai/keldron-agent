@@ -130,8 +130,10 @@ func (h *wsHub) closeAll() {
 	h.clients = make(map[*wsClient]bool)
 	h.mu.Unlock()
 	for _, c := range clients {
+		c.writeMu.Lock()
 		_ = c.conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutdown"))
+		c.writeMu.Unlock()
 		_ = c.conn.Close()
 	}
 }

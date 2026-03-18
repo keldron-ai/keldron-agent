@@ -242,7 +242,10 @@ func run() int {
 				defer close(bridgeCh)
 				for pt := range normCh {
 					bufCh <- pt
-					bridgeCh <- pt
+					select {
+					case bridgeCh <- pt:
+					default:
+					}
 				}
 			}()
 			normCh = bufCh

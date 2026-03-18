@@ -65,10 +65,11 @@ func (s *Server) Start(addr string) error {
 	return s.httpServer.ListenAndServe()
 }
 
-// Shutdown gracefully stops the HTTP server and closes WebSocket connections.
+// Shutdown gracefully stops the HTTP server, then closes WebSocket connections.
 func (s *Server) Shutdown(ctx context.Context) error {
+	err := s.httpServer.Shutdown(ctx)
 	s.hub.closeAll()
-	return s.httpServer.Shutdown(ctx)
+	return err
 }
 
 // defaultCORSOrigins are the origins allowed by default when no explicit
