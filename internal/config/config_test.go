@@ -441,7 +441,7 @@ sender:
 
 	os.Setenv("KELDRON_AGENT_LOG_LEVEL", "debug")
 	os.Setenv("KELDRON_AGENT_POLL_INTERVAL", "10s")
-	os.Setenv("KELDRON_OUTPUT_PROMETHEUS_PORT", "9200")
+	os.Setenv("KELDRON_OUTPUT_PROMETHEUS_PORT", "9100")
 	defer func() {
 		os.Unsetenv("KELDRON_AGENT_LOG_LEVEL")
 		os.Unsetenv("KELDRON_AGENT_POLL_INTERVAL")
@@ -459,8 +459,8 @@ sender:
 	if cfg.Agent.PollInterval != 10*time.Second {
 		t.Errorf("poll_interval = %v, want 10s (env override)", cfg.Agent.PollInterval)
 	}
-	if cfg.Output.PrometheusPort != 9200 {
-		t.Errorf("prometheus_port = %d, want 9200 (env override)", cfg.Output.PrometheusPort)
+	if cfg.Output.PrometheusPort != 9100 {
+		t.Errorf("prometheus_port = %d, want 9100 (env override)", cfg.Output.PrometheusPort)
 	}
 
 	// Boolean env override
@@ -684,6 +684,23 @@ func TestValidate_HubEnabledNoPort(t *testing.T) {
 	}
 }
 
+func TestValidate_APIAndHubPortConflict(t *testing.T) {
+	cfg := Defaults()
+	cfg.Adapters["dcgm"] = AdapterConfig{Enabled: true, PollInterval: 10 * time.Second}
+	cfg.API.Enabled = true
+	cfg.API.Port = 9200
+	cfg.Hub.Enabled = true
+	cfg.Hub.ListenPort = 9200
+
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected error for api.port and hub.listen_port conflict")
+	}
+	if !strings.Contains(err.Error(), "api.port") || !strings.Contains(err.Error(), "hub.listen_port") {
+		t.Errorf("error %q should mention api.port and hub.listen_port", err.Error())
+	}
+}
+
 func TestApplyEnvOverrides_HubAndCloud(t *testing.T) {
 	load := defaultConfigLoad()
 	os.Setenv("KELDRON_HUB_ENABLED", "true")
@@ -732,6 +749,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
@@ -752,6 +771,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
@@ -806,6 +827,8 @@ adapters:
 output:
   prometheus: true
   prometheus_port: 9100
+api:
+  enabled: false
 hub:
   enabled: true
   listen_port: 9200
@@ -822,6 +845,44 @@ hub:
 	}
 	if cfg.Hub.MDNSEnabled() {
 		t.Error("MDNSEnabled() = true after env override to false, want false")
+	}
+}
+
+func TestConfigAPIEnvOverrides(t *testing.T) {
+	yaml := `
+agent:
+  device_name: test
+  poll_interval: 30s
+  log_level: info
+adapters:
+  apple_silicon:
+    enabled: true
+output:
+  prometheus: true
+  prometheus_port: 9100
+api:
+  enabled: false
+  port: 9090
+  host: "127.0.0.1"
+`
+	path := writeTemp(t, yaml)
+
+	t.Setenv("KELDRON_API_ENABLED", "true")
+	t.Setenv("KELDRON_API_PORT", "8888")
+	t.Setenv("KELDRON_API_HOST", "0.0.0.0")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.API.Enabled {
+		t.Error("API.Enabled = false after env override to true, want true")
+	}
+	if cfg.API.Port != 8888 {
+		t.Errorf("API.Port = %d, want 8888", cfg.API.Port)
+	}
+	if cfg.API.Host != "0.0.0.0" {
+		t.Errorf("API.Host = %q, want %q", cfg.API.Host, "0.0.0.0")
 	}
 }
 

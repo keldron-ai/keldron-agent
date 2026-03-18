@@ -8,9 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter/slurm"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/snmp_pdu"
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
+	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
@@ -160,6 +163,19 @@ func run() int {
 	var senderDone chan error
 	var bufferDone chan error
 	var mdnsAdvertiser *discovery.MDNSAdvertiser
+	var apiServer *api.Server
+	var stateHolder *api.StateHolder
+
+	// Build adapter name list once (used by outputs and API).
+	activeAdapters := make([]string, 0, len(running))
+	for _, a := range running {
+		activeAdapters = append(activeAdapters, a.Name())
+	}
+
+	// Initialize StateHolder for API (independent of local/cloud mode).
+	if cfg.API.Enabled {
+		stateHolder = api.NewStateHolder()
+	}
 
 	if isLocalMode {
 		if cfg.Output.Prometheus {
@@ -169,12 +185,6 @@ func run() int {
 		}
 		if cfg.Hub.Enabled {
 			slog.Info("running as hub — local monitoring + fleet aggregation")
-		}
-
-		// Build adapter name list once for all outputs.
-		activeAdapters := make([]string, 0, len(running))
-		for _, a := range running {
-			activeAdapters = append(activeAdapters, a.Name())
 		}
 
 		// Build outputs
@@ -217,11 +227,46 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
 	} else {
 		// Cloud mode: buffer + sender
+		normCh := norm.Output()
+
+		// When the API is enabled in cloud mode, tee the normalizer output to both
+		// the buffer manager and the output bridge (for StateHolder/API scoring).
+		if cfg.API.Enabled {
+			bufCh := make(chan normalizer.TelemetryPoint, 256)
+			bridgeCh := make(chan normalizer.TelemetryPoint, 256)
+			var bridgeDropped uint64
+			go func() {
+				defer close(bufCh)
+				defer close(bridgeCh)
+				for pt := range normCh {
+					select {
+					case bufCh <- pt:
+					case <-ctx.Done():
+						return
+					}
+					select {
+					case bridgeCh <- pt:
+					default:
+						bridgeDropped++
+						if bridgeDropped%100 == 1 {
+							logger.Warn("API bridge channel full, dropping telemetry point",
+								"source", pt.Source, "adapter", pt.AdapterName, "total_dropped", bridgeDropped)
+						}
+					}
+				}
+			}()
+			normCh = bufCh
+
+			scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
+			outputBridgeDone = make(chan struct{})
+			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		}
+
 		var err error
-		bufMgr, err = buffer.NewManager(cfg.Buffer, norm.Output(), logger.With("component", "buffer"))
+		bufMgr, err = buffer.NewManager(cfg.Buffer, normCh, logger.With("component", "buffer"))
 		if err != nil {
 			slog.Error("failed to create buffer manager", "error", err)
 			return 1
@@ -236,6 +281,21 @@ func run() int {
 		senderDone = make(chan error, 1)
 		go func() {
 			senderDone <- sndr.Start(ctx)
+		}()
+	}
+
+	// API server for dashboard (OSS-028) — works in both local and cloud modes.
+	if cfg.API.Enabled {
+		apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
+		host := cfg.API.Host
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		addr := net.JoinHostPort(host, strconv.Itoa(cfg.API.Port))
+		go func() {
+			if err := apiServer.Start(addr); err != nil && err != http.ErrServerClosed {
+				logger.Error("API server failed", "error", err)
+			}
 		}()
 	}
 
@@ -296,9 +356,19 @@ func run() int {
 	processed, rejected := norm.Stats()
 	slog.Info("normalizer stats", "processed", processed, "rejected", rejected)
 
-	if isLocalMode {
-		// Wait for output bridge to finish
+	// Wait for output bridge to finish (runs in both local and cloud+API modes).
+	if outputBridgeDone != nil {
 		<-outputBridgeDone
+	}
+
+	// Shut down the API server (works in both modes).
+	if apiServer != nil {
+		if err := apiServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("API server shutdown error", "error", err)
+		}
+	}
+
+	if isLocalMode {
 		if mdnsAdvertiser != nil {
 			mdnsAdvertiser.Stop()
 		}
@@ -338,17 +408,23 @@ func run() int {
 
 // runOutputBridge reads from the normalizer output channel, batches by poll interval,
 // computes risk scores, and calls Update on all outputs. Closes done when finished.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+// stateHolder is optional; when set, it receives batch and scores for the API.
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, interval time.Duration, done chan struct{}, logger *slog.Logger) {
 	defer close(done)
 
 	flushBatch := func(batch []normalizer.TelemetryPoint) {
-		if len(batch) == 0 || len(outputs) == 0 {
+		if len(batch) == 0 {
 			return
 		}
 		scores := scoreEngine.Score(batch)
-		for _, out := range outputs {
-			if err := out.Update(batch, scores); err != nil {
-				logger.Error("output update error", "error", err)
+		if stateHolder != nil {
+			stateHolder.Update(batch, scores)
+		}
+		if len(outputs) > 0 {
+			for _, out := range outputs {
+				if err := out.Update(batch, scores); err != nil {
+					logger.Error("output update error", "error", err)
+				}
 			}
 		}
 	}

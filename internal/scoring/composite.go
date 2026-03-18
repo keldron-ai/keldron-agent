@@ -9,6 +9,7 @@ const (
 	W_THERMAL    = 0.50
 	W_POWER      = 0.31
 	W_VOLATILITY = 0.19
+	W_CORRELATED = 0.20
 )
 
 // SeverityThresholds maps behavior_class to [warning, critical] thresholds.
