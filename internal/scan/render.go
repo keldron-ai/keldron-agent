@@ -85,10 +85,11 @@ func AllDevices(fleet *FleetResponse) []DeviceResponse {
 func FilterAndSortDevices(devices []DeviceResponse, opts RenderOpts) []DeviceResponse {
 	filtered := devices
 	if opts.DeviceFilter != "" {
+		lowerFilter := strings.ToLower(opts.DeviceFilter)
 		filtered = make([]DeviceResponse, 0, len(devices))
 		for _, d := range devices {
-			if strings.Contains(d.DeviceID, opts.DeviceFilter) ||
-				strings.Contains(d.DeviceModel, opts.DeviceFilter) {
+			if strings.Contains(strings.ToLower(d.DeviceID), lowerFilter) ||
+				strings.Contains(strings.ToLower(d.DeviceModel), lowerFilter) {
 				filtered = append(filtered, d)
 			}
 		}
@@ -265,7 +266,8 @@ func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
 	highest.RiskComposite = -1
 	var sumRisk float64
 	for _, d := range devices {
-		if d.RiskSeverity == "warning" || d.RiskSeverity == "critical" {
+		sev := strings.ToLower(d.RiskSeverity)
+		if sev == "warning" || sev == "critical" {
 			hasWarnOrCrit = true
 		}
 		if d.RiskComposite > highest.RiskComposite {
@@ -346,6 +348,9 @@ func fetchCloudMetrics(apiKey string) (*cloudMetrics, error) {
 
 // RenderJSON writes the fleet response as formatted JSON to w.
 func RenderJSON(w io.Writer, fleet *FleetResponse) error {
+	if fleet == nil {
+		fleet = &FleetResponse{}
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(fleet)
