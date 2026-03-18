@@ -237,6 +237,7 @@ func run() int {
 		if cfg.API.Enabled {
 			bufCh := make(chan normalizer.TelemetryPoint, 256)
 			bridgeCh := make(chan normalizer.TelemetryPoint, 256)
+			var bridgeDropped uint64
 			go func() {
 				defer close(bufCh)
 				defer close(bridgeCh)
@@ -245,6 +246,11 @@ func run() int {
 					select {
 					case bridgeCh <- pt:
 					default:
+						bridgeDropped++
+						if bridgeDropped%100 == 1 {
+							logger.Warn("API bridge channel full, dropping telemetry point",
+								"source", pt.Source, "adapter", pt.AdapterName, "total_dropped", bridgeDropped)
+						}
 					}
 				}
 			}()
