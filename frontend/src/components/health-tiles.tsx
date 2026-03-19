@@ -104,7 +104,7 @@ function ThermalRangeGraphic({ idleTemp, peakTemp, available }: { idleTemp?: num
 
   return (
     <div className="flex items-center gap-1.5 h-6">
-      <span className="text-[9px] text-[#64748B]">{idleTemp}°</span>
+      <span className="text-[9px] text-[#64748B]">{idleTemp.toFixed(1)}°</span>
       <svg width="40" height="6" viewBox="0 0 40 6">
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -116,7 +116,7 @@ function ThermalRangeGraphic({ idleTemp, peakTemp, available }: { idleTemp?: num
         </defs>
         <rect x="0" y="0" width="40" height="6" rx="3" fill={`url(#${gradientId})`} />
       </svg>
-      <span className="text-[9px] text-[#64748B]">{peakTemp}°</span>
+      <span className="text-[9px] text-[#64748B]">{peakTemp.toFixed(1)}°</span>
     </div>
   )
 }

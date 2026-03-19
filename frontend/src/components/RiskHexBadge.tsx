@@ -42,7 +42,8 @@ export function RiskHexBadge({
         ? '#22C55E'
         : '#94A3B8'
 
-  const scoreFontSize = size === 'sm' ? 20 : size === 'md' ? 32 : 48
+  const baseScoreFontSize = size === 'sm' ? 20 : size === 'md' ? 32 : 48
+  const scoreFontSize = score >= 10 ? baseScoreFontSize * 0.8 : baseScoreFontSize
   const labelFontSize = size === 'sm' ? 8 : size === 'md' ? 10 : 12
 
   return (
@@ -69,7 +70,7 @@ export function RiskHexBadge({
           fill="#E8ECF4"
           fontFamily="system-ui, sans-serif"
         >
-          {score.toFixed(1)}
+          {score >= 10 ? score.toFixed(0) : score.toFixed(1)}
         </text>
         <text
           x="50"

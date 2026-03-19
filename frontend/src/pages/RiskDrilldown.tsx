@@ -88,7 +88,7 @@ export function RiskDrilldown() {
             />
             <div className="text-center space-y-1">
               <p className="text-sm text-[#94A3B8]">
-                Composite: <span className="text-[#E8ECF4] font-medium">{score.toFixed(1)}</span>
+                Composite: <span className="text-[#E8ECF4] font-medium">{score >= 10 ? score.toFixed(0) : score.toFixed(1)}</span>
               </p>
               <p className="text-sm text-[#94A3B8]">
                 Severity: <span style={{ color: hexSeverity === 'normal' ? '#22C55E' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{severity ?? '—'}</span>
