@@ -8,3 +8,4 @@ keldron-agent.dev.yaml
 .env
 .DS_Store
 coverage.out
+internal/api/static/

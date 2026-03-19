@@ -3,11 +3,45 @@
 
 package api
 
-import "net/http"
+import (
+	"embed"
+	"io/fs"
+	"net/http"
+	"strings"
+)
 
-// HandleFrontend serves a placeholder for the embedded dashboard (OSS-027).
-func HandleFrontend(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusNotFound)
-	_, _ = w.Write([]byte("Dashboard coming in OSS-027"))
+//go:embed all:static
+var frontendFS embed.FS
+
+func serveFrontend() http.Handler {
+	stripped, err := fs.Sub(frontendFS, "static")
+	if err != nil {
+		panic(err)
+	}
+	fileServer := http.FileServer(http.FS(stripped))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		path := r.URL.Path
+		if path == "/" {
+			path = "/index.html"
+		}
+
+		trimmed := strings.TrimPrefix(path, "/")
+		if trimmed == "" {
+			trimmed = "index.html"
+		}
+		if f, err := stripped.Open(trimmed); err == nil {
+			f.Close()
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		r.URL.Path = "/"
+		fileServer.ServeHTTP(w, r)
+	})
 }

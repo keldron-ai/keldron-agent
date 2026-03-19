@@ -54,7 +54,7 @@ func NewServer(holder *StateHolder, version string, pollInterval time.Duration, 
 	mux.HandleFunc("GET /api/v1/risk", s.handleRisk)
 	mux.HandleFunc("GET /api/v1/processes", s.handleProcesses)
 	mux.HandleFunc("GET /ws/telemetry", s.handleWebSocket)
-	mux.HandleFunc("GET /", HandleFrontend)
+	mux.Handle("/", serveFrontend())
 
 	return s
 }
