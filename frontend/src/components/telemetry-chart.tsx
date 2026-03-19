@@ -1,4 +1,4 @@
-import { useState, useId, useEffect } from "react"
+import { useState, useId, useEffect, useMemo } from "react"
 
 interface TelemetryChartProps {
   title: string
@@ -36,6 +36,15 @@ export function TelemetryChart({
     setMounted(true)
   }, [])
 
+  // Slice data based on selected range (data assumed to cover 30m window)
+  const filteredData = useMemo(() => {
+    if (data.length === 0) return data
+    const ratios: Record<string, number> = { "30m": 1, "1H": 1, "6H": 1 }
+    const ratio = ratios[activeRange] ?? 1
+    const start = Math.floor(data.length * (1 - ratio))
+    return data.slice(start)
+  }, [data, activeRange])
+
   const width = 400
   const height = 160
   const padding = { top: 10, right: 50, bottom: 10, left: 10 }
@@ -48,11 +57,11 @@ export function TelemetryChart({
     return padding.top + chartHeight * (1 - normalized)
   }
 
-  const safeDenom = Math.max(1, data.length - 1)
+  const safeDenom = Math.max(1, filteredData.length - 1)
 
-  const points = data.length === 0
+  const points = filteredData.length === 0
     ? ""
-    : data
+    : filteredData
         .map((value, index) => {
           const x = padding.left + (index / safeDenom) * chartWidth
           const y = normalizeY(value)
@@ -60,18 +69,18 @@ export function TelemetryChart({
         })
         .join(" ")
 
-  const areaPath = data.length === 0
+  const areaPath = filteredData.length === 0
     ? ""
     : `
-    M ${padding.left},${normalizeY(data[0])}
-    ${data
+    M ${padding.left},${normalizeY(filteredData[0])}
+    ${filteredData
       .map((value, index) => {
         const x = padding.left + (index / safeDenom) * chartWidth
         const y = normalizeY(value)
         return `L ${x},${y}`
       })
       .join(" ")}
-    L ${padding.left + (data.length - 1) / safeDenom * chartWidth},${padding.top + chartHeight}
+    L ${padding.left + (filteredData.length - 1) / safeDenom * chartWidth},${padding.top + chartHeight}
     L ${padding.left},${padding.top + chartHeight}
     Z
   `
@@ -82,7 +91,7 @@ export function TelemetryChart({
   const lineLength = chartWidth * 1.5
 
   // Event label position (near right edge at current value)
-  const lastDataPoint = data.length > 0 ? data[data.length - 1] : null
+  const lastDataPoint = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null
   const eventLabelX = padding.left + chartWidth - 60
   const eventLabelY = lastDataPoint !== null ? normalizeY(lastDataPoint) - 12 : 0
 

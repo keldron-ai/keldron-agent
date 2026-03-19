@@ -43,6 +43,7 @@ export function useTelemetryStream() {
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
+  const intentionalClose = useRef(false)
 
   const addPoint = useCallback(
     (
@@ -86,8 +87,10 @@ export function useTelemetryStream() {
 
     ws.onclose = () => {
       setConnected(false)
-      console.log('[WS] Disconnected, reconnecting in 3s...')
-      reconnectTimer.current = setTimeout(connect, 3000)
+      if (!intentionalClose.current) {
+        console.log('[WS] Disconnected, reconnecting in 3s...')
+        reconnectTimer.current = setTimeout(connect, 3000)
+      }
     }
 
     ws.onerror = () => {
@@ -100,6 +103,7 @@ export function useTelemetryStream() {
   useEffect(() => {
     connect()
     return () => {
+      intentionalClose.current = true
       clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }

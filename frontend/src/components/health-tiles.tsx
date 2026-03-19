@@ -1,6 +1,6 @@
 import * as React from "react"
 import { HelpCircle, Zap } from "lucide-react"
-const { useState } = React
+const { useState, useId } = React
 
 type Rating = "normal" | "excellent" | "stable" | "compressed" | "slow" | "elevated" | "critical" | "poor" | "unstable"
 
@@ -59,6 +59,8 @@ function getRatingColor(rating: Rating): string {
 
 // Compact thermal range indicator (horizontal)
 function ThermalRangeGraphic({ idleTemp, peakTemp, available }: { idleTemp?: number; peakTemp?: number; available: boolean }) {
+  const gradientId = useId()
+
   if (!available || !idleTemp || !peakTemp) {
     return (
       <div className="flex items-center justify-center h-6 opacity-30">
@@ -74,14 +76,14 @@ function ThermalRangeGraphic({ idleTemp, peakTemp, available }: { idleTemp?: num
       <span className="text-[9px] text-[#64748B]">{idleTemp}°</span>
       <svg width="40" height="6" viewBox="0 0 40 6">
         <defs>
-          <linearGradient id="thermalGradientH" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#475569" />
             <stop offset="25%" stopColor="#00C9B0" />
             <stop offset="75%" stopColor="#00C9B0" />
             <stop offset="100%" stopColor="#475569" />
           </linearGradient>
         </defs>
-        <rect x="0" y="0" width="40" height="6" rx="3" fill="url(#thermalGradientH)" />
+        <rect x="0" y="0" width="40" height="6" rx="3" fill={`url(#${gradientId})`} />
       </svg>
       <span className="text-[9px] text-[#64748B]">{peakTemp}°</span>
     </div>
