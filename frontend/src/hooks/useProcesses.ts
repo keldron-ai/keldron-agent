@@ -22,8 +22,17 @@ export function useProcesses() {
     const fetchProcesses = async () => {
       try {
         const res = await fetch('/api/v1/processes', { signal: controller.signal })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        setProcesses(await res.json())
+        let data: ProcessList | null = null
+        try {
+          data = await res.json()
+        } catch {
+          /* body may be empty or invalid */
+        }
+        if (res.ok && data) {
+          setProcesses(data)
+        } else if (data && typeof data.supported === 'boolean') {
+          setProcesses(data)
+        }
       } catch {
         /* silent fail — processes are optional */
       }

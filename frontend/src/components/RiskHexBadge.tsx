@@ -7,6 +7,7 @@ interface RiskHexBadgeProps {
   severity: Severity
   trend: Trend
   size?: Size
+  trendText?: string
 }
 
 const SIZE_MAP = { sm: 64, md: 120, lg: 180 } as const
@@ -26,6 +27,7 @@ export function RiskHexBadge({
   severity,
   trend,
   size = 'md',
+  trendText,
 }: RiskHexBadgeProps) {
   const dim = SIZE_MAP[size]
   const borderColor = SEVERITY_COLORS[severity]
@@ -88,6 +90,11 @@ export function RiskHexBadge({
       >
         {trendArrow}
       </span>
+      {trendText && (
+        <span className="mt-1 text-xs text-[#94A3B8] block">
+          {trendText}
+        </span>
+      )}
     </div>
   )
 }

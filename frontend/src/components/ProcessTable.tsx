@@ -47,7 +47,7 @@ export function ProcessTable({
       >
         <Cpu className="w-8 h-8 text-[#64748B] shrink-0" />
         <p className="text-sm text-[#94A3B8]">
-          {note ?? 'Process enumeration is not supported by this adapter.'}
+          {note ?? 'Process enumeration not available for this adapter'}
         </p>
       </div>
     )

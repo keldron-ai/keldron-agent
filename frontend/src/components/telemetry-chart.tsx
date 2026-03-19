@@ -22,7 +22,11 @@ interface TelemetryChartProps {
   color: string
   thresholdValue?: number
   thresholdLabel?: string
+  thresholdStrokeColor?: string
   yDomain?: [number, number]
+  currentValue?: number
+  currentValueSeverity?: 'normal' | 'warning' | 'critical'
+  showHighTempBadge?: boolean
 }
 
 function formatTimeLabel(ts: number): string {
@@ -37,7 +41,11 @@ export function TelemetryChart({
   color,
   thresholdValue,
   thresholdLabel,
+  thresholdStrokeColor = '#F59E0B',
   yDomain,
+  currentValue,
+  currentValueSeverity = 'normal',
+  showHighTempBadge = false,
 }: TelemetryChartProps) {
   const chartData = data.map((p) => ({
     ...p,
@@ -49,7 +57,13 @@ export function TelemetryChart({
   const maxVal = yDomain?.[1] ?? (values.length ? Math.max(...values, 1) : 100)
   const domain: [number, number] = [minVal, maxVal]
 
-  const lastValue = chartData.length > 0 ? chartData[chartData.length - 1].value : null
+  const displayValue = currentValue ?? (chartData.length > 0 ? chartData[chartData.length - 1].value : null)
+  const valueColor =
+    currentValueSeverity === 'critical'
+      ? '#EF4444'
+      : currentValueSeverity === 'warning'
+        ? '#F59E0B'
+        : '#00C9B0'
 
   return (
     <div
@@ -59,13 +73,26 @@ export function TelemetryChart({
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-[#E8ECF4]">{title}</span>
-        {lastValue != null && (
-          <span className="text-sm font-semibold text-[#E8ECF4]">
-            {lastValue.toFixed(1)}{unit}
-          </span>
-        )}
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-[#E8ECF4]">{title}</span>
+          {displayValue != null && (
+            <span className="text-sm font-semibold" style={{ color: valueColor }}>
+              {displayValue.toFixed(0)}{unit}
+            </span>
+          )}
+          {showHighTempBadge && (
+            <span
+              className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                color: '#F59E0B',
+              }}
+            >
+              [HIGH TEMP]
+            </span>
+          )}
+        </div>
       </div>
       <div className="h-[200px] w-full">
         {chartData.length >= 2 ? (
@@ -111,13 +138,13 @@ export function TelemetryChart({
               {thresholdValue != null && (
                 <ReferenceLine
                   y={thresholdValue}
-                  stroke="#F59E0B"
+                  stroke={thresholdStrokeColor}
                   strokeDasharray="6 4"
                   strokeWidth={1.5}
                   label={{
                     value: thresholdLabel ?? '',
                     position: 'right',
-                    fill: '#F59E0B',
+                    fill: thresholdStrokeColor,
                     fontSize: 10,
                   }}
                 />

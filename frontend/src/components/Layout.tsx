@@ -64,7 +64,11 @@ export function Layout() {
               {connected ? 'Live' : 'Reconnecting...'}
             </span>
           </div>
-          <span className="text-[11px] text-[#64748B]">v{version}</span>
+          <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
+            <span>v{version}</span>
+            <span>·</span>
+            <span>{status?.agent?.cloud_connected ? 'Cloud' : 'Local mode'}</span>
+          </div>
           <a
             href="https://keldron.ai"
             target="_blank"

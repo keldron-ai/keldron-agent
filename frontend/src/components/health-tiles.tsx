@@ -1,6 +1,7 @@
 import * as React from "react"
 import { HelpCircle, Zap } from "lucide-react"
-const { useState, useId } = React
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+const { useId } = React
 
 type Rating = "normal" | "excellent" | "stable" | "compressed" | "slow" | "elevated" | "critical" | "poor" | "unstable"
 
@@ -13,8 +14,36 @@ interface HealthTileData {
   available: boolean
 }
 
+interface StatusHealth {
+  thermal_dynamic_range?: {
+    available: boolean
+    tdr_celsius: number | null
+    idle_temp_c: number | null
+    peak_temp_c: number | null
+    rating: string | null
+  }
+  thermal_recovery?: {
+    available: boolean
+    last_recovery_seconds: number | null
+    rating: string | null
+    recovery_count: number
+  }
+  perf_per_watt?: {
+    available: boolean
+    value: number | null
+    unit: string
+  }
+  thermal_stability?: {
+    available: boolean
+    std_dev_celsius: number | null
+    rating: string | null
+    under_sustained_load: boolean
+  }
+}
+
 interface HealthTilesProps {
-  metrics: HealthTileData[]
+  metrics?: HealthTileData[]
+  health?: StatusHealth | null
 }
 
 type MetricKey = "thermal" | "recovery" | "efficiency" | "stability"
@@ -34,10 +63,10 @@ const labels: Record<MetricKey, string> = {
 }
 
 const unavailableMessages: Record<MetricKey, string> = {
-  thermal: "Establishing...",
-  recovery: "Waiting...",
-  efficiency: "No data",
-  stability: "Needs load",
+  thermal: "Establishing baseline",
+  recovery: "No recovery data yet",
+  efficiency: "(power < 1W)",
+  stability: "(no sustained load)",
 }
 
 function getRatingColor(rating: Rating): string {
@@ -136,34 +165,22 @@ function StabilityWaveGraphic({ available, rating }: { available: boolean; ratin
   )
 }
 
-function TooltipWrapper({ children, tooltip }: { children: React.ReactNode; tooltip: string }) {
-  const [show, setShow] = useState(false)
-  const tooltipId = useId()
-
+function HealthTooltip({ children, content }: { children: React.ReactNode; content: string }) {
   return (
-    <div className="relative inline-flex items-center gap-0.5">
-      {children}
-      <button
-        type="button"
-        className="text-[#64748B] hover:text-[#94A3B8] transition-colors"
-        aria-label="Help"
-        aria-describedby={show ? tooltipId : undefined}
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onFocus={() => setShow(true)}
-        onBlur={() => setShow(false)}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-0.5 cursor-help">
+          {children}
+          <HelpCircle size={10} className="text-[#64748B] hover:text-[#94A3B8]" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="bg-[#0F172A] border border-white/10 text-[#E8ECF4] max-w-[240px] text-xs"
       >
-        <HelpCircle size={10} />
-      </button>
-      <div
-        id={tooltipId}
-        role="tooltip"
-        aria-hidden={!show}
-        className={`absolute left-1/2 -translate-x-1/2 top-5 z-20 w-40 px-2 py-1.5 bg-[#1E293B] border border-white/10 rounded-md text-[10px] text-[#E8ECF4] leading-relaxed shadow-lg whitespace-normal ${show ? "" : "hidden"}`}
-      >
-        {tooltip}
-      </div>
-    </div>
+        {content}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -228,34 +245,78 @@ function HealthTile({ metric }: { metric: HealthTileData }) {
       </div>
 
       {/* Label with tooltip */}
-      <TooltipWrapper tooltip={tooltips[metric.type]}>
+      <HealthTooltip content={tooltips[metric.type]}>
         <span className="text-[10px] text-[#94A3B8]">{labels[metric.type]}</span>
-      </TooltipWrapper>
+      </HealthTooltip>
     </div>
   )
 }
 
-export function HealthTiles({ metrics }: HealthTilesProps) {
+function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTileData[] {
+  if (!health) {
+    return [
+      { type: "thermal", available: false },
+      { type: "recovery", available: false },
+      { type: "efficiency", available: false },
+      { type: "stability", available: false },
+    ]
+  }
+  const tdr = health.thermal_dynamic_range
+  const tre = health.thermal_recovery
+  const ppw = health.perf_per_watt
+  const stab = health.thermal_stability
+
+  const thermal: HealthTileData = {
+    type: "thermal",
+    available: !!(tdr?.available && tdr.tdr_celsius != null),
+    value: tdr?.tdr_celsius != null ? `${tdr.tdr_celsius.toFixed(0)}°C` : undefined,
+    idleTemp: tdr?.idle_temp_c ?? undefined,
+    peakTemp: tdr?.peak_temp_c ?? undefined,
+    rating: (tdr?.rating?.toLowerCase() as Rating) ?? undefined,
+  }
+
+  const hasRecoveryData = tre && (tre.recovery_count > 0 || tre.last_recovery_seconds != null)
+  const recovery: HealthTileData = {
+    type: "recovery",
+    available: !!(hasRecoveryData && tre.last_recovery_seconds != null),
+    value: tre?.last_recovery_seconds != null ? `~${tre.last_recovery_seconds}s` : undefined,
+    rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+  }
+
+  const efficiency: HealthTileData = {
+    type: "efficiency",
+    available: !!(ppw?.available && ppw.value != null),
+    value: ppw?.value != null ? `${ppw.value.toFixed(1)} ${ppw.unit}`.trim() : undefined,
+  }
+
+  const stability: HealthTileData = {
+    type: "stability",
+    available: !!(stab?.under_sustained_load && stab.std_dev_celsius != null),
+    value: stab?.std_dev_celsius != null ? `±${stab.std_dev_celsius.toFixed(1)}°C` : undefined,
+    rating: (stab?.rating?.toLowerCase() as Rating) ?? undefined,
+  }
+
+  const metrics: HealthTileData[] = [thermal, recovery, efficiency, stability]
+  return metrics
+}
+
+export function HealthTiles({ metrics: metricsProp, health }: HealthTilesProps) {
+  const metrics = metricsProp ?? mapHealthToMetrics(health)
+  const hasRecoveryData = health?.thermal_recovery != null
+  const displayMetrics = hasRecoveryData ? metrics : metrics.filter((m) => m.type !== "recovery")
+
   return (
     <div className="border-t border-[rgba(148,163,184,0.1)] pt-3 mt-4">
       <h4
         className="text-[10px] uppercase text-[#94A3B8] mb-2"
         style={{ letterSpacing: "0.08em" }}
       >
-        Device Health
+        DEVICE HEALTH
       </h4>
-      
-      {/* Single horizontal row of 4 tiles */}
-      <div className="flex items-stretch justify-between">
-        {metrics.map((metric, index) => (
-          <div
-            key={metric.type}
-            className={`flex-1 ${
-              index < metrics.length - 1
-                ? "border-r border-[rgba(148,163,184,0.1)]"
-                : ""
-            }`}
-          >
+
+      <div className="grid grid-cols-4 gap-4">
+        {displayMetrics.map((metric) => (
+          <div key={metric.type} className="rounded-lg border border-white/[0.06] p-3 bg-white/[0.02]">
             <HealthTile metric={metric} />
           </div>
         ))}
