@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Thermometer, Zap, Activity, GitBranch } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
+import { SubScoreBars } from '@/components/SubScoreBars'
 import { SubScoreCard } from '@/components/SubScoreCard'
 import { TelemetryChart } from '@/components/telemetry-chart'
 import { ProcessTable } from '@/components/ProcessTable'
@@ -54,14 +55,6 @@ export function RiskDrilldown() {
   const throttleC = (subScores?.thermal?.details?.throttle_threshold_c as number) ?? 95
   const tdpW = (subScores?.power?.details?.tdp_w as number) ?? 100
 
-  const totalContribution =
-    subScores
-      ? subScores.thermal.weighted_contribution +
-        subScores.power.weighted_contribution +
-        subScores.volatility.weighted_contribution +
-        subScores.correlated.weighted_contribution
-      : 0
-
   return (
     <div className="flex-1 p-6 space-y-6 overflow-auto">
       {/* Back + header */}
@@ -77,7 +70,7 @@ export function RiskDrilldown() {
         </h1>
       </div>
 
-      {/* Composite score + contribution bar */}
+      {/* Composite score + sub-score bars */}
       <section
         className="rounded-xl border p-6"
         style={{
@@ -106,59 +99,7 @@ export function RiskDrilldown() {
             </div>
           </div>
           <div className="flex-1 w-full">
-            {subScores && totalContribution > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-[#94A3B8] uppercase">
-                  Contribution
-                </h3>
-                <div className="h-6 flex rounded overflow-hidden bg-white/5">
-                  {[
-                    {
-                      key: 'thermal',
-                      val: subScores.thermal.weighted_contribution,
-                      label: 'Thermal',
-                    },
-                    {
-                      key: 'power',
-                      val: subScores.power.weighted_contribution,
-                      label: 'Power',
-                    },
-                    {
-                      key: 'volatility',
-                      val: subScores.volatility.weighted_contribution,
-                      label: 'Vol',
-                    },
-                    {
-                      key: 'correlated',
-                      val: subScores.correlated.weighted_contribution,
-                      label: 'Cor',
-                    },
-                  ].map(({ key, val, label }) => {
-                    const pct = (val / totalContribution) * 100
-                    return (
-                      <div
-                        key={key}
-                        className="flex items-center justify-center text-[10px] font-medium text-[#E8ECF4] transition-all"
-                        style={{
-                          width: `${Math.max(0, pct)}%`,
-                          minWidth: pct > 0 ? '24px' : 0,
-                          backgroundColor:
-                            key === 'thermal'
-                              ? 'rgba(0, 201, 176, 0.3)'
-                              : key === 'power'
-                                ? 'rgba(59, 130, 246, 0.3)'
-                                : key === 'volatility'
-                                  ? 'rgba(245, 158, 11, 0.3)'
-                                  : 'rgba(148, 163, 184, 0.2)',
-                        }}
-                      >
-                        {pct > 5 ? `${label} ${val.toFixed(1)}` : ''}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            <SubScoreBars subScores={subScores} />
           </div>
         </div>
 
