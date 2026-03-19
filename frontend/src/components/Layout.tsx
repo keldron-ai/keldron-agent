@@ -67,14 +67,16 @@ export function Layout() {
             <span>·</span>
             <span>{status?.agent?.cloud_connected ? 'Cloud' : 'Local mode'}</span>
           </div>
-          <a
-            href="https://keldron.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
-          >
-            Keldron Cloud →
-          </a>
+          {status?.agent?.cloud_connected && (
+            <a
+              href="https://keldron.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
+            >
+              Keldron Cloud →
+            </a>
+          )}
         </div>
       </header>
 

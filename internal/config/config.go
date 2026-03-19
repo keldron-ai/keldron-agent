@@ -48,9 +48,10 @@ type configLoad struct {
 
 // APIConfig holds dashboard API settings (OSS-028).
 type APIConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Port    int    `yaml:"port"`
-	Host    string `yaml:"host"` // default "127.0.0.1"
+	Enabled       bool   `yaml:"enabled"`
+	Port          int    `yaml:"port"`
+	Host          string `yaml:"host"` // default "127.0.0.1"
+	HistoryPoints int    `yaml:"history_points"`
 }
 
 // AgentConfig holds core agent settings.
@@ -312,9 +313,10 @@ func Defaults() *Config {
 			MDNSAdvertise:  true,
 		},
 		API: APIConfig{
-			Enabled: true,
-			Port:    9200,
-			Host:    "127.0.0.1",
+			Enabled:       true,
+			Port:          9200,
+			Host:          "127.0.0.1",
+			HistoryPoints: 720,
 		},
 		Hub: HubConfig{
 			Enabled:        false,
@@ -355,9 +357,10 @@ func defaultConfigLoad() *configLoad {
 			MDNSAdvertise:  true,
 		},
 		API: APIConfig{
-			Enabled: true,
-			Port:    9200,
-			Host:    "127.0.0.1",
+			Enabled:       true,
+			Port:          9200,
+			Host:          "127.0.0.1",
+			HistoryPoints: 720,
 		},
 		Hub: HubConfig{
 			ListenPort:     9200,
@@ -481,6 +484,9 @@ func toConfig(load *configLoad) *Config {
 	}
 	if cfg.API.Host == "" {
 		cfg.API.Host = "127.0.0.1"
+	}
+	if cfg.API.HistoryPoints <= 0 {
+		cfg.API.HistoryPoints = 720
 	}
 	// Derive Agent.ID from DeviceName or hostname
 	if cfg.Agent.ID == "" {
@@ -624,6 +630,11 @@ func ApplyEnvOverrides(load *configLoad) {
 	}
 	if v := os.Getenv("KELDRON_API_HOST"); v != "" {
 		load.API.Host = v
+	}
+	if v := os.Getenv("KELDRON_API_HISTORY_POINTS"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			load.API.HistoryPoints = p
+		}
 	}
 	if v := os.Getenv("KELDRON_OUTPUT_STDOUT"); v != "" {
 		load.Output.Stdout = parseBool(v)
@@ -786,6 +797,9 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.API.Enabled && cfg.Output.Prometheus && cfg.API.Port == cfg.Output.PrometheusPort {
 		return fmt.Errorf("api.port and output.prometheus_port must differ when both api.enabled and output.prometheus are true")
+	}
+	if cfg.API.Enabled && (cfg.API.HistoryPoints < 10 || cfg.API.HistoryPoints > 10000) {
+		return fmt.Errorf("api.history_points must be between 10 and 10000 (got %d)", cfg.API.HistoryPoints)
 	}
 
 	for name, acfg := range cfg.Adapters {

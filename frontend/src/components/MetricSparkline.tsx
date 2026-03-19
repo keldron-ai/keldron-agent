@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import {
   AreaChart,
   Area,
@@ -8,10 +9,7 @@ import {
   Tooltip,
 } from 'recharts'
 
-export interface SparklinePoint {
-  timestamp: number
-  value: number
-}
+import type { SparklinePoint } from '@/types/sparkline'
 
 type Severity = 'normal' | 'warning' | 'critical'
 
@@ -21,7 +19,6 @@ interface MetricSparklineProps {
   unit: string
   history: SparklinePoint[]
   thresholdValue?: number
-  thresholdLabel?: string
   severity?: Severity
   min?: number
   max?: number
@@ -61,11 +58,11 @@ export function MetricSparkline({
   unit,
   history,
   thresholdValue,
-  thresholdLabel,
   severity,
   min,
   max,
 }: MetricSparklineProps) {
+  const gradientId = useId().replace(/:/g, '')
   const trend = computeTrend(history)
   const chartData = history.map((p) => ({
     ...p,
@@ -100,7 +97,7 @@ export function MetricSparkline({
               margin={{ top: 2, right: 2, bottom: 2, left: 2 }}
             >
               <defs>
-                <linearGradient id="sparkline-fill" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#00C9B0" stopOpacity={0.2} />
                   <stop offset="100%" stopColor="#00C9B0" stopOpacity={0} />
                 </linearGradient>
@@ -132,7 +129,7 @@ export function MetricSparkline({
                 dataKey="value"
                 stroke="#00C9B0"
                 strokeWidth={1.5}
-                fill="url(#sparkline-fill)"
+                fill={`url(#${gradientId})`}
               />
             </AreaChart>
           </ResponsiveContainer>

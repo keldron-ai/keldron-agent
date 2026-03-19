@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
@@ -41,6 +41,16 @@ function formatMemoryGB(bytes: number | undefined): string {
   return `${gb.toFixed(0)} GB Unified Memory`
 }
 
+function getNumericDetail(
+  details: Record<string, unknown> | undefined,
+  key: string
+): number | undefined {
+  if (!details) return undefined
+  const v = details[key]
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  return undefined
+}
+
 function getTrendText(trend: 'stable' | 'rising' | 'falling'): string {
   switch (trend) {
     case 'rising':
@@ -58,6 +68,13 @@ const TIME_RANGES = [
   { key: '6H' as const, label: '6H', locked: true },
   { key: '24H' as const, label: '24H', locked: true },
 ]
+
+const TIME_RANGE_MS: Record<(typeof TIME_RANGES)[number]['key'], number> = {
+  '30m': 30 * 60 * 1000,
+  '1H': 60 * 60 * 1000,
+  '6H': 6 * 60 * 60 * 1000,
+  '24H': 24 * 60 * 60 * 1000,
+}
 
 export function DeviceDashboard() {
   const [timeRange, setTimeRange] = useState<'30m' | '1H' | '6H' | '24H'>('30m')
@@ -91,9 +108,23 @@ export function DeviceDashboard() {
   const memPct = telemetry?.memory_used_pct ?? 0
 
   const subScores = riskDetail?.sub_scores
-  const throttleC = subScores?.thermal?.details
-    ?.throttle_threshold_c as number | undefined
-  const tdpW = subScores?.power?.details?.tdp_w as number | undefined
+  const throttleC = getNumericDetail(
+    subScores?.thermal?.details,
+    'throttle_threshold_c'
+  )
+  const tdpW = getNumericDetail(subScores?.power?.details, 'tdp_w')
+
+  const windowMs = TIME_RANGE_MS[timeRange]
+  const chartHistory = useMemo(() => {
+    const cutoff = Date.now() - windowMs
+    return {
+      temperature: history.temperature.filter((p) => p.timestamp > cutoff),
+      utilization: history.utilization.filter((p) => p.timestamp > cutoff),
+      power: history.power.filter((p) => p.timestamp > cutoff),
+      memory: history.memory.filter((p) => p.timestamp > cutoff),
+      risk: history.risk.filter((p) => p.timestamp > cutoff),
+    }
+  }, [history, windowMs])
 
   const tempSeverity: 'normal' | 'warning' | 'critical' =
     throttleC != null && temp >= throttleC * 0.7
@@ -205,22 +236,25 @@ export function DeviceDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TelemetryChart
               title="SoC Temperature"
-              data={history.temperature}
+              data={chartHistory.temperature}
               unit="°C"
               color="#00C9B0"
               thresholdValue={throttleC}
               thresholdLabel="Throttle"
               thresholdStrokeColor="#EF4444"
               yDomain={
-                history.temperature.length > 0 && throttleC != null
+                chartHistory.temperature.length > 0 && throttleC != null
                   ? [
                       Math.min(
-                        Math.min(...history.temperature.map((p) => p.value)),
-                        throttleC - 20,
-                        0
+                        Math.min(
+                          ...chartHistory.temperature.map((p) => p.value)
+                        ),
+                        throttleC - 20
                       ),
                       Math.max(
-                        Math.max(...history.temperature.map((p) => p.value)),
+                        Math.max(
+                          ...chartHistory.temperature.map((p) => p.value)
+                        ),
                         throttleC + 10,
                         100
                       ),
@@ -233,7 +267,7 @@ export function DeviceDashboard() {
             />
             <TelemetryChart
               title="GPU Utilization"
-              data={history.utilization}
+              data={chartHistory.utilization}
               unit="%"
               color="#3B82F6"
               yDomain={[0, 100]}
@@ -241,18 +275,18 @@ export function DeviceDashboard() {
             />
             <TelemetryChart
               title="System Power"
-              data={history.power}
+              data={chartHistory.power}
               unit="W"
               color="#F59E0B"
               thresholdValue={tdpW}
               thresholdLabel={tdpW != null ? `TDP ${tdpW}W` : undefined}
               thresholdStrokeColor="#F59E0B"
               yDomain={
-                history.power.length > 0 && tdpW != null
+                chartHistory.power.length > 0 && tdpW != null
                   ? [
                       0,
                       Math.max(
-                        Math.max(...history.power.map((p) => p.value)),
+                        Math.max(...chartHistory.power.map((p) => p.value)),
                         tdpW * 1.1,
                         150
                       ),
@@ -263,7 +297,7 @@ export function DeviceDashboard() {
             />
             <TelemetryChart
               title="Unified Memory"
-              data={history.memory}
+              data={chartHistory.memory}
               unit="%"
               color="#00E5CC"
               yDomain={[0, 100]}

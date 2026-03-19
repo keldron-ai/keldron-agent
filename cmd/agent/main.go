@@ -185,7 +185,7 @@ func run() int {
 	var historyBuffer *api.HistoryBuffer
 	if cfg.API.Enabled {
 		stateHolder = api.NewStateHolder()
-		historyBuffer = api.NewHistoryBuffer(720)
+		historyBuffer = api.NewHistoryBuffer(cfg.API.HistoryPoints)
 		stateHolder.SetHistoryBuffer(historyBuffer)
 		healthEngine = health.NewEngine()
 	}

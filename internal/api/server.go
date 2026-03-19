@@ -358,7 +358,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var points []TelemetryPoint
+	points := make([]TelemetryPoint, 0)
 	if s.historyBuffer != nil {
 		since := time.Now().UTC().Add(-window)
 		points = s.historyBuffer.Points(since)

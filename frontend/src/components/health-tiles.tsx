@@ -165,14 +165,26 @@ function StabilityWaveGraphic({ available, rating }: { available: boolean; ratin
   )
 }
 
-function HealthTooltip({ children, content }: { children: React.ReactNode; content: string }) {
+function HealthTooltip({
+  children,
+  content,
+  label,
+}: {
+  children: React.ReactNode
+  content: string
+  label: string
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-0.5 cursor-help">
+        <button
+          type="button"
+          className="inline-flex items-center gap-0.5 cursor-help rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00C9B0]"
+          aria-label={`${label}: more information`}
+        >
           {children}
-          <HelpCircle size={10} className="text-[#64748B] hover:text-[#94A3B8]" />
-        </span>
+          <HelpCircle size={10} className="text-[#64748B] hover:text-[#94A3B8] shrink-0" aria-hidden />
+        </button>
       </TooltipTrigger>
       <TooltipContent
         side="top"
@@ -245,7 +257,7 @@ function HealthTile({ metric }: { metric: HealthTileData }) {
       </div>
 
       {/* Label with tooltip */}
-      <HealthTooltip content={tooltips[metric.type]}>
+      <HealthTooltip content={tooltips[metric.type]} label={labels[metric.type]}>
         <span className="text-[10px] text-[#94A3B8]">{labels[metric.type]}</span>
       </HealthTooltip>
     </div>
@@ -302,7 +314,10 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
 
 export function HealthTiles({ metrics: metricsProp, health }: HealthTilesProps) {
   const metrics = metricsProp ?? mapHealthToMetrics(health)
-  const hasRecoveryData = health?.thermal_recovery != null
+  const hasRecoveryData =
+    metricsProp !== undefined
+      ? metrics.some((m) => m.type === "recovery")
+      : health?.thermal_recovery != null
   const displayMetrics = hasRecoveryData ? metrics : metrics.filter((m) => m.type !== "recovery")
 
   return (

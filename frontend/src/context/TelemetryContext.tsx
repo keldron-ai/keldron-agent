@@ -7,6 +7,8 @@ import React, {
   useCallback,
 } from 'react'
 
+import type { SparklinePoint } from '@/types/sparkline'
+
 interface TelemetryUpdate {
   type: 'telemetry_update'
   timestamp: string
@@ -29,11 +31,6 @@ interface TelemetryUpdate {
     stability_celsius: number | null
     perf_per_watt: number | null
   }
-}
-
-interface SparklinePoint {
-  timestamp: number
-  value: number
 }
 
 interface DeviceStatus {
@@ -150,6 +147,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
+  const shouldReconnectRef = useRef(true)
 
   const addPoint = useCallback(
     (
@@ -235,10 +233,18 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     const fetchProcesses = async () => {
       try {
         const res = await fetch('/api/v1/processes')
-        if (!res.ok) return
-        const data = await res.json()
-        if (data && typeof data.supported === 'boolean') {
-          setProcesses(data)
+        let data: unknown
+        try {
+          data = await res.json()
+        } catch {
+          return
+        }
+        if (
+          data &&
+          typeof data === 'object' &&
+          typeof (data as { supported?: unknown }).supported === 'boolean'
+        ) {
+          setProcesses(data as ProcessList)
         }
       } catch {
         /* silent */
@@ -274,7 +280,9 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
 
     ws.onclose = () => {
       setConnected(false)
-      reconnectTimer.current = setTimeout(connectWS, 3000)
+      if (shouldReconnectRef.current) {
+        reconnectTimer.current = setTimeout(connectWS, 3000)
+      }
     }
 
     ws.onerror = () => ws.close()
@@ -282,8 +290,10 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   }, [addPoint])
 
   useEffect(() => {
+    shouldReconnectRef.current = true
     connectWS()
     return () => {
+      shouldReconnectRef.current = false
       clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }

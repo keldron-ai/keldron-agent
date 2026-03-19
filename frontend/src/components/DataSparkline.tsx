@@ -1,7 +1,4 @@
-interface SparklinePoint {
-  timestamp: number
-  value: number
-}
+import type { SparklinePoint } from '@/types/sparkline'
 
 interface DataSparklineProps {
   data: SparklinePoint[]

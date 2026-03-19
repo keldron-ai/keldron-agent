@@ -10,10 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-export interface SparklinePoint {
-  timestamp: number
-  value: number
-}
+import type { SparklinePoint } from '@/types/sparkline'
 
 interface TelemetryChartProps {
   title: string

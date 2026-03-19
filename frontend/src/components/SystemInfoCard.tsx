@@ -31,8 +31,9 @@ function formatUptime(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
   const days = Math.floor(seconds / 86400)
-  const hours = Math.round((seconds % 86400) / 3600)
-  const mins = Math.round(((seconds % 86400) % 3600) / 60)
+  const rem = seconds % 86400
+  const hours = Math.floor(rem / 3600)
+  const mins = Math.floor((rem % 3600) / 60)
   return `${days}d ${hours}h ${mins}m`
 }
 

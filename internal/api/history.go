@@ -27,35 +27,53 @@ type HistoryBuffer struct {
 	mu     sync.RWMutex
 	points []TelemetryPoint
 	max    int
+	head   int
+	count  int
 }
 
 // NewHistoryBuffer creates a new buffer with capacity for maxPoints.
 func NewHistoryBuffer(maxPoints int) *HistoryBuffer {
+	if maxPoints < 0 {
+		maxPoints = 0
+	}
+	buf := make([]TelemetryPoint, maxPoints)
 	return &HistoryBuffer{
-		points: make([]TelemetryPoint, 0, maxPoints),
+		points: buf,
 		max:    maxPoints,
 	}
 }
 
-// Add appends a point, dropping the oldest when full.
+// Add appends a point, overwriting the oldest when full (O(1)).
 func (h *HistoryBuffer) Add(p TelemetryPoint) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if len(h.points) >= h.max {
-		copy(h.points, h.points[1:])
-		h.points = h.points[:len(h.points)-1]
+	if h.max == 0 {
+		return
 	}
-	h.points = append(h.points, p)
+	h.points[h.head] = p
+	h.head = (h.head + 1) % h.max
+	if h.count < h.max {
+		h.count++
+	}
 }
 
-// Points returns all points with timestamp >= since.
+// Points returns all points with timestamp >= since in chronological order.
 func (h *HistoryBuffer) Points(since time.Time) []TelemetryPoint {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	result := make([]TelemetryPoint, 0)
-	for _, p := range h.points {
-		if !p.Timestamp.Before(since) {
-			result = append(result, p)
+	if h.count == 0 {
+		return []TelemetryPoint{}
+	}
+	start := 0
+	if h.count == h.max {
+		start = h.head
+	}
+	result := make([]TelemetryPoint, 0, h.count)
+	for i := 0; i < h.count; i++ {
+		idx := (start + i) % h.max
+		pt := h.points[idx]
+		if !pt.Timestamp.Before(since) {
+			result = append(result, pt)
 		}
 	}
 	return result

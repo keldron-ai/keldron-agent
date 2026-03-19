@@ -1,4 +1,5 @@
-import { Cpu } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronUp, Cpu } from 'lucide-react'
 
 interface Process {
   pid: number
@@ -13,6 +14,17 @@ interface ProcessTableProps {
   processes: Process[]
   supported: boolean
   note: string | null
+}
+
+type SortKey = 'gpu_memory' | 'gpu_util' | 'runtime' | null
+
+function ariaSortFor(
+  column: Exclude<SortKey, null>,
+  sortKey: SortKey,
+  dir: 'asc' | 'desc'
+): 'ascending' | 'descending' | 'none' {
+  if (sortKey !== column) return 'none'
+  return dir === 'asc' ? 'ascending' : 'descending'
 }
 
 function formatBytes(bytes: number): string {
@@ -36,6 +48,38 @@ export function ProcessTable({
   supported,
   note,
 }: ProcessTableProps) {
+  const [sortKey, setSortKey] = useState<SortKey>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const sortedProcesses = useMemo(() => {
+    if (!sortKey) return processes
+    const mult = sortDirection === 'asc' ? 1 : -1
+    return [...processes].sort((a, b) => {
+      const va =
+        sortKey === 'gpu_memory'
+          ? a.gpu_memory_bytes
+          : sortKey === 'gpu_util'
+            ? a.gpu_utilization_pct
+            : a.runtime_seconds
+      const vb =
+        sortKey === 'gpu_memory'
+          ? b.gpu_memory_bytes
+          : sortKey === 'gpu_util'
+            ? b.gpu_utilization_pct
+            : b.runtime_seconds
+      return mult * (va - vb)
+    })
+  }, [processes, sortKey, sortDirection])
+
+  const handleSortChange = (key: Exclude<SortKey, null>) => {
+    if (sortKey === key) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
   if (!supported) {
     return (
       <div
@@ -86,14 +130,65 @@ export function ProcessTable({
           <tr className="text-[11px] text-[#94A3B8] uppercase">
             <th className="text-left font-medium px-5 pb-3">Process Name</th>
             <th className="text-left font-medium px-5 pb-3">PID</th>
-            <th className="text-right font-medium px-5 pb-3">GPU Memory</th>
-            <th className="text-right font-medium px-5 pb-3">GPU %</th>
-            <th className="text-right font-medium px-5 pb-3">Runtime</th>
+            <th
+              className="text-right font-medium px-5 pb-3"
+              aria-sort={ariaSortFor('gpu_memory', sortKey, sortDirection)}
+            >
+              <button
+                type="button"
+                onClick={() => handleSortChange('gpu_memory')}
+                className="inline-flex items-center justify-end gap-0.5 w-full uppercase text-[11px] text-[#94A3B8] hover:text-[#E8ECF4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00C9B0] rounded-sm"
+              >
+                GPU Memory
+                {sortKey === 'gpu_memory' &&
+                  (sortDirection === 'asc' ? (
+                    <ChevronUp className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ) : (
+                    <ChevronDown className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ))}
+              </button>
+            </th>
+            <th
+              className="text-right font-medium px-5 pb-3"
+              aria-sort={ariaSortFor('gpu_util', sortKey, sortDirection)}
+            >
+              <button
+                type="button"
+                onClick={() => handleSortChange('gpu_util')}
+                className="inline-flex items-center justify-end gap-0.5 w-full uppercase text-[11px] text-[#94A3B8] hover:text-[#E8ECF4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00C9B0] rounded-sm"
+              >
+                GPU %
+                {sortKey === 'gpu_util' &&
+                  (sortDirection === 'asc' ? (
+                    <ChevronUp className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ) : (
+                    <ChevronDown className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ))}
+              </button>
+            </th>
+            <th
+              className="text-right font-medium px-5 pb-3"
+              aria-sort={ariaSortFor('runtime', sortKey, sortDirection)}
+            >
+              <button
+                type="button"
+                onClick={() => handleSortChange('runtime')}
+                className="inline-flex items-center justify-end gap-0.5 w-full uppercase text-[11px] text-[#94A3B8] hover:text-[#E8ECF4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00C9B0] rounded-sm"
+              >
+                Runtime
+                {sortKey === 'runtime' &&
+                  (sortDirection === 'asc' ? (
+                    <ChevronUp className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ) : (
+                    <ChevronDown className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
+                  ))}
+              </button>
+            </th>
             <th className="text-left font-medium px-5 pb-3">User</th>
           </tr>
         </thead>
         <tbody>
-          {processes.map((proc, i) => (
+          {sortedProcesses.map((proc, i) => (
             <tr
               key={`${proc.pid}-${proc.name}`}
               className="border-t border-white/[0.06] hover:bg-white/[0.04] transition-colors"
