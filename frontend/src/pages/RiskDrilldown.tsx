@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Thermometer, Zap, Activity, GitBranch } from 'lucide-react'
-import { useRiskScore } from '@/hooks/useRiskScore'
-import { useTelemetryStream } from '@/hooks/useTelemetryStream'
-import { useProcesses } from '@/hooks/useProcesses'
+import { useTelemetry } from '@/context/TelemetryContext'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
 import { SubScoreCard } from '@/components/SubScoreCard'
 import { TelemetryChart } from '@/components/telemetry-chart'
@@ -44,9 +42,7 @@ const SUB_SCORE_CONFIG = [
 ] as const
 
 export function RiskDrilldown() {
-  const { risk } = useRiskScore()
-  const { history } = useTelemetryStream()
-  const processes = useProcesses()
+  const { risk, history, processes } = useTelemetry()
 
   const score = risk?.composite?.score ?? 0
   const severity = risk?.composite?.severity

@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Lock } from 'lucide-react'
-import { useDeviceStatus } from '@/hooks/useDeviceStatus'
-import { useTelemetryStream } from '@/hooks/useTelemetryStream'
-import { useRiskScore } from '@/hooks/useRiskScore'
-import { useProcesses } from '@/hooks/useProcesses'
+import { useTelemetry } from '@/context/TelemetryContext'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
 import { SubScoreBars } from '@/components/SubScoreBars'
 import { HealthTiles } from '@/components/health-tiles'
@@ -64,10 +61,16 @@ const TIME_RANGES = [
 
 export function DeviceDashboard() {
   const [timeRange, setTimeRange] = useState<'30m' | '1H' | '6H' | '24H'>('30m')
-  const { status, loading, error } = useDeviceStatus()
-  const { connected, latest, history } = useTelemetryStream()
-  const { risk: riskDetail } = useRiskScore()
-  const processes = useProcesses()
+  const {
+    status,
+    statusLoading,
+    statusError,
+    connected,
+    latest,
+    history,
+    risk: riskDetail,
+    processes,
+  } = useTelemetry()
 
   const telemetry = latest?.telemetry ?? status?.telemetry
   const risk = latest?.risk ?? status?.risk
@@ -100,7 +103,7 @@ export function DeviceDashboard() {
       : 'normal'
   const showHighTempBadge = throttleC != null && temp >= throttleC * 0.7
 
-  if (loading && !status) {
+  if (statusLoading && !status) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-[#94A3B8]">
         Loading...
@@ -108,10 +111,10 @@ export function DeviceDashboard() {
     )
   }
 
-  if (error) {
+  if (statusError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-[#94A3B8] gap-4">
-        <p>Failed to load: {error}</p>
+        <p>Failed to load: {statusError}</p>
         <p className="text-sm text-[#64748B]">
           Ensure the agent is running on port 9200
         </p>

@@ -1,11 +1,9 @@
 import { Outlet } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import { useDeviceStatus } from '@/hooks/useDeviceStatus'
-import { useTelemetryStream } from '@/hooks/useTelemetryStream'
+import { useTelemetry } from '@/context/TelemetryContext'
 
 export function Layout() {
-  const { status } = useDeviceStatus()
-  const { connected } = useTelemetryStream()
+  const { status, connected } = useTelemetry()
 
   const hostname = status?.device?.hostname ?? '—'
   const adapter = status?.device?.adapter ?? '—'
