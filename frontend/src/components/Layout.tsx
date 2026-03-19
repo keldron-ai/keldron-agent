@@ -55,12 +55,13 @@ export function Layout() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm">
             <span
-              className={`w-2 h-2 rounded-full ${
-                connected ? 'bg-[#10B981] animate-heartbeat' : 'bg-[#64748B]'
-              }`}
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{
+                backgroundColor: connected ? '#22C55E' : '#EF4444',
+              }}
             />
             <span className="text-[#94A3B8]">
-              {connected ? 'Live' : 'Connecting...'}
+              {connected ? 'Live' : 'Reconnecting...'}
             </span>
           </div>
           <span className="text-[11px] text-[#64748B]">v{version}</span>

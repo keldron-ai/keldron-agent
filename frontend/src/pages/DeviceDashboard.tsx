@@ -1,31 +1,21 @@
 import { Link } from 'react-router-dom'
 import { useDeviceStatus } from '@/hooks/useDeviceStatus'
 import { useTelemetryStream } from '@/hooks/useTelemetryStream'
-import { HexBadge } from '@/components/hex-badge'
-import { DataSparkline } from '@/components/DataSparkline'
-import { SystemInfo } from '@/components/system-info'
+import { useRiskScore } from '@/hooks/useRiskScore'
+import { RiskHexBadge } from '@/components/RiskHexBadge'
+import { MetricSparkline } from '@/components/MetricSparkline'
+import { SystemInfoCard } from '@/components/SystemInfoCard'
 
-function mapApiSeverityToHex(
+function mapApiSeverity(
   severity: string | undefined,
   score: number
-): 'healthy' | 'elevated' | 'warning' | 'critical' | 'offline' {
-  if (!severity) return 'offline'
+): 'normal' | 'warning' | 'critical' {
+  if (!severity) return 'normal'
   if (severity === 'critical') return 'critical'
-  if (severity === 'elevated') return 'elevated'
   if (severity === 'warning') return 'warning'
-  if (severity === 'normal') return 'healthy'
   if (score >= 80) return 'critical'
   if (score >= 60) return 'warning'
-  return 'healthy'
-}
-
-function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.round((seconds % 86400) / 3600)
-  return `${days}d ${hours}h`
+  return 'normal'
 }
 
 function getRiskSummaryText(
@@ -45,46 +35,31 @@ function getRiskSummaryText(
 export function DeviceDashboard() {
   const { status, loading, error } = useDeviceStatus()
   const { latest, history } = useTelemetryStream()
+  const { risk: riskDetail } = useRiskScore()
 
   const telemetry = latest?.telemetry ?? status?.telemetry
   const risk = latest?.risk ?? status?.risk
   const device = status?.device
   const agent = status?.agent
+  const health = status?.health ?? null
 
   const score = risk?.composite_score ?? 0
   const severity = risk?.severity
   const rawTrend = risk?.trend
   const trend: 'stable' | 'rising' | 'falling' =
     rawTrend === 'rising' || rawTrend === 'falling' ? rawTrend : 'stable'
-  const hexSeverity = mapApiSeverityToHex(severity, score)
+  const hexSeverity = mapApiSeverity(severity, score)
 
   const temp = telemetry?.temperature_c ?? 0
   const util = telemetry?.gpu_utilization_pct ?? 0
   const power = telemetry?.power_draw_w ?? 0
   const memPct = telemetry?.memory_used_pct ?? 0
-  const memUsed = telemetry?.memory_used_bytes ?? 0
-  const memTotal = telemetry?.memory_total_bytes ?? 0
-  const memStr =
-    memTotal > 0
-      ? `${(memUsed / 1024 / 1024 / 1024).toFixed(1)}/${(memTotal / 1024 / 1024 / 1024).toFixed(1)} GB`
-      : '—'
 
-  const systemInfo = device
-    ? [
-        { label: 'Hardware', value: device.hardware },
-        { label: 'OS', value: device.os },
-        { label: 'Adapter', value: device.adapter },
-        { label: 'Behavior', value: device.behavior_class },
-        {
-          label: 'Uptime',
-          value: formatUptime(device.uptime_seconds),
-        },
-        {
-          label: 'Adapters',
-          value: agent?.adapters_active?.join(', ') ?? '—',
-        },
-      ]
-    : []
+  const throttleC = riskDetail?.sub_scores?.thermal?.details
+    ?.throttle_threshold_c as number | undefined
+  const tdpW = riskDetail?.sub_scores?.power?.details?.tdp_w as
+    | number
+    | undefined
 
   if (loading && !status) {
     return (
@@ -107,74 +82,73 @@ export function DeviceDashboard() {
 
   return (
     <div className="flex-1 px-6 py-6">
-      <div className="max-w-[900px] mx-auto space-y-6">
+      <div className="max-w-[1280px] mx-auto space-y-6">
         {/* Risk hex badge */}
         <div className="flex flex-col items-center py-6">
-          <HexBadge score={Math.round(score)} severity={hexSeverity} />
-          <div className="flex items-center gap-2 mt-2">
-            <span
-              className={`text-sm font-semibold ${
-                hexSeverity === 'healthy'
-                  ? 'text-[#10B981]'
-                  : hexSeverity === 'warning'
-                    ? 'text-[#F59E0B]'
-                    : hexSeverity === 'critical'
-                      ? 'text-[#EF4444]'
-                      : 'text-[#94A3B8]'
-              }`}
-            >
-              {trend === 'rising' ? '▲' : trend === 'falling' ? '▼' : '—'}{' '}
-              {score.toFixed(0)}
-            </span>
-          </div>
+          <RiskHexBadge
+            score={score}
+            severity={hexSeverity}
+            trend={trend}
+            size="lg"
+          />
         </div>
 
         {/* 4 metric sparklines */}
-        <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5 space-y-4">
-          <DataSparkline
-            data={history.temperature}
-            currentValue={`${temp.toFixed(0)}°C`}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricSparkline
             label="Temperature"
-            trend={trend}
-            warning={telemetry?.throttle_active}
+            value={temp}
+            unit="°C"
+            history={history.temperature}
+            thresholdValue={throttleC}
+            thresholdLabel="Throttle"
           />
-          <DataSparkline
-            data={history.utilization}
-            currentValue={`${util.toFixed(0)}%`}
+          <MetricSparkline
             label="GPU Utilization"
-            trend={trend}
+            value={util}
+            unit="%"
+            history={history.utilization}
+            min={0}
+            max={100}
           />
-          <DataSparkline
-            data={history.power}
-            currentValue={`${power.toFixed(1)}W`}
+          <MetricSparkline
             label="Power Draw"
-            trend={trend}
+            value={power}
+            unit="W"
+            history={history.power}
+            thresholdValue={tdpW}
+            thresholdLabel="TDP"
           />
-          <DataSparkline
-            data={history.memory}
-            currentValue={memStr}
+          <MetricSparkline
             label="Memory"
-            trend={trend}
+            value={memPct}
+            unit="%"
+            history={history.memory}
+            min={0}
+            max={100}
           />
         </div>
 
-        {/* System info + Quick risk */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SystemInfo info={systemInfo} />
-          <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5">
-            <h3 className="text-[13px] font-semibold text-[#E8ECF4] mb-4">
-              Risk Summary
-            </h3>
-            <p className="text-[13px] text-[#94A3B8]">
-              {getRiskSummaryText(severity, score)}
-            </p>
-            <Link
-              to="/risk"
-              className="mt-4 inline-flex items-center gap-1 text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
-            >
-              View Risk Details →
-            </Link>
-          </div>
+        {/* System info card */}
+        <SystemInfoCard device={device ?? null} agent={agent ?? null} health={health} />
+
+        {/* Severity summary + drill-down link */}
+        <div
+          className="rounded-xl border p-5 flex items-center justify-between"
+          style={{
+            backgroundColor: '#0F172A',
+            borderColor: 'rgba(148, 163, 184, 0.1)',
+          }}
+        >
+          <p className="text-sm text-[#94A3B8]">
+            {getRiskSummaryText(severity, score)}
+          </p>
+          <Link
+            to="/risk"
+            className="text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
+          >
+            View Risk Details →
+          </Link>
         </div>
       </div>
     </div>
