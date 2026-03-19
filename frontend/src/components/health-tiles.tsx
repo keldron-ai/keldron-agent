@@ -286,7 +286,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
   const efficiency: HealthTileData = {
     type: "efficiency",
     available: !!(ppw?.available && ppw.value != null),
-    value: ppw?.value != null ? `${ppw.value.toFixed(1)} ${ppw.unit}`.trim() : undefined,
+    value: ppw?.value != null ? `${ppw.value.toFixed(1)} %/W` : undefined,
   }
 
   const stability: HealthTileData = {
