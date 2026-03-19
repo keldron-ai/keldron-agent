@@ -93,7 +93,7 @@ interface RiskBreakdown {
     thermal: SubScore
     power: SubScore
     volatility: SubScore
-    correlated: SubScore
+    memory: SubScore
   }
   thresholds: { warning: number; critical: number }
 }

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Thermometer, Zap, Activity, GitBranch } from 'lucide-react'
+import { Thermometer, Zap, Activity, HardDrive } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
 import { SubScoreBars } from '@/components/SubScoreBars'
@@ -36,9 +36,9 @@ const SUB_SCORE_CONFIG = [
     icon: <Activity className="w-4 h-4" />,
   },
   {
-    key: 'correlated' as const,
-    name: 'Correlated',
-    icon: <GitBranch className="w-4 h-4" />,
+    key: 'memory' as const,
+    name: 'Memory',
+    icon: <HardDrive className="w-4 h-4" />,
   },
 ] as const
 

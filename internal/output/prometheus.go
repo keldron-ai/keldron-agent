@@ -67,13 +67,13 @@ type Prometheus struct {
 	deviceUptimeSeconds  *prometheus.GaugeVec
 
 	// Risk scores (placeholder for OSS-003)
-	riskComposite    *prometheus.GaugeVec
-	riskThermal      *prometheus.GaugeVec
-	riskPower        *prometheus.GaugeVec
-	riskVolatility   *prometheus.GaugeVec
-	riskFleetPenalty *prometheus.GaugeVec
-	riskSeverity     *prometheus.GaugeVec
-	riskWarmingUp    *prometheus.GaugeVec
+	riskComposite  *prometheus.GaugeVec
+	riskThermal    *prometheus.GaugeVec
+	riskPower      *prometheus.GaugeVec
+	riskVolatility *prometheus.GaugeVec
+	riskMemory     *prometheus.GaugeVec
+	riskSeverity   *prometheus.GaugeVec
+	riskWarmingUp  *prometheus.GaugeVec
 
 	// Bonus metrics
 	gpuMemPressureRatio *prometheus.GaugeVec
@@ -199,9 +199,9 @@ func (p *Prometheus) registerMetricsWith(reg prometheus.Registerer) {
 		Name: "keldron_risk_volatility",
 		Help: "Volatility risk score",
 	}, stringsToLabels(deviceIDLabels))
-	p.riskFleetPenalty = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "keldron_risk_fleet_penalty",
-		Help: "Fleet penalty risk score",
+	p.riskMemory = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "keldron_risk_memory",
+		Help: "Memory pressure risk score",
 	}, stringsToLabels(deviceIDLabels))
 	p.riskSeverity = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_risk_severity",
@@ -251,7 +251,7 @@ func (p *Prometheus) registerMetricsWith(reg prometheus.Registerer) {
 		p.cpuTempC, p.fanSpeedRPM,
 		p.systemSwapUsedBytes, p.systemSwapTotalBytes, p.deviceUptimeSeconds,
 		p.riskComposite, p.riskThermal, p.riskPower, p.riskVolatility,
-		p.riskFleetPenalty, p.riskSeverity, p.riskWarmingUp,
+		p.riskMemory, p.riskSeverity, p.riskWarmingUp,
 		p.gpuMemPressureRatio, p.gpuClockEfficiency,
 		p.powerCostHourly, p.powerCostDaily, p.powerCostMonthly, p.gpuHotspotDeltaC,
 		p.agentInfo,
@@ -377,7 +377,7 @@ func (p *Prometheus) Update(readings []normalizer.TelemetryPoint, scores []scori
 	p.riskThermal.Reset()
 	p.riskPower.Reset()
 	p.riskVolatility.Reset()
-	p.riskFleetPenalty.Reset()
+	p.riskMemory.Reset()
 	p.riskSeverity.Reset()
 	p.riskWarmingUp.Reset()
 	p.gpuMemPressureRatio.Reset()
@@ -506,7 +506,7 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint, score *scoring.Ri
 		p.riskThermal.With(deviceIDLbls).Set(score.Thermal)
 		p.riskPower.With(deviceIDLbls).Set(score.Power)
 		p.riskVolatility.With(deviceIDLbls).Set(score.Volatility)
-		p.riskFleetPenalty.With(deviceIDLbls).Set(score.FleetPenalty)
+		p.riskMemory.With(deviceIDLbls).Set(score.Memory)
 		sev := 0.0
 		switch score.Severity {
 		case scoring.SeverityWarning:
@@ -536,7 +536,7 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint, score *scoring.Ri
 		p.riskThermal.With(deviceIDLbls).Set(0)
 		p.riskPower.With(deviceIDLbls).Set(0)
 		p.riskVolatility.With(deviceIDLbls).Set(0)
-		p.riskFleetPenalty.With(deviceIDLbls).Set(0)
+		p.riskMemory.With(deviceIDLbls).Set(0)
 		p.riskSeverity.With(deviceIDLbls).Set(0)
 		p.riskWarmingUp.With(deviceIDLbls).Set(0)
 		// Bonus fallbacks from metrics

@@ -9,7 +9,7 @@ interface SubScores {
   thermal: SubScore
   power: SubScore
   volatility: SubScore
-  correlated: SubScore
+  memory: SubScore
 }
 
 interface SubScoreBarsProps {
@@ -20,7 +20,7 @@ const LABELS: Record<keyof SubScores, string> = {
   thermal: 'Thermal margin',
   power: 'Power headroom',
   volatility: 'Load volatility',
-  correlated: 'Correlated failure',
+  memory: 'Memory pressure',
 }
 
 function getBarColor(score: number): string {
@@ -36,7 +36,7 @@ export function SubScoreBars({ subScores }: SubScoreBarsProps) {
     { key: 'thermal', score: subScores.thermal?.score ?? 0 },
     { key: 'power', score: subScores.power?.score ?? 0 },
     { key: 'volatility', score: subScores.volatility?.score ?? 0 },
-    { key: 'correlated', score: subScores.correlated?.score ?? 0 },
+    { key: 'memory', score: subScores.memory?.score ?? 0 },
   ]
 
   return (

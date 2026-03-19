@@ -101,7 +101,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 
 	// Collect metrics - take first metric of each type (single device)
 	var tempC, powerW, utilRatio, memUsed, memTotal, riskComposite float64
-	var riskThermal, riskPower, riskVolatility, riskFleetPenalty float64
+	var riskThermal, riskPower, riskVolatility, riskMemory float64
 	riskSeverity := "normal"
 	uptime := 0.0
 
@@ -155,8 +155,8 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 			riskPower = v
 		case "keldron_risk_volatility":
 			riskVolatility = v
-		case "keldron_risk_fleet_penalty":
-			riskFleetPenalty = v
+		case "keldron_risk_memory":
+			riskMemory = v
 		case "keldron_risk_severity":
 			switch int(v) {
 			case 2:
@@ -184,6 +184,10 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	if memTotal > 0 {
 		memPct = memUsed / memTotal * 100
 	}
+	// Use keldron_risk_memory from metrics when present; otherwise compute from memPct (e.g. legacy agent)
+	if riskMemory == 0 {
+		riskMemory = scoring.ComputeMemory(memPct)
+	}
 
 	// Use authoritative thresholds from scoring engine
 	thresholds, ok := scoring.SeverityThresholds[behaviorClass]
@@ -193,7 +197,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	warning, critical := thresholds[0], thresholds[1]
 
 	// Use authoritative weights from scoring engine
-	thermalWeight, powerWeight, volWeight, corrWeight := scoring.W_THERMAL, scoring.W_POWER, scoring.W_VOLATILITY, scoring.W_CORRELATED
+	thermalWeight, powerWeight, volWeight, memWeight := scoring.W_THERMAL, scoring.W_POWER, scoring.W_VOLATILITY, scoring.W_MEMORY
 
 	return &PrometheusData{
 		Device: api.DeviceInfo{
@@ -224,10 +228,19 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 				TrendDelta: 0,
 			},
 			SubScores: api.SubScores{
-				Thermal:    api.SubScoreDetail{Score: riskThermal, Weight: thermalWeight},
-				Power:      api.SubScoreDetail{Score: riskPower, Weight: powerWeight},
-				Volatility: api.SubScoreDetail{Score: riskVolatility, Weight: volWeight},
-				Correlated: api.SubScoreDetail{Score: riskFleetPenalty, Weight: corrWeight},
+				Thermal:    api.SubScoreDetail{Score: riskThermal, Weight: thermalWeight, WeightedContribution: riskThermal * thermalWeight},
+				Power:      api.SubScoreDetail{Score: riskPower, Weight: powerWeight, WeightedContribution: riskPower * powerWeight},
+				Volatility: api.SubScoreDetail{Score: riskVolatility, Weight: volWeight, WeightedContribution: riskVolatility * volWeight},
+				Memory: api.SubScoreDetail{
+					Score:                riskMemory,
+					Weight:               memWeight,
+					WeightedContribution: riskMemory * memWeight,
+					Details: map[string]interface{}{
+						"memory_used_pct":    memPct,
+						"memory_used_bytes":  int64(memUsed),
+						"memory_total_bytes": int64(memTotal),
+					},
+				},
 			},
 			Thresholds: api.Thresholds{Warning: warning, Critical: critical},
 		},

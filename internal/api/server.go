@@ -271,6 +271,13 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 		headroomPct = (spec.ThermalLimitC - tCurrent) / spec.ThermalLimitC * 100
 	}
 
+	memUsed := getMetricFloat(m, "mem_used_bytes")
+	memTotal := getMetricFloat(m, "mem_total_bytes")
+	memPct := 0.0
+	if memTotal > 0 {
+		memPct = memUsed / memTotal * 100
+	}
+
 	resp := RiskResponse{
 		Timestamp: pt.Timestamp.UTC().Format(time.RFC3339),
 		Composite: CompositeInfo{
@@ -310,12 +317,14 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 					"window_minutes": 60,
 				},
 			},
-			Correlated: SubScoreDetail{
-				Score:                sc.FleetPenalty,
-				Weight:               scoring.W_CORRELATED,
-				WeightedContribution: sc.FleetPenalty,
+			Memory: SubScoreDetail{
+				Score:                sc.Memory,
+				Weight:               scoring.W_MEMORY,
+				WeightedContribution: sc.Memory * scoring.W_MEMORY,
 				Details: map[string]interface{}{
-					"note": "Single device mode — no zone correlation available",
+					"memory_used_pct":    memPct,
+					"memory_used_bytes":  int64(memUsed),
+					"memory_total_bytes": int64(memTotal),
 				},
 			},
 		},

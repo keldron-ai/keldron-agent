@@ -17,7 +17,7 @@ type RiskScoreOutput struct {
 	ThermalRoCPenalty float64
 	Power             float64
 	Volatility        float64
-	FleetPenalty      float64
+	Memory            float64
 	Severity          string  // "normal", "warning", "critical"
 	Trend             string  // "rising", "falling", "stable"
 	TrendDelta        float64 // composite - previous composite (for API)
