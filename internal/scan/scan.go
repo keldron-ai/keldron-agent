@@ -10,15 +10,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 )
 
@@ -80,7 +83,7 @@ func Run(args []string) int {
 	host := parseHostFromAddr(*hub)
 
 	if *jsonOut {
-		return runJSON(host, apiPort, *hub, opts)
+		return runJSON(host, apiPort, prometheusPort, *hub, opts)
 	}
 
 	// Pre-fetch cloud state once so render loops don't block on network I/O
@@ -183,68 +186,141 @@ func runOnce(host string, apiPort, prometheusPort int, hubAddr string, opts Rend
 	return 1
 }
 
-func runJSON(host string, apiPort int, hubAddr string, opts RenderOpts) int {
+func runJSON(host string, apiPort, prometheusPort int, hubAddr string, opts RenderOpts) int {
 	apiBase := buildAPIBaseURL(host, apiPort)
 
 	// 1. Try agent status API first
 	status, err := FetchStatus(apiBase)
 	if err == nil {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(status); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
-		}
-		return 0
+		return encodeStatusJSON(os.Stdout, status)
 	}
 
-	// 2. Fall back to fleet JSON
+	// 2. Fall back to fleet, convert to StatusResponse for stable schema
 	fleet, err := FetchFleet(hubAddr)
-	if err != nil && !errors.Is(err, ErrNoPeers) {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-	if fleet == nil {
-		fleet = &FleetResponse{}
-	}
-
-	if opts.DeviceFilter != "" || opts.Sort != SortRisk {
-		devices := FilterAndSortDevices(AllDevices(fleet), opts)
-		healthy, warning, critical := 0, 0, 0
-		for _, d := range devices {
-			switch d.RiskSeverity {
-			case "warning":
-				warning++
-			case "critical":
-				critical++
-			default:
-				healthy++
+	if err == nil || errors.Is(err, ErrNoPeers) {
+		if fleet == nil {
+			fleet = &FleetResponse{}
+		}
+		if opts.DeviceFilter != "" || opts.Sort != SortRisk {
+			devices := FilterAndSortDevices(AllDevices(fleet), opts)
+			healthy, warning, critical := 0, 0, 0
+			for _, d := range devices {
+				switch d.RiskSeverity {
+				case "warning":
+					warning++
+				case "critical":
+					critical++
+				default:
+					healthy++
+				}
+			}
+			fleet = &FleetResponse{
+				Timestamp: fleet.Timestamp,
+				Peers: []PeerResponse{{
+					ID:      "filtered",
+					Address: "filtered",
+					Healthy: true,
+					Devices: devices,
+				}},
+				Summary: SummaryResponse{
+					TotalDevices: len(devices),
+					Healthy:      healthy,
+					Warning:      warning,
+					Critical:     critical,
+					TotalPeers:   1,
+					HealthyPeers: 1,
+				},
 			}
 		}
-		fleet = &FleetResponse{
-			Timestamp: fleet.Timestamp,
-			Peers: []PeerResponse{{
-				ID:      "filtered",
-				Address: "filtered",
-				Healthy: true,
-				Devices: devices,
-			}},
-			Summary: SummaryResponse{
-				TotalDevices: len(devices),
-				Healthy:      healthy,
-				Warning:      warning,
-				Critical:     critical,
-				TotalPeers:   1,
-				HealthyPeers: 1,
-			},
+		status := fleetToStatusResponse(fleet, opts)
+		return encodeStatusJSON(os.Stdout, status)
+	}
+
+	// 3. Fall back to Prometheus
+	prom, err := FetchFromPrometheus(host, prometheusPort)
+	if err == nil {
+		status, _ := prom.ToStatusRisk()
+		if status != nil {
+			return encodeStatusJSON(os.Stdout, status)
 		}
 	}
 
-	if err := RenderJSON(os.Stdout, fleet); err != nil {
+	fmt.Fprintf(os.Stderr, "Error: cannot reach agent API, hub, or Prometheus. Is the agent running?\n")
+	return 1
+}
+
+// encodeStatusJSON writes api.StatusResponse as formatted JSON. Returns exit code.
+func encodeStatusJSON(w io.Writer, status *api.StatusResponse) int {
+	if status == nil {
+		return 1
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(status); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// fleetToStatusResponse converts FleetResponse to api.StatusResponse for stable JSON schema.
+// Uses the first device from the fleet; Device.Adapter is set to "fleet" to indicate source.
+func fleetToStatusResponse(fleet *FleetResponse, opts RenderOpts) *api.StatusResponse {
+	if fleet == nil {
+		fleet = &FleetResponse{}
+	}
+	devices := FilterAndSortDevices(AllDevices(fleet), opts)
+	now := time.Now().UTC().Format(time.RFC3339)
+	resp := &api.StatusResponse{
+		Device: api.DeviceInfo{
+			Hostname:      "unknown",
+			Adapter:       "fleet",
+			Hardware:      "",
+			BehaviorClass: "consumer_active_cooled",
+			OS:            runtime.GOOS,
+			Arch:          runtime.GOARCH,
+			UptimeSeconds: 0,
+		},
+		Telemetry: api.TelemetryInfo{
+			Timestamp:         now,
+			TemperatureC:      0,
+			GPUUtilizationPct: 0,
+			PowerDrawW:        0,
+			MemoryUsedPct:     0,
+			MemoryUsedBytes:   0,
+			MemoryTotalBytes:  0,
+			ThermalState:      "nominal",
+		},
+		Risk: api.RiskSummary{
+			CompositeScore: 0,
+			Severity:       "normal",
+			Trend:          "stable",
+			TrendDelta:     0,
+		},
+		Agent: api.AgentInfo{
+			Version:        "unknown",
+			PollIntervalS:  30,
+			AdaptersActive: []string{"fleet"},
+			CloudConnected: false,
+		},
+		Health: nil,
+	}
+	if len(devices) > 0 {
+		d := devices[0]
+		resp.Device.Hostname = d.DeviceID
+		resp.Device.Hardware = d.DeviceModel
+		resp.Telemetry.TemperatureC = d.TemperatureC
+		resp.Telemetry.GPUUtilizationPct = d.Utilization
+		resp.Telemetry.PowerDrawW = d.PowerW
+		resp.Telemetry.MemoryUsedBytes = int64(d.MemoryUsedBytes)
+		resp.Telemetry.MemoryTotalBytes = int64(d.MemoryTotalBytes)
+		if d.MemoryTotalBytes > 0 {
+			resp.Telemetry.MemoryUsedPct = d.MemoryUsedBytes / d.MemoryTotalBytes * 100
+		}
+		resp.Risk.CompositeScore = d.RiskComposite
+		resp.Risk.Severity = d.RiskSeverity
+	}
+	return resp
 }
 
 const (
@@ -260,6 +336,7 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 
 	apiBase := buildAPIBaseURL(host, apiPort)
 	useLegacyNote := false
+	var lastFrame []byte
 
 	for {
 		interval := watchInterval
@@ -279,6 +356,7 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 				interval = time.Duration(status.Agent.PollIntervalS) * time.Second
 			}
 			RenderDashboard(&buf, status, risk, opts)
+			lastFrame = buf.Bytes()
 		} else {
 			// 2. Try fleet
 			fleet, err := FetchFleet(hubAddr)
@@ -287,19 +365,27 @@ func runWatch(host string, apiPort, prometheusPort int, hubAddr string, opts Ren
 					fleet = &FleetResponse{}
 				}
 				RenderTable(&buf, fleet, opts)
+				lastFrame = buf.Bytes()
 			} else {
 				// 3. Try Prometheus
 				prom, err := FetchFromPrometheus(host, prometheusPort)
-				if err != nil {
+				if err == nil {
+					status, risk := prom.ToStatusRisk()
+					if !useLegacyNote {
+						useLegacyNote = true
+						fmt.Fprintln(os.Stderr, "(using legacy Prometheus endpoint — upgrade agent for full dashboard)")
+					}
+					RenderDashboard(&buf, status, risk, opts)
+					lastFrame = buf.Bytes()
+				} else {
+					// All sources failed: keep retrying, reuse last frame
 					fmt.Fprintf(os.Stderr, "Error: cannot reach agent API, hub, or Prometheus. Is the agent running?\n")
-					return 1
+					if lastFrame != nil {
+						buf.Write(lastFrame)
+					} else {
+						buf.WriteString("(waiting for agent...)\n")
+					}
 				}
-				status, risk := prom.ToStatusRisk()
-				if !useLegacyNote {
-					useLegacyNote = true
-					fmt.Fprintln(os.Stderr, "(using legacy Prometheus endpoint — upgrade agent for full dashboard)")
-				}
-				RenderDashboard(&buf, status, risk, opts)
 			}
 		}
 

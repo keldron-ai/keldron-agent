@@ -82,8 +82,13 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 					version = *lp.Value
 				case "device_name":
 					deviceName = *lp.Value
+				case "device_id":
+					deviceID = *lp.Value
 				}
 			}
+		}
+		if deviceName == "unknown" && deviceID != "" {
+			deviceName = deviceID
 		}
 	}
 
@@ -100,14 +105,14 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	riskSeverity := "normal"
 	uptime := 0.0
 
-	// Extract device metadata deterministically: scan all families in sorted order
-	// and use the first non-empty values found.
+	// Single pass: extract device metadata and metric values in sorted order
 	for _, name := range familyNames {
 		mf := families[name]
 		if mf == nil || len(mf.Metric) == 0 {
 			continue
 		}
 		m := mf.Metric[0]
+		// Metadata extraction
 		if deviceID == "" {
 			if id := getLabel(m.Label, "device_id"); id != "" {
 				deviceID = id
@@ -121,23 +126,14 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		if bc := getLabel(m.Label, "behavior_class"); bc != "" && behaviorClass == "consumer_active_cooled" {
 			behaviorClass = bc
 		}
-	}
-	if deviceID == "" && deviceModel != "" {
-		deviceID = deviceModel + ":0"
-	}
-	if deviceID == "" {
-		deviceID = "default"
-	}
-
-	for _, name := range familyNames {
-		mf := families[name]
-		if mf == nil || len(mf.Metric) == 0 {
-			continue
-		}
-		m := mf.Metric[0]
+		// Read metric value (Gauge, Counter, or Untyped)
 		v := float64(0)
 		if m.Gauge != nil {
 			v = m.Gauge.GetValue()
+		} else if m.Counter != nil {
+			v = m.Counter.GetValue()
+		} else if m.Untyped != nil {
+			v = m.Untyped.GetValue()
 		}
 
 		switch name {
@@ -173,6 +169,15 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		case "keldron_device_uptime_seconds":
 			uptime = v
 		}
+	}
+	if deviceID == "" && deviceModel != "" {
+		deviceID = deviceModel + ":0"
+	}
+	if deviceID == "" {
+		deviceID = "default"
+	}
+	if deviceName == "unknown" && deviceID != "" {
+		deviceName = deviceID
 	}
 
 	memPct := 0.0
