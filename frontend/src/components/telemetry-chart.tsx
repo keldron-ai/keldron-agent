@@ -122,7 +122,7 @@ export function TelemetryChart({
             >
               <span className="flex items-center gap-1">
                 {range}
-                {range === "24H" && (
+                {range !== "30m" && (
                   <svg
                     width="10"
                     height="10"

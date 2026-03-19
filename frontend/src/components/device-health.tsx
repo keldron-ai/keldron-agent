@@ -129,10 +129,11 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
               </div>
             )}
             {showTrendLink && (
-              <span className="flex items-center gap-1 text-[11px] text-[#64748B]" aria-label="Trend (locked)">
+              <span className="flex items-center gap-1 text-[11px] text-[#64748B]">
                 <span>Trend</span>
                 <span>→</span>
                 <Lock size={10} />
+                <span className="sr-only">Trend (locked)</span>
               </span>
             )}
           </div>
