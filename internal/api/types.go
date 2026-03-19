@@ -3,12 +3,15 @@
 
 package api
 
+import "github.com/keldron-ai/keldron-agent/internal/health"
+
 // StatusResponse is the JSON shape for GET /api/v1/status.
 type StatusResponse struct {
-	Device    DeviceInfo    `json:"device"`
-	Telemetry TelemetryInfo `json:"telemetry"`
-	Risk      RiskSummary   `json:"risk"`
-	Agent     AgentInfo     `json:"agent"`
+	Device    DeviceInfo                   `json:"device"`
+	Telemetry TelemetryInfo                `json:"telemetry"`
+	Risk      RiskSummary                  `json:"risk"`
+	Agent     AgentInfo                    `json:"agent"`
+	Health    *health.DeviceHealthSnapshot `json:"health,omitempty"`
 }
 
 type DeviceInfo struct {
@@ -102,10 +105,11 @@ type GPUProcess struct {
 
 // TelemetryUpdate is the JSON shape for WebSocket /ws/telemetry messages.
 type TelemetryUpdate struct {
-	Type      string         `json:"type"`
-	Timestamp string         `json:"timestamp"`
-	Telemetry TelemetryShort `json:"telemetry"`
-	Risk      RiskShort      `json:"risk"`
+	Type      string                `json:"type"`
+	Timestamp string                `json:"timestamp"`
+	Telemetry TelemetryShort        `json:"telemetry"`
+	Risk      RiskShort             `json:"risk"`
+	Health    *health.HealthSummary `json:"health,omitempty"`
 }
 
 type TelemetryShort struct {
