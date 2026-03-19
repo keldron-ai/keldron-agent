@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Settings, HelpCircle } from "lucide-react"
+import { HelpCircle } from "lucide-react"
 
 export function Header() {
   return (
@@ -73,21 +73,13 @@ export function Header() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-4">
-        <Link
-          to="/help"
+        <button
           className="text-[#64748B] hover:text-[#E8ECF4] transition-colors"
           title="Help"
         >
           <HelpCircle size={18} />
-        </Link>
-        <Link
-          to="/settings"
-          className="text-[#64748B] hover:text-[#E8ECF4] transition-colors"
-          title="Settings"
-        >
-          <Settings size={18} />
-        </Link>
-        <Link to="/account" className="flex flex-col items-center">
+        </button>
+        <div className="flex flex-col items-center">
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-semibold hover:ring-2 hover:ring-[#00C9B0]/30 transition-all"
             style={{ backgroundColor: "rgba(0, 201, 176, 0.15)", color: "#00C9B0" }}
@@ -95,7 +87,7 @@ export function Header() {
             R
           </div>
           <span className="text-[10px] text-[#94A3B8]">Free</span>
-        </Link>
+        </div>
       </div>
     </header>
   )

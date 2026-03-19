@@ -65,7 +65,7 @@ export function Sparkline({ type, warning, offline }: SparklineProps) {
         className="block"
       >
         <polyline
-          points={getPoints(type)}
+          points="0,9 80,9"
           fill="none"
           stroke={strokeColor}
           strokeWidth="1.5"

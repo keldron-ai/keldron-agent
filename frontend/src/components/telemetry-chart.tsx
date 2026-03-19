@@ -43,28 +43,35 @@ export function TelemetryChart({
   const chartHeight = height - padding.top - padding.bottom
 
   const normalizeY = (value: number) => {
+    if (maxY === minY) return padding.top + chartHeight / 2
     const normalized = (value - minY) / (maxY - minY)
     return padding.top + chartHeight * (1 - normalized)
   }
 
-  const points = data
-    .map((value, index) => {
-      const x = padding.left + (index / (data.length - 1)) * chartWidth
-      const y = normalizeY(value)
-      return `${x},${y}`
-    })
-    .join(" ")
+  const safeDenom = Math.max(1, data.length - 1)
 
-  const areaPath = `
+  const points = data.length === 0
+    ? ""
+    : data
+        .map((value, index) => {
+          const x = padding.left + (index / safeDenom) * chartWidth
+          const y = normalizeY(value)
+          return `${x},${y}`
+        })
+        .join(" ")
+
+  const areaPath = data.length === 0
+    ? ""
+    : `
     M ${padding.left},${normalizeY(data[0])}
     ${data
       .map((value, index) => {
-        const x = padding.left + (index / (data.length - 1)) * chartWidth
+        const x = padding.left + (index / safeDenom) * chartWidth
         const y = normalizeY(value)
         return `L ${x},${y}`
       })
       .join(" ")}
-    L ${padding.left + chartWidth},${padding.top + chartHeight}
+    L ${padding.left + (data.length - 1) / safeDenom * chartWidth},${padding.top + chartHeight}
     L ${padding.left},${padding.top + chartHeight}
     Z
   `
@@ -75,9 +82,9 @@ export function TelemetryChart({
   const lineLength = chartWidth * 1.5
 
   // Event label position (near right edge at current value)
-  const lastDataPoint = data[data.length - 1]
+  const lastDataPoint = data.length > 0 ? data[data.length - 1] : null
   const eventLabelX = padding.left + chartWidth - 60
-  const eventLabelY = normalizeY(lastDataPoint) - 12
+  const eventLabelY = lastDataPoint !== null ? normalizeY(lastDataPoint) - 12 : 0
 
   const gradientId = `gradient-${uniqueId}`
   const fadeGradientId = `fade-${uniqueId}`
@@ -96,7 +103,8 @@ export function TelemetryChart({
           {TIME_RANGES.map((range) => (
             <button
               key={range}
-              onClick={() => range !== "24H" && setActiveRange(range)}
+              disabled={range === "24H"}
+              onClick={() => setActiveRange(range)}
               className={`
                 px-2 py-0.5 rounded text-[11px] transition-colors
                 ${
@@ -104,7 +112,7 @@ export function TelemetryChart({
                     ? "bg-[rgba(0,201,176,0.15)] text-[#00C9B0]"
                     : "text-[#64748B] hover:text-[#94A3B8]"
                 }
-                ${range === "24H" ? "cursor-not-allowed" : "cursor-pointer"}
+                disabled:cursor-not-allowed disabled:opacity-50
               `}
             >
               <span className="flex items-center gap-1">
@@ -200,7 +208,7 @@ export function TelemetryChart({
         />
 
         {/* Event label */}
-        {eventLabel && (
+        {eventLabel && lastDataPoint !== null && (
           <g>
             <rect
               x={eventLabelX - 4}

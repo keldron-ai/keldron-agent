@@ -13,10 +13,13 @@ function mapApiSeverityToHex(
   score: number
 ): 'healthy' | 'elevated' | 'warning' | 'critical' | 'offline' {
   if (!severity) return 'offline'
-  if (severity === 'critical' || score >= 80) return 'critical'
-  if (severity === 'warning' || (score >= 60 && score < 80)) return 'warning'
-  if (severity === 'normal' || score < 60) return 'healthy'
-  return 'elevated'
+  if (severity === 'critical') return 'critical'
+  if (severity === 'elevated') return 'elevated'
+  if (severity === 'warning') return 'warning'
+  if (severity === 'normal') return 'healthy'
+  if (score >= 80) return 'critical'
+  if (score >= 60) return 'warning'
+  return 'healthy'
 }
 
 function formatRuntime(seconds: number): string {

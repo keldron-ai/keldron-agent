@@ -1,5 +1,6 @@
+import * as React from "react"
 import { HelpCircle, Zap } from "lucide-react"
-import { useState } from "react"
+const { useState } = React
 
 type Rating = "normal" | "excellent" | "stable" | "compressed" | "slow" | "elevated" | "critical" | "poor" | "unstable"
 
