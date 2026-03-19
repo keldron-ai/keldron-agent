@@ -23,11 +23,11 @@ function mapApiSeverityToHex(
 }
 
 function formatRuntime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
+  if (seconds < 60) return `${Math.floor(seconds)}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
   const hours = Math.floor(seconds / 3600)
-  const mins = Math.round((seconds % 3600) / 60)
+  const mins = Math.floor((seconds % 3600) / 60)
   return `${hours}h ${mins}m`
 }
 
@@ -252,7 +252,14 @@ export function RiskDrilldown() {
       {/* System info + Processes */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SystemInfo info={systemInfo} />
-        {processes?.supported ? (
+        {processes === null ? (
+          <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5">
+            <h3 className="text-[13px] font-semibold text-[#E8ECF4] mb-4">
+              Active Processes
+            </h3>
+            <p className="text-[13px] text-[#64748B]">Loading...</p>
+          </div>
+        ) : processes.supported ? (
           <ActiveProcesses processes={processList} />
         ) : (
           <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5">
@@ -260,7 +267,7 @@ export function RiskDrilldown() {
               Active Processes
             </h3>
             <p className="text-[13px] text-[#64748B]">
-              {processes?.note ??
+              {processes.note ??
                 'Process enumeration is not supported by this adapter.'}
             </p>
           </div>

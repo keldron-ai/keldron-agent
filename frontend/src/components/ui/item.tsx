@@ -22,10 +22,10 @@ function ItemSeparator({
 }: React.ComponentProps<typeof Separator>) {
   return (
     <Separator
+      {...props}
       data-slot="item-separator"
       orientation="horizontal"
       className={cn('my-0', className)}
-      {...props}
     />
   )
 }
@@ -62,7 +62,7 @@ function Item({
   const Comp = asChild ? Slot : 'div'
   return (
     <Comp
-      role="listitem"
+      {...(!asChild ? { role: 'listitem' } : {})}
       data-slot="item"
       data-variant={variant}
       data-size={size}

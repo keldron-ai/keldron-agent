@@ -26,7 +26,7 @@ export function LargeHexBadge({ score, severity, trendText }: LargeHexBadgeProps
 
   const getTextColor = () => {
     if (severity === "critical") return "#FFFFFF"
-    if (severity === "offline") return "#475569"
+    if (severity === "offline") return "#94A3B8"
     return "#0A0C10"
   }
 

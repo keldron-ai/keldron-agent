@@ -195,17 +195,20 @@ function FieldError({
       return children
     }
 
-    if (!errors) {
+    if (!errors || errors.length === 0) {
       return null
     }
 
-    if (errors.length === 1 && errors[0]?.message) {
-      return errors[0].message
+    const messages = errors.filter((e) => e?.message)
+    if (messages.length === 0) return null
+
+    if (messages.length === 1 && messages[0]?.message) {
+      return messages[0].message
     }
 
     return (
       <ul className="ml-4 flex list-disc flex-col gap-1">
-        {errors.map(
+        {messages.map(
           (error, index) =>
             error?.message && <li key={index}>{error.message}</li>,
         )}

@@ -91,7 +91,7 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
         {/* Value */}
         <div className="text-right">
           {metric.available ? (
-            <span className="text-[13px] text-[#E8ECF4]">{metric.value}</span>
+            <span className="text-[13px] text-[#E8ECF4]">{metric.value ?? "—"}</span>
           ) : (
             <span className="text-[13px] text-[#64748B]">—</span>
           )}
@@ -102,7 +102,7 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
       {metric.type === "thermal" && (
         <div className="text-right">
           {metric.available ? (
-            <span className="text-[12px] text-[#64748B]">{metric.detail}</span>
+            <span className="text-[12px] text-[#64748B]">{metric.detail ?? "Establishing baseline..."}</span>
           ) : (
             <span className="text-[12px] text-[#64748B] italic">Establishing baseline...</span>
           )}
@@ -129,11 +129,11 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
               </div>
             )}
             {showTrendLink && (
-              <button className="flex items-center gap-1 text-[11px] text-[#64748B] hover:text-[#00C9B0] transition-colors">
+              <span className="flex items-center gap-1 text-[11px] text-[#64748B]" aria-label="Trend (locked)">
                 <span>Trend</span>
                 <span>→</span>
                 <Lock size={10} />
-              </button>
+              </span>
             )}
           </div>
         </div>

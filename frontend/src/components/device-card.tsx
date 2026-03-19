@@ -8,6 +8,7 @@ type Severity = "healthy" | "elevated" | "warning" | "critical" | "offline"
 type Status = "online" | "offline"
 
 interface Metric {
+  id: string
   label: string
   value: string
   trend: Trend
@@ -119,7 +120,7 @@ export function DeviceCard({
       {/* Row 3: Metrics */}
       <div className="px-5 pb-4 space-y-1.5">
         {metrics.map((metric) => (
-          <div key={metric.label} className="flex items-center h-7">
+          <div key={metric.id} className="flex items-center h-7">
             <span className="text-xs text-[#64748B] w-[100px] shrink-0">
               {metric.label}
             </span>

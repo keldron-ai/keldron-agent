@@ -51,6 +51,7 @@ function ChartContainer({
   return (
     <ChartContext.Provider value={{ config }}>
       <div
+        id={chartId}
         data-slot="chart"
         data-chart={chartId}
         className={cn(
@@ -83,7 +84,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart="${CSS.escape(id)}"] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
