@@ -9,3 +9,4 @@ keldron-agent.dev.yaml
 .DS_Store
 coverage.out
 internal/api/static/
+*.tsbuildinfo
