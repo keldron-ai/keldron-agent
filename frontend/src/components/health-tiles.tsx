@@ -17,21 +17,23 @@ interface HealthTilesProps {
   metrics: HealthTileData[]
 }
 
-const tooltips: Record<string, string> = {
+type MetricKey = "thermal" | "recovery" | "efficiency" | "stability"
+
+const tooltips: Record<MetricKey, string> = {
   thermal: "Gap between idle and peak temperature. Wider is healthier.",
   recovery: "Time to cool down after a heavy workload ends.",
   efficiency: "GPU utilization per watt of power consumed.",
   stability: "Temperature consistency under sustained load. Lower is better.",
 }
 
-const labels: Record<string, string> = {
+const labels: Record<MetricKey, string> = {
   thermal: "Thermal Range",
   recovery: "Recovery",
   efficiency: "Efficiency",
   stability: "Stability",
 }
 
-const unavailableMessages: Record<string, string> = {
+const unavailableMessages: Record<MetricKey, string> = {
   thermal: "Establishing...",
   recovery: "Waiting...",
   efficiency: "No data",
@@ -61,7 +63,7 @@ function getRatingColor(rating: Rating): string {
 function ThermalRangeGraphic({ idleTemp, peakTemp, available }: { idleTemp?: number; peakTemp?: number; available: boolean }) {
   const gradientId = useId()
 
-  if (!available || !idleTemp || !peakTemp) {
+  if (!available || idleTemp == null || peakTemp == null) {
     return (
       <div className="flex items-center justify-center h-6 opacity-30">
         <svg width="40" height="6" viewBox="0 0 40 6">
@@ -136,22 +138,31 @@ function StabilityWaveGraphic({ available, rating }: { available: boolean; ratin
 
 function TooltipWrapper({ children, tooltip }: { children: React.ReactNode; tooltip: string }) {
   const [show, setShow] = useState(false)
+  const tooltipId = useId()
 
   return (
     <div className="relative inline-flex items-center gap-0.5">
       {children}
       <button
+        type="button"
         className="text-[#64748B] hover:text-[#94A3B8] transition-colors"
+        aria-label="Help"
+        aria-describedby={show ? tooltipId : undefined}
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
       >
         <HelpCircle size={10} />
       </button>
-      {show && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-5 z-20 w-40 px-2 py-1.5 bg-[#1E293B] border border-white/10 rounded-md text-[10px] text-[#E8ECF4] leading-relaxed shadow-lg whitespace-normal">
-          {tooltip}
-        </div>
-      )}
+      <div
+        id={tooltipId}
+        role="tooltip"
+        aria-hidden={!show}
+        className={`absolute left-1/2 -translate-x-1/2 top-5 z-20 w-40 px-2 py-1.5 bg-[#1E293B] border border-white/10 rounded-md text-[10px] text-[#E8ECF4] leading-relaxed shadow-lg whitespace-normal ${show ? "" : "hidden"}`}
+      >
+        {tooltip}
+      </div>
     </div>
   )
 }
@@ -164,7 +175,7 @@ function HealthTile({ metric }: { metric: HealthTileData }) {
         <div className="text-[16px] font-semibold text-[#E8ECF4] leading-tight">
           {metric.type === "efficiency" ? (
             <>
-              {metric.value?.replace(" %/W", "")}
+              {metric.value?.replace(/\s*%\/W\s*$/, "").trim()}
               <span className="text-[10px] font-normal text-[#94A3B8] ml-0.5">%/W</span>
             </>
           ) : (

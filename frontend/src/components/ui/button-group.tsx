@@ -31,7 +31,7 @@ function ButtonGroup({
     <div
       role="group"
       data-slot="button-group"
-      data-orientation={orientation}
+      data-orientation={orientation ?? 'horizontal'}
       className={cn(buttonGroupVariants({ orientation }), className)}
       {...props}
     />
@@ -68,7 +68,7 @@ function ButtonGroupSeparator({
       data-slot="button-group-separator"
       orientation={orientation}
       className={cn(
-        'bg-input relative !m-0 self-stretch data-[orientation=vertical]:h-auto',
+        'bg-input relative m-0! self-stretch data-[orientation=vertical]:h-auto',
         className,
       )}
       {...props}

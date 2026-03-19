@@ -73,8 +73,12 @@ export function useTelemetryStream() {
 
     ws.onmessage = (event) => {
       try {
-        const data: TelemetryUpdate = JSON.parse(event.data)
-        setLatest(data)
+        const data = JSON.parse(event.data)
+        if (!data?.telemetry || !data?.risk) {
+          console.log('[WS] Skipping non-telemetry message:', data?.type)
+          return
+        }
+        setLatest(data as TelemetryUpdate)
         addPoint(setTempHistory, data.telemetry.temperature_c)
         addPoint(setUtilHistory, data.telemetry.gpu_utilization_pct)
         addPoint(setPowerHistory, data.telemetry.power_draw_w)

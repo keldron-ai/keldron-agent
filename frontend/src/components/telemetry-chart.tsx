@@ -36,14 +36,8 @@ export function TelemetryChart({
     setMounted(true)
   }, [])
 
-  // Slice data based on selected range (data assumed to cover 30m window)
-  const filteredData = useMemo(() => {
-    if (data.length === 0) return data
-    const ratios: Record<string, number> = { "30m": 1, "1H": 1, "6H": 1 }
-    const ratio = ratios[activeRange] ?? 1
-    const start = Math.floor(data.length * (1 - ratio))
-    return data.slice(start)
-  }, [data, activeRange])
+  // Data currently covers only the 30m window; return full data for all ranges
+  const filteredData = useMemo(() => data, [data])
 
   const width = 400
   const height = 160
@@ -93,7 +87,8 @@ export function TelemetryChart({
   // Event label position (near right edge at current value)
   const lastDataPoint = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null
   const eventLabelX = padding.left + chartWidth - 60
-  const eventLabelY = lastDataPoint !== null ? normalizeY(lastDataPoint) - 12 : 0
+  const rawEventLabelY = lastDataPoint !== null ? normalizeY(lastDataPoint) - 12 : 0
+  const eventLabelY = Math.max(padding.top, Math.min(rawEventLabelY, padding.top + chartHeight - 4))
 
   const gradientId = `gradient-${uniqueId}`
   const fadeGradientId = `fade-${uniqueId}`
@@ -112,7 +107,8 @@ export function TelemetryChart({
           {TIME_RANGES.map((range) => (
             <button
               key={range}
-              disabled={range === "24H"}
+              disabled={range !== "30m"}
+              aria-pressed={activeRange === range}
               onClick={() => setActiveRange(range)}
               className={`
                 px-2 py-0.5 rounded text-[11px] transition-colors
