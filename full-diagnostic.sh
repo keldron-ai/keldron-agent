@@ -106,7 +106,7 @@ go vet ./... 2>&1
 check "go vet clean" $?
 
 echo "  → gofmt check"
-UNFORMATTED=$(gofmt -l . 2>/dev/null | grep -v vendor || true)
+UNFORMATTED=$(go list -f '{{.Dir}}' ./... 2>/dev/null | sort -u | xargs gofmt -l 2>/dev/null | grep -v '^$' || true)
 [ -z "$UNFORMATTED" ]
 check "All files gofmt'd" $?
 if [ -n "$UNFORMATTED" ]; then

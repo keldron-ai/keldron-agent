@@ -6,9 +6,9 @@ set -eo pipefail
 
 echo "🔍 Running pre-commit checks..."
 
-# Format check
+# Format check (module packages only — not .gomodcache, vendor, or other trees)
 echo "  → gofmt"
-UNFORMATTED=$(gofmt -l . 2>/dev/null | grep -v vendor || true)
+UNFORMATTED=$(go list -f '{{.Dir}}' ./... 2>/dev/null | sort -u | xargs gofmt -l 2>/dev/null | grep -v '^$' || true)
 if [ -n "$UNFORMATTED" ]; then
     echo "❌ These files need gofmt:"
     echo "$UNFORMATTED"

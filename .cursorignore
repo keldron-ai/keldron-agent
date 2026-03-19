@@ -1,0 +1,4 @@
+# Local Go module cache (can hold 10k+ files if GOMODCACHE points here)
+.gomodcache/
+
+vendor/

@@ -10,3 +10,4 @@ keldron-agent.dev.yaml
 coverage.out
 internal/api/static/
 *.tsbuildinfo
+.gomodcache/

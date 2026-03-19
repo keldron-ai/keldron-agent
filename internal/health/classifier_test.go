@@ -96,18 +96,31 @@ func TestClassifier_Peak_60PercentAboveThreshold(t *testing.T) {
 	c := NewClassifier()
 	base := time.Now()
 
-	// All samples within 2-min window: 6 above 70%, 4 below (6/10 = 60%)
-	// Peak window at at=base+150s is base+30s..base+150s
-	for i := 0; i < 6; i++ {
+	// 2-min window at at=base+135s is base+15s..base+135s: 10 samples, 6 above 70% (5×90% + 85%), 4 below — 6/10 = 60%
+	for i := 0; i < 5; i++ {
 		c.Add(90, base.Add(30*time.Second+time.Duration(i)*15*time.Second))
 	}
 	for i := 0; i < 4; i++ {
 		c.Add(10, base.Add(120*time.Second+time.Duration(i)*5*time.Second))
 	}
-	at := base.Add(150 * time.Second)
+	at := base.Add(135 * time.Second)
 	c.Add(85, at)
 	if got := c.Classify(85, at); got != StatePeak {
 		t.Errorf("60%% peak: Classify(85) = %v, want peak", got)
+	}
+}
+
+func TestClassifier_Peak_FewSamplesIn2MinWindow_ReturnsActive(t *testing.T) {
+	c := NewClassifier()
+	base := time.Now()
+
+	// Three buffered samples but only two in the 2-min peak window; ratio would be 100% with total==2
+	c.Add(90, base.Add(50*time.Second))
+	c.Add(90, base.Add(150*time.Second))
+	at := base.Add(200 * time.Second)
+	c.Add(90, at)
+	if got := c.Classify(90, at); got != StateActive {
+		t.Errorf("2 in-window high samples: Classify(90) = %v, want active (peak needs >=3 in window)", got)
 	}
 }
 

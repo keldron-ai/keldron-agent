@@ -104,7 +104,7 @@ func (c *Classifier) Classify(utilPct float64, at time.Time) WorkloadState {
 				aboveThreshold++
 			}
 		}
-		if total > 0 && float64(aboveThreshold)/float64(total) >= classifyRatio {
+		if total >= 3 && float64(aboveThreshold)/float64(total) >= classifyRatio {
 			return StatePeak
 		}
 	}
