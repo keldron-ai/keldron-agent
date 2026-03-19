@@ -3,9 +3,10 @@ type Severity = "healthy" | "elevated" | "warning" | "critical" | "offline"
 interface LargeHexBadgeProps {
   score: number
   severity: Severity
+  trendText?: string
 }
 
-export function LargeHexBadge({ score, severity }: LargeHexBadgeProps) {
+export function LargeHexBadge({ score, severity, trendText }: LargeHexBadgeProps) {
   const getBgColor = () => {
     switch (severity) {
       case "healthy":
@@ -100,9 +101,11 @@ export function LargeHexBadge({ score, severity }: LargeHexBadgeProps) {
       >
         {getSeverityLabel()}
       </span>
-      <span className="mt-1 text-xs text-[#94A3B8]">
-        Trending up over last 45 minutes
-      </span>
+      {trendText && (
+        <span className="mt-1 text-xs text-[#94A3B8]">
+          {trendText}
+        </span>
+      )}
     </div>
   )
 }

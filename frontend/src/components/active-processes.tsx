@@ -25,9 +25,9 @@ export function ActiveProcesses({ processes }: ActiveProcessesProps) {
           </tr>
         </thead>
         <tbody>
-          {processes.map((process, index) => (
+          {processes.map((process) => (
             <tr
-              key={index}
+              key={`${process.name}-${process.detail}`}
               className="border-t border-white/[0.04]"
             >
               <td className="py-2.5">

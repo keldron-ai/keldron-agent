@@ -18,9 +18,10 @@ export function useProcesses() {
   const [processes, setProcesses] = useState<ProcessList | null>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
     const fetchProcesses = async () => {
       try {
-        const res = await fetch('/api/v1/processes')
+        const res = await fetch('/api/v1/processes', { signal: controller.signal })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setProcesses(await res.json())
       } catch {
@@ -29,7 +30,10 @@ export function useProcesses() {
     }
     fetchProcesses()
     const interval = setInterval(fetchProcesses, 15000)
-    return () => clearInterval(interval)
+    return () => {
+      controller.abort()
+      clearInterval(interval)
+    }
   }, [])
 
   return processes

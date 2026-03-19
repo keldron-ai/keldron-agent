@@ -73,8 +73,11 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
           <span className="text-xs text-[#94A3B8]">{labels[metric.type]}</span>
           <button
             className="text-[#64748B] hover:text-[#94A3B8] transition-colors"
+            aria-label={`${labels[metric.type]} info`}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
+            onFocus={() => setShowTooltip(true)}
+            onBlur={() => setShowTooltip(false)}
           >
             <HelpCircle size={14} />
           </button>

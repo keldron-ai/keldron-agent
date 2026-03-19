@@ -138,8 +138,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }

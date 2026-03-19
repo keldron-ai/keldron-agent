@@ -16,10 +16,10 @@ function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
         'h-9 has-[>textarea]:h-auto',
 
         // Variants based on alignment.
-        'has-[>[data-align=inline-start]]:[&>input]:pl-2',
-        'has-[>[data-align=inline-end]]:[&>input]:pr-2',
-        'has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3',
-        'has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3',
+        'has-[>[data-align=inline-start]]:[&>:is(input,textarea)]:pl-2',
+        'has-[>[data-align=inline-end]]:[&>:is(input,textarea)]:pr-2',
+        'has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>:is(input,textarea)]:pb-3',
+        'has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>:is(input,textarea)]:pt-3',
 
         // Focus state.
         'has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px]',
@@ -70,7 +70,8 @@ function InputGroupAddon({
         if ((e.target as HTMLElement).closest('button')) {
           return
         }
-        e.currentTarget.parentElement?.querySelector('input')?.focus()
+        const control = e.currentTarget.parentElement?.querySelector<HTMLElement>('input, textarea')
+        control?.focus()
       }}
       {...props}
     />

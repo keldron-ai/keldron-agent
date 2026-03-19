@@ -34,7 +34,7 @@ function TrendArrow({ trend, warning }: { trend: Trend; warning?: boolean }) {
     case "rising-normal":
       return <span className="text-[#94A3B8]">↗</span>
     case "rising-concerning":
-      return <span className={warning ? "text-[#F59E0B]" : "text-[#F59E0B]"}>↑</span>
+      return <span className="text-[#F59E0B]">↑</span>
     case "falling":
       return <span className="text-[#10B981]">↓</span>
     default:

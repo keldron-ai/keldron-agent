@@ -33,7 +33,7 @@ export function RiskBreakdown({ scores }: RiskBreakdownProps) {
             <div
               className="h-full rounded-full animate-bar-fill"
               style={{
-                width: `${(score.value / score.maxValue) * 100}%`,
+                width: `${score.maxValue ? (score.value / score.maxValue) * 100 : 0}%`,
                 backgroundColor: score.value < 70 ? getColor(score.value) : undefined,
                 background: score.value >= 70 ? getGradient(score.value) : undefined,
                 animationDelay: `${index * 80}ms`,

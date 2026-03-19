@@ -62,6 +62,7 @@ function Item({
   const Comp = asChild ? Slot : 'div'
   return (
     <Comp
+      role="listitem"
       data-slot="item"
       data-variant={variant}
       data-size={size}

@@ -10,10 +10,13 @@ function mapApiSeverityToHex(
   score: number
 ): 'healthy' | 'elevated' | 'warning' | 'critical' | 'offline' {
   if (!severity) return 'offline'
-  if (severity === 'critical' || score >= 80) return 'critical'
-  if (severity === 'warning' || (score >= 60 && score < 80)) return 'warning'
-  if (severity === 'normal' || score < 60) return 'healthy'
-  return 'elevated'
+  if (severity === 'critical') return 'critical'
+  if (severity === 'elevated') return 'elevated'
+  if (severity === 'warning') return 'warning'
+  if (severity === 'normal') return 'healthy'
+  if (score >= 80) return 'critical'
+  if (score >= 60) return 'warning'
+  return 'healthy'
 }
 
 function formatUptime(seconds: number): string {
@@ -50,7 +53,9 @@ export function DeviceDashboard() {
 
   const score = risk?.composite_score ?? 0
   const severity = risk?.severity
-  const trend = (risk?.trend ?? 'stable') as 'stable' | 'rising' | 'falling'
+  const rawTrend = risk?.trend
+  const trend: 'stable' | 'rising' | 'falling' =
+    rawTrend === 'rising' || rawTrend === 'falling' ? rawTrend : 'stable'
   const hexSeverity = mapApiSeverityToHex(severity, score)
 
   const temp = telemetry?.temperature_c ?? 0
