@@ -96,12 +96,13 @@ func TestClassifier_Peak_60PercentAboveThreshold(t *testing.T) {
 	c := NewClassifier()
 	base := time.Now()
 
-	// 10 samples in last 2 min: 6 above 70%, 4 below
+	// All samples within 2-min window: 6 above 70%, 4 below (6/10 = 60%)
+	// Peak window at at=base+150s is base+30s..base+150s
 	for i := 0; i < 6; i++ {
-		c.Add(90, base.Add(time.Duration(i)*15*time.Second))
+		c.Add(90, base.Add(30*time.Second+time.Duration(i)*15*time.Second))
 	}
 	for i := 0; i < 4; i++ {
-		c.Add(10, base.Add(time.Duration(90+i*15)*time.Second))
+		c.Add(10, base.Add(120*time.Second+time.Duration(i)*5*time.Second))
 	}
 	at := base.Add(150 * time.Second)
 	c.Add(85, at)
