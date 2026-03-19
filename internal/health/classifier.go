@@ -12,16 +12,17 @@ import (
 type WorkloadState string
 
 const (
-	StateIdle   WorkloadState = "idle"   // all buffered samples < 10% over 5-min window
+	StateIdle   WorkloadState = "idle"   // >= 60% of samples < 15% over 5-min window
 	StateActive WorkloadState = "active" // neither idle nor peak
-	StatePeak   WorkloadState = "peak"   // all buffered samples > 70% over 2-min window
+	StatePeak   WorkloadState = "peak"   // >= 60% of samples > 70% over 2-min window
 )
 
 const (
-	idleThresholdPct = 10
+	idleThresholdPct = 15 // was 10 — macOS compositor can spike to 10–15% briefly
 	peakThresholdPct = 70
 	idleWindow       = 5 * time.Minute
 	peakWindow       = 2 * time.Minute
+	classifyRatio    = 0.60 // 60% of samples in window must meet threshold
 )
 
 // utilSample holds utilization and timestamp for the rolling buffer.
@@ -69,34 +70,41 @@ func (c *Classifier) Classify(utilPct float64, at time.Time) WorkloadState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Idle: current util < 10% AND all samples in last 5 minutes are < 10%
+	// Need at least a few samples to classify
+	if len(c.samples) < 3 {
+		return StateActive
+	}
+
+	// Idle: current util < 15% AND >= 60% of samples in last 5 minutes are < 15%
 	if utilPct < idleThresholdPct {
-		allIdle := true
+		total := 0
+		belowThreshold := 0
 		for _, s := range c.samples {
-			if s.utilPct >= idleThresholdPct {
-				allIdle = false
-				break
+			total++
+			if s.utilPct < idleThresholdPct {
+				belowThreshold++
 			}
 		}
-		if allIdle {
+		if total > 0 && float64(belowThreshold)/float64(total) >= classifyRatio {
 			return StateIdle
 		}
 	}
 
-	// Peak: current util > 70% AND all samples in last 2 minutes are > 70%
+	// Peak: current util > 70% AND >= 60% of samples in last 2 minutes are > 70%
 	if utilPct > peakThresholdPct {
 		peakCutoff := at.Add(-peakWindow)
-		allPeak := true
+		total := 0
+		aboveThreshold := 0
 		for _, s := range c.samples {
 			if s.at.Before(peakCutoff) {
 				continue
 			}
-			if s.utilPct <= peakThresholdPct {
-				allPeak = false
-				break
+			total++
+			if s.utilPct > peakThresholdPct {
+				aboveThreshold++
 			}
 		}
-		if allPeak {
+		if total > 0 && float64(aboveThreshold)/float64(total) >= classifyRatio {
 			return StatePeak
 		}
 	}
