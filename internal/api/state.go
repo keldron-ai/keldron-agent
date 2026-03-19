@@ -17,11 +17,12 @@ import (
 // The output bridge calls Update after each flush; API handlers and WebSocket
 // broadcast read from Get.
 type StateHolder struct {
-	mu     sync.RWMutex
-	batch  []normalizer.TelemetryPoint
-	scores []scoring.RiskScoreOutput
-	health map[string]*health.DeviceHealthSnapshot
-	hub    *wsHub
+	mu            sync.RWMutex
+	batch         []normalizer.TelemetryPoint
+	scores        []scoring.RiskScoreOutput
+	health        map[string]*health.DeviceHealthSnapshot
+	hub           *wsHub
+	historyBuffer *HistoryBuffer
 }
 
 // NewStateHolder creates a new StateHolder.
@@ -35,6 +36,13 @@ func (h *StateHolder) SetBroadcastTarget(hub *wsHub) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.hub = hub
+}
+
+// SetHistoryBuffer sets the history buffer to append points to on Update.
+func (h *StateHolder) SetHistoryBuffer(hb *HistoryBuffer) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.historyBuffer = hb
 }
 
 // Update stores the latest batch, scores, and health, and broadcasts to WebSocket clients.
@@ -55,12 +63,19 @@ func (h *StateHolder) Update(batch []normalizer.TelemetryPoint, scores []scoring
 	h.scores = sCopy
 	h.health = healthCopy
 	hub := h.hub
+	hb := h.historyBuffer
 	h.mu.Unlock()
 
-	if hub != nil && len(batch) > 0 {
-		msg := buildTelemetryUpdate(batch, scores, healthSnapshots)
-		if data, err := json.Marshal(msg); err == nil {
-			hub.broadcast(data)
+	if len(batch) > 0 {
+		if hub != nil {
+			msg := buildTelemetryUpdate(batch, scores, healthSnapshots)
+			if data, err := json.Marshal(msg); err == nil {
+				hub.broadcast(data)
+			}
+		}
+		if hb != nil {
+			point := buildHistoryPoint(batch, scores)
+			hb.Add(point)
 		}
 	}
 }

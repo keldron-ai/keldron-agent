@@ -26,6 +26,7 @@ import (
 type Server struct {
 	stateHolder    *StateHolder
 	hub            *wsHub
+	historyBuffer  *HistoryBuffer
 	httpServer     *http.Server
 	version        string
 	pollInterval   time.Duration
@@ -34,7 +35,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(holder *StateHolder, version string, pollInterval time.Duration, activeAdapters []string, cloudConnected bool) *Server {
+func NewServer(holder *StateHolder, version string, pollInterval time.Duration, activeAdapters []string, cloudConnected bool, historyBuffer *HistoryBuffer) *Server {
 	hub := newWSHub()
 	holder.SetBroadcastTarget(hub)
 
@@ -43,6 +44,7 @@ func NewServer(holder *StateHolder, version string, pollInterval time.Duration, 
 	s := &Server{
 		stateHolder:    holder,
 		hub:            hub,
+		historyBuffer:  historyBuffer,
 		httpServer:     &http.Server{Handler: corsMiddleware(mux)},
 		version:        version,
 		pollInterval:   pollInterval,
@@ -53,6 +55,7 @@ func NewServer(holder *StateHolder, version string, pollInterval time.Duration, 
 	mux.HandleFunc("GET /api/v1/status", s.handleStatus)
 	mux.HandleFunc("GET /api/v1/risk", s.handleRisk)
 	mux.HandleFunc("GET /api/v1/processes", s.handleProcesses)
+	mux.HandleFunc("GET /api/v1/history", s.handleHistory)
 	mux.HandleFunc("GET /ws/telemetry", s.handleWebSocket)
 	mux.Handle("/", serveFrontend())
 
@@ -333,6 +336,31 @@ func (s *Server) handleProcesses(w http.ResponseWriter, r *http.Request) {
 		Note:      &note,
 	}
 	writeJSON(w, http.StatusNotImplemented, resp)
+}
+
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	window := 30 * time.Minute
+	if wStr := r.URL.Query().Get("window"); wStr != "" {
+		if d, err := time.ParseDuration(wStr); err == nil && d > 0 {
+			if d > time.Hour {
+				d = time.Hour
+			}
+			window = d
+		}
+	}
+
+	var points []TelemetryPoint
+	if s.historyBuffer != nil {
+		since := time.Now().UTC().Add(-window)
+		points = s.historyBuffer.Points(since)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"window_minutes": int(window.Minutes()),
+		"count":          len(points),
+		"points":         points,
+	})
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
