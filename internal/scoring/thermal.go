@@ -10,9 +10,14 @@ import (
 )
 
 // ComputeThermal computes the thermal sub-score (0-100) with piecewise linear
-// temperature ratio, stepped RoC penalty, and Apple Silicon thermal_pressure override.
+// temperature ratio, stepped RoC penalty, and Apple Silicon thermal_pressure floor.
 func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.GPUSpec, thermalPressureState string) (score float64, rocPenalty float64, warmingUp bool) {
-	// Apple Silicon override
+	// Apple Silicon thermal_pressure provides a floor, not an override.
+	// We compute both the Apple floor and the piecewise linear score,
+	// then take whichever is higher. This way the piecewise formula
+	// kicks in as temp approaches the throttle threshold, AND Apple's
+	// native "serious"/"critical" states can push the score even higher.
+	var appleFloor float64
 	if spec.BehaviorClass == "soc_integrated" &&
 		spec.ThermalPressureStateSupported &&
 		thermalPressureState != "" {
@@ -23,15 +28,17 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 			"critical": 95,
 		}
 		if v, ok := overrides[thermalPressureState]; ok {
-			return v, 0, false
+			appleFloor = v
 		}
 	}
 
-	// Piecewise linear
+	// Piecewise linear based on actual temperature
 	if spec.ThermalLimitC <= 0 {
-		return 0, 0, true
+		return math.Max(appleFloor, 0), 0, true
 	}
+
 	tRatio := tCurrent / spec.ThermalLimitC
+
 	var tScore float64
 	if tRatio < 0.60 {
 		tScore = 0
@@ -42,10 +49,11 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 	// Stepped RoC penalty
 	oldest, hasOldest := thermalBuffer.Oldest()
 	if !hasOldest || !thermalBuffer.IsFull() {
-		return math.Min(100, tScore), 0, true // warming_up
+		return math.Min(100, math.Max(tScore, appleFloor)), 0, true // warming_up
 	}
 
 	roc := (tCurrent - oldest) / 5.0 // °C per minute (5-min buffer)
+
 	var rocP float64
 	if roc > 3.0 {
 		rocP = 40 // emergency
@@ -55,5 +63,6 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 		rocP = (roc - 0.5) * 20 // moderate: linear 0-10
 	}
 
-	return math.Min(100, tScore+rocP), rocP, false
+	finalScore := math.Min(100, math.Max(tScore+rocP, appleFloor))
+	return finalScore, rocP, false
 }
