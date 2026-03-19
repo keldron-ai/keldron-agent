@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { TelemetryProvider } from '@/context/TelemetryContext'
 import { Layout } from '@/components/Layout'
 import { DeviceDashboard } from '@/pages/DeviceDashboard'
 import { DeviceDetail } from '@/pages/DeviceDetail'
@@ -6,7 +7,8 @@ import { RiskDrilldown } from '@/pages/RiskDrilldown'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <TelemetryProvider>
+      <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<DeviceDashboard />} />
@@ -16,5 +18,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </TelemetryProvider>
   )
 }

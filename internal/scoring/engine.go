@@ -54,6 +54,7 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 		thermal    float64
 		power      float64
 		volatility float64
+		memory     float64
 		rLocal     float64
 		warmingUp  bool
 		output     RiskScoreOutput
@@ -87,11 +88,16 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 		volatility, volWarming := ComputeVolatility(state.VolBuffer, state.Spec)
 		warmingUp := thermalWarming || volWarming
 
-		rLocal := ComputeComposite(thermal, power, volatility, 0)
-
-		// Bonus metrics
 		memUsed := getFloat(m, "mem_used_bytes")
 		memTotal := getFloat(m, "mem_total_bytes")
+		memoryUsedPct := 0.0
+		if memTotal > 0 {
+			memoryUsedPct = memUsed / memTotal * 100
+		}
+		memory := ComputeMemory(memoryUsedPct)
+		rLocal := ComputeComposite(thermal, power, volatility, memory)
+
+		// Bonus metrics
 		clockActual := getFloat(m, "sm_clock_mhz")
 		clockMax := getFloat(m, "sm_clock_max_mhz")
 		tJunction := getFloat(m, "temperature_junction_c")
@@ -118,6 +124,7 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 			ThermalRoCPenalty: rocPenalty,
 			Power:             power,
 			Volatility:        volatility,
+			Memory:            memory,
 			BehaviorClass:     state.Spec.BehaviorClass,
 			WarmingUp:         warmingUp,
 			MemoryPressure:    ComputeMemoryPressure(memUsed, memTotal),
@@ -137,34 +144,19 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 			thermal:    thermal,
 			power:      power,
 			volatility: volatility,
+			memory:     memory,
 			rLocal:     rLocal,
 			warmingUp:  warmingUp,
 			output:     out,
 		})
 	}
 
-	// Second pass: fleet penalty and composite
-	// Use rLocal as proxy for "stressed" (composite > 70) to avoid circular dependency
-	peerRLocals := make([]float64, 0, len(locals))
-	for _, l := range locals {
-		peerRLocals = append(peerRLocals, l.rLocal)
-	}
-
+	// Second pass: severity, trend
 	results := make([]RiskScoreOutput, 0, len(locals))
-	for i, l := range locals {
-		// Peers = all other devices (rLocal as stressed proxy)
-		peers := make([]float64, 0, len(locals)-1)
-		for j, r := range peerRLocals {
-			if j != i {
-				peers = append(peers, r)
-			}
-		}
-		fleetPenalty := ComputeFleetPenalty(peers)
-		composite := ComputeComposite(l.thermal, l.power, l.volatility, fleetPenalty)
-
+	for _, l := range locals {
+		composite := l.rLocal
 		state := e.states[l.deviceID]
 		out := l.output
-		out.FleetPenalty = fleetPenalty
 		out.Composite = composite
 		out.Severity = ClassifySeverity(composite, out.BehaviorClass)
 		if state != nil {

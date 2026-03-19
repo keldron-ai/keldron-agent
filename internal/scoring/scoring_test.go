@@ -241,34 +241,61 @@ func TestComputeFleetPenalty(t *testing.T) {
 	}
 }
 
+func TestComputeMemory(t *testing.T) {
+	tests := []struct {
+		memPct   float64
+		expected float64
+	}{
+		{50.0, 0},
+		{70.0, 0},
+		{77.5, 15.0},
+		{85.0, 30.0},
+		{90.0, 50.0},
+		{95.0, 70.0},
+		{97.0, 82.0},
+		{100.0, 100.0},
+	}
+	for _, tt := range tests {
+		score := ComputeMemory(tt.memPct)
+		if math.Abs(score-tt.expected) > 0.5 {
+			t.Errorf("ComputeMemory(%.1f) = %.1f, want %.1f", tt.memPct, score, tt.expected)
+		}
+	}
+}
+
 func TestComputeComposite_MeltingMachine(t *testing.T) {
-	// S_thermal=100, S_power=95, S_volatility=80, peers all at 10
+	// S_thermal=100, S_power=95, S_volatility=80, S_memory=0 (low memory usage)
 	thermal := 100.0
 	power := 95.0
 	volatility := 80.0
-	fleetPenalty := 0.0
+	memory := 0.0
 
-	// rLocal = 0.50*100 + 0.31*95 + 0.19*80 = 50 + 29.45 + 15.2 = 94.65
-	got := ComputeComposite(thermal, power, volatility, fleetPenalty)
-	if math.Abs(got-94.65) > 0.1 {
-		t.Errorf("composite = %v, want 94.65", got)
+	// rLocal = 0.40*100 + 0.25*95 + 0.15*80 + 0.20*0 = 40 + 23.75 + 12 + 0 = 75.75
+	got := ComputeComposite(thermal, power, volatility, memory)
+	if math.Abs(got-75.75) > 0.1 {
+		t.Errorf("composite = %v, want 75.75", got)
 	}
 
-	// Classify: datacenter 80->critical
+	// Classify: datacenter_sustained [60,80] -> warning when 60 <= score < 80
 	sev := ClassifySeverity(got, "datacenter_sustained")
+	if sev != SeverityWarning {
+		t.Errorf("severity = %q, want warning (60 <= 75.75 < 80)", sev)
+	}
+	// With memory=82 (97% usage), composite would be higher
+	gotHigh := ComputeComposite(100, 95, 80, 82)
+	if gotHigh < 90 {
+		t.Errorf("composite with memory=82 = %v, want >= 90", gotHigh)
+	}
+	sev = ClassifySeverity(gotHigh, "datacenter_sustained")
 	if sev != SeverityCritical {
 		t.Errorf("severity = %q, want critical", sev)
 	}
 }
 
 func TestComputeComposite_All100(t *testing.T) {
-	got := ComputeComposite(100, 100, 100, 0)
+	got := ComputeComposite(100, 100, 100, 100)
 	if got != 100 {
 		t.Errorf("all-100 composite = %v, want 100", got)
-	}
-	got = ComputeComposite(100, 100, 100, 10)
-	if got != 100 {
-		t.Errorf("all-100 + fleet composite = %v, want 100 (capped)", got)
 	}
 }
 
@@ -435,5 +462,9 @@ func TestScoreEngine_Integration(t *testing.T) {
 	}
 	if s.Severity != SeverityNormal && s.Severity != SeverityWarning && s.Severity != SeverityCritical {
 		t.Errorf("Severity = %q", s.Severity)
+	}
+	// 8e9/16e9 = 50% memory -> ComputeMemory(50) = 0
+	if s.Memory != 0 {
+		t.Errorf("Memory = %v, want 0 (50%% usage)", s.Memory)
 	}
 }

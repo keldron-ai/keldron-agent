@@ -6,10 +6,10 @@ package scoring
 import "math"
 
 const (
-	W_THERMAL    = 0.50
-	W_POWER      = 0.31
-	W_VOLATILITY = 0.19
-	W_CORRELATED = 0.20
+	W_THERMAL    = 0.40
+	W_POWER      = 0.25
+	W_VOLATILITY = 0.15
+	W_MEMORY     = 0.20
 )
 
 // SeverityThresholds maps behavior_class to [warning, critical] thresholds.
@@ -20,10 +20,10 @@ var SeverityThresholds = map[string][2]float64{
 	"sbc_constrained":        {72, 87},
 }
 
-// ComputeComposite computes the weighted local score plus fleet penalty.
-func ComputeComposite(thermal, power, volatility, fleetPenalty float64) float64 {
-	rLocal := W_THERMAL*thermal + W_POWER*power + W_VOLATILITY*volatility
-	return math.Min(100, rLocal+fleetPenalty)
+// ComputeComposite computes the weighted composite score from thermal, power, volatility, and memory sub-scores.
+func ComputeComposite(thermal, power, volatility, memory float64) float64 {
+	rLocal := W_THERMAL*thermal + W_POWER*power + W_VOLATILITY*volatility + W_MEMORY*memory
+	return math.Min(100, rLocal)
 }
 
 // ClassifySeverity returns "normal", "warning", or "critical" based on

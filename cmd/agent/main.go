@@ -180,10 +180,13 @@ func run() int {
 		activeAdapters = append(activeAdapters, a.Name())
 	}
 
-	// Initialize StateHolder and health engine for API (independent of local/cloud mode).
+	// Initialize StateHolder, history buffer, and health engine for API (independent of local/cloud mode).
 	var healthEngine *health.Engine
+	var historyBuffer *api.HistoryBuffer
 	if cfg.API.Enabled {
 		stateHolder = api.NewStateHolder()
+		historyBuffer = api.NewHistoryBuffer(cfg.API.HistoryPoints)
+		stateHolder.SetHistoryBuffer(historyBuffer)
 		healthEngine = health.NewEngine()
 	}
 
@@ -296,7 +299,7 @@ func run() int {
 
 	// API server for dashboard (OSS-028) — works in both local and cloud modes.
 	if cfg.API.Enabled {
-		apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "")
+		apiServer = api.NewServer(stateHolder, version, cfg.Agent.PollInterval, activeAdapters, cfg.Cloud.APIKey != "", historyBuffer)
 		host := cfg.API.Host
 		if host == "" {
 			host = "127.0.0.1"

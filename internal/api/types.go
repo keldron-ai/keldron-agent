@@ -71,7 +71,7 @@ type SubScores struct {
 	Thermal    SubScoreDetail `json:"thermal"`
 	Power      SubScoreDetail `json:"power"`
 	Volatility SubScoreDetail `json:"volatility"`
-	Correlated SubScoreDetail `json:"correlated"`
+	Memory     SubScoreDetail `json:"memory"`
 }
 
 type SubScoreDetail struct {

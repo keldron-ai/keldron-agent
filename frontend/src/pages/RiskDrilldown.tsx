@@ -1,276 +1,213 @@
 import { Link } from 'react-router-dom'
-import { useRiskScore } from '@/hooks/useRiskScore'
-import { useTelemetryStream } from '@/hooks/useTelemetryStream'
-import { useProcesses } from '@/hooks/useProcesses'
-import { LargeHexBadge } from '@/components/large-hex-badge'
-import { RiskBreakdown } from '@/components/risk-breakdown'
+import { Thermometer, Zap, Activity, HardDrive } from 'lucide-react'
+import { useTelemetry } from '@/context/TelemetryContext'
+import { RiskHexBadge } from '@/components/RiskHexBadge'
+import { SubScoreBars } from '@/components/SubScoreBars'
+import { SubScoreCard } from '@/components/SubScoreCard'
 import { TelemetryChart } from '@/components/telemetry-chart'
-import { SystemInfo } from '@/components/system-info'
-import { ActiveProcesses } from '@/components/active-processes'
+import { ProcessTable } from '@/components/ProcessTable'
 
-function mapApiSeverityToHex(
+function mapApiSeverity(
   severity: string | undefined,
   score: number
-): 'healthy' | 'elevated' | 'warning' | 'critical' | 'offline' {
-  if (!severity) return 'offline'
+): 'normal' | 'warning' | 'critical' {
+  if (!severity) return 'normal'
   if (severity === 'critical') return 'critical'
-  if (severity === 'elevated') return 'elevated'
   if (severity === 'warning') return 'warning'
-  if (severity === 'normal') return 'healthy'
   if (score >= 80) return 'critical'
   if (score >= 60) return 'warning'
-  return 'healthy'
+  return 'normal'
 }
 
-function formatRuntime(seconds: number): string {
-  if (seconds < 60) return `${Math.floor(seconds)}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
-  const hours = Math.floor(seconds / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  return `${hours}h ${mins}m`
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
+const SUB_SCORE_CONFIG = [
+  {
+    key: 'thermal' as const,
+    name: 'Thermal',
+    icon: <Thermometer className="w-4 h-4" />,
+  },
+  {
+    key: 'power' as const,
+    name: 'Power',
+    icon: <Zap className="w-4 h-4" />,
+  },
+  {
+    key: 'volatility' as const,
+    name: 'Volatility',
+    icon: <Activity className="w-4 h-4" />,
+  },
+  {
+    key: 'memory' as const,
+    name: 'Memory',
+    icon: <HardDrive className="w-4 h-4" />,
+  },
+] as const
 
 export function RiskDrilldown() {
-  const { risk } = useRiskScore()
-  const { history } = useTelemetryStream()
-  const processes = useProcesses()
+  const { risk, history, processes } = useTelemetry()
 
   const score = risk?.composite?.score ?? 0
   const severity = risk?.composite?.severity
-  const hexSeverity = mapApiSeverityToHex(severity, score)
+  const trend = risk?.composite?.trend ?? 'stable'
+  const trendDelta = risk?.composite?.trend_delta ?? 0
+  const hexSeverity = mapApiSeverity(severity, score)
 
   const subScores = risk?.sub_scores
-    ? [
-        {
-          label: 'Thermal margin',
-          value: Math.round(risk.sub_scores.thermal.score),
-          maxValue: 100,
-        },
-        {
-          label: 'Power headroom',
-          value: Math.round(risk.sub_scores.power.score),
-          maxValue: 100,
-        },
-        {
-          label: 'Load volatility',
-          value: Math.round(risk.sub_scores.volatility.score),
-          maxValue: 100,
-        },
-        {
-          label: 'Correlated failure',
-          value: Math.round(risk.sub_scores.correlated.score),
-          maxValue: 100,
-        },
-      ]
-    : []
-
-  const throttleC =
-    (risk?.sub_scores?.thermal?.details?.throttle_threshold_c as number) ?? 95
-  const tdpW = (risk?.sub_scores?.power?.details?.tdp_w as number) ?? 100
-
-  const ensureMinPoints = (arr: number[], min = 2) =>
-    arr.length >= min ? arr : [...Array(min).fill(arr[0] ?? 0)]
-
-  const tempData = ensureMinPoints(
-    history.temperature.map((p) => p.value)
-  )
-  const utilData = ensureMinPoints(
-    history.utilization.map((p) => p.value)
-  )
-  const powerData = ensureMinPoints(
-    history.power.map((p) => p.value)
-  )
-  const memData = ensureMinPoints(
-    history.memory.map((p) => p.value)
-  )
-
-  const lastTemp = tempData[tempData.length - 1] ?? 0
-  const lastUtil = utilData[utilData.length - 1] ?? 0
-  const lastPower = powerData[powerData.length - 1] ?? 0
-  const lastMem = memData[memData.length - 1] ?? 0
-
-  const systemInfo = risk
-    ? [
-        {
-          label: 'Composite',
-          value: `${risk.composite.score.toFixed(1)} (${risk.composite.severity})`,
-        },
-        {
-          label: 'Trend',
-          value: risk.composite.trend,
-        },
-        {
-          label: 'Warning threshold',
-          value: `${risk.thresholds.warning}`,
-        },
-        {
-          label: 'Critical threshold',
-          value: `${risk.thresholds.critical}`,
-        },
-      ]
-    : []
-
-  const processList =
-    processes?.supported && processes.processes.length > 0
-      ? processes.processes.map((p) => ({
-          name: p.name,
-          detail: p.user ? `user: ${p.user}` : '',
-          gpuMemory: formatBytes(p.gpu_memory_bytes),
-          gpuPercent: `${p.gpu_utilization_pct.toFixed(0)}%`,
-          runtime: formatRuntime(p.runtime_seconds),
-          isHighUsage: p.gpu_utilization_pct > 50,
-        }))
-      : []
+  const throttleC = (subScores?.thermal?.details?.throttle_threshold_c as number) ?? 95
+  const tdpW = (subScores?.power?.details?.tdp_w as number) ?? 100
 
   return (
-    <div className="flex-1 p-6 space-y-4 overflow-auto">
+    <div className="flex-1 p-6 space-y-6 overflow-auto">
       {/* Back + header */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-4">
         <Link
           to="/"
           className="text-sm text-[#94A3B8] hover:text-[#E8ECF4] transition-colors"
         >
-          ← Back
+          ← Back to Dashboard
         </Link>
-        <h1 className="text-[18px] font-semibold text-[#E8ECF4]">
+        <h1 className="text-lg font-semibold text-[#E8ECF4]">
           Risk Analysis
         </h1>
       </div>
 
-      {/* Composite score + sub-scores */}
-      <section className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
-          <div>
-            <h2 className="text-[15px] font-semibold text-[#E8ECF4] mb-1">
-              Composite Score
-            </h2>
-            <LargeHexBadge score={Math.round(score)} severity={hexSeverity} />
+      {/* Composite score + sub-score bars */}
+      <section
+        className="rounded-xl border p-6"
+        style={{
+          backgroundColor: '#0F172A',
+          borderColor: 'rgba(148, 163, 184, 0.1)',
+        }}
+      >
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="flex flex-col items-center gap-4">
+            <RiskHexBadge
+              score={score}
+              severity={hexSeverity}
+              trend={trend}
+              size="md"
+            />
+            <div className="text-center space-y-1">
+              <p className="text-sm text-[#94A3B8]">
+                Composite: <span className="text-[#E8ECF4] font-medium">{score >= 10 ? score.toFixed(0) : score.toFixed(1)}</span>
+              </p>
+              <p className="text-sm text-[#94A3B8]">
+                Severity: <span style={{ color: hexSeverity === 'normal' ? '#22C55E' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{severity ?? '—'}</span>
+              </p>
+              <p className="text-sm text-[#94A3B8]">
+                Trend: {trend} ({trendDelta >= 0 ? '+' : ''}{trendDelta.toFixed(1)})
+              </p>
+            </div>
           </div>
-          <div className="lg:col-span-2">
-            <h3 className="text-[13px] font-semibold text-[#E8ECF4] mb-3">
-              Sub-scores
-            </h3>
-            <RiskBreakdown scores={subScores} />
+          <div className="flex-1 w-full">
+            <SubScoreBars subScores={subScores} />
           </div>
         </div>
 
-        {/* 4 sub-score detail cards */}
-        {subScores.length > 0 && risk?.sub_scores && (
+        {/* 4 sub-score cards */}
+        {subScores && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t border-white/[0.06]">
-            {[
-              { key: 'thermal', label: 'Thermal', data: risk.sub_scores.thermal },
-              { key: 'power', label: 'Power', data: risk.sub_scores.power },
-              {
-                key: 'volatility',
-                label: 'Volatility',
-                data: risk.sub_scores.volatility,
-              },
-              {
-                key: 'correlated',
-                label: 'Correlated',
-                data: risk.sub_scores.correlated,
-              },
-            ].map(({ key, label, data }) => (
-              <div
-                key={key}
-                className="bg-[#0A0C10] rounded-lg border border-white/[0.04] p-4"
-              >
-                <h4 className="text-[12px] font-semibold text-[#94A3B8] mb-2">
-                  {label}
-                </h4>
-                <p className="text-[15px] font-bold text-[#E8ECF4] mb-2">
-                  {data.score.toFixed(1)} (weight: {data.weight})
-                </p>
-                <div className="space-y-1 text-[11px]">
-                  {Object.entries(data.details || {}).map(([k, v]) => (
-                    <div
-                      key={k}
-                      className="flex justify-between text-[#64748B]"
-                    >
-                      <span>{k.replace(/_/g, ' ')}</span>
-                      <span className="text-[#94A3B8]">
-                        {typeof v === 'number' ? v.toFixed(2) : String(v)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            {SUB_SCORE_CONFIG.map(({ key, name, icon }) => {
+              const data = subScores[key]
+              if (!data) return null
+              return (
+                <SubScoreCard
+                  key={key}
+                  name={name}
+                  score={data.score}
+                  weight={data.weight}
+                  weighted_contribution={data.weighted_contribution}
+                  details={data.details ?? {}}
+                  icon={icon}
+                />
+              )
+            })}
           </div>
         )}
       </section>
 
       {/* 4 telemetry charts */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <section className="space-y-4">
         <TelemetryChart
-          title="Temperature"
-          currentValue={`${lastTemp.toFixed(0)}°C`}
-          valueColor={
-            lastTemp >= throttleC * 0.9 ? '#F59E0B' : '#E8ECF4'
+          title="Temperature (30 min)"
+          data={history.temperature}
+          unit="°C"
+          color="#00C9B0"
+          thresholdValue={throttleC}
+          thresholdLabel="Throttle"
+          yDomain={
+            history.temperature.length > 0
+              ? [
+                  Math.min(
+                    Math.min(...history.temperature.map((p) => p.value)),
+                    throttleC - 20,
+                    0
+                  ),
+                  Math.max(
+                    Math.max(...history.temperature.map((p) => p.value)),
+                    throttleC + 10,
+                    100
+                  ),
+                ]
+              : [0, 100]
           }
-          lineColor="#00C9B0"
-          data={tempData}
-          threshold={{ value: throttleC, label: 'Throttle' }}
-          minY={Math.min(...tempData, 0, throttleC - 20) || 0}
-          maxY={Math.max(...tempData, throttleC + 10) || 100}
         />
         <TelemetryChart
-          title="GPU Utilization"
-          currentValue={`${lastUtil.toFixed(0)}%`}
-          lineColor="#00C9B0"
-          data={utilData}
-          minY={0}
-          maxY={100}
+          title="GPU Utilization (30 min)"
+          data={history.utilization}
+          unit="%"
+          color="#3B82F6"
+          yDomain={[0, 100]}
         />
         <TelemetryChart
-          title="Power Draw"
-          currentValue={`${lastPower.toFixed(1)}W`}
-          lineColor="#00C9B0"
-          data={powerData}
-          threshold={{ value: tdpW, label: `TDP ${tdpW}W` }}
-          minY={0}
-          maxY={Math.max(...powerData, tdpW * 1.1) || 150}
+          title="Power Draw (30 min)"
+          data={history.power}
+          unit="W"
+          color="#F59E0B"
+          thresholdValue={tdpW}
+          thresholdLabel={`TDP ${tdpW}W`}
+          yDomain={
+            history.power.length > 0
+              ? [
+                  0,
+                  Math.max(
+                    Math.max(...history.power.map((p) => p.value)),
+                    tdpW * 1.1,
+                    150
+                  ),
+                ]
+              : [0, 150]
+          }
         />
         <TelemetryChart
-          title="Memory"
-          currentValue={`${lastMem.toFixed(1)}%`}
-          lineColor="#00C9B0"
-          data={memData}
-          minY={0}
-          maxY={100}
+          title="Memory Usage (30 min)"
+          data={history.memory}
+          unit="%"
+          color="#00E5CC"
+          yDomain={[0, 100]}
         />
       </section>
 
-      {/* System info + Processes */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SystemInfo info={systemInfo} />
+      {/* Process table */}
+      <section>
         {processes === null ? (
-          <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5">
-            <h3 className="text-[13px] font-semibold text-[#E8ECF4] mb-4">
+          <div
+            className="rounded-xl border p-5"
+            style={{
+              backgroundColor: '#0F172A',
+              borderColor: 'rgba(148, 163, 184, 0.1)',
+            }}
+          >
+            <h3 className="text-sm font-semibold text-[#E8ECF4] mb-2">
               Active Processes
             </h3>
-            <p className="text-[13px] text-[#64748B]">Loading...</p>
+            <p className="text-sm text-[#64748B]">Loading...</p>
           </div>
-        ) : processes.supported ? (
-          <ActiveProcesses processes={processList} />
         ) : (
-          <div className="bg-[#0F172A] rounded-xl border border-white/[0.06] p-5">
-            <h3 className="text-[13px] font-semibold text-[#E8ECF4] mb-4">
-              Active Processes
-            </h3>
-            <p className="text-[13px] text-[#64748B]">
-              {processes.note ??
-                'Process enumeration is not supported by this adapter.'}
-            </p>
-          </div>
+          <ProcessTable
+            processes={processes.processes}
+            supported={processes.supported}
+            note={processes.note}
+          />
         )}
       </section>
     </div>
