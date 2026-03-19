@@ -102,6 +102,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	// Collect metrics - take first metric of each type (single device)
 	var tempC, powerW, utilRatio, memUsed, memTotal, riskComposite float64
 	var riskThermal, riskPower, riskVolatility, riskMemory float64
+	var riskMemoryFound bool
 	riskSeverity := "normal"
 	uptime := 0.0
 
@@ -157,6 +158,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 			riskVolatility = v
 		case "keldron_risk_memory":
 			riskMemory = v
+			riskMemoryFound = true
 		case "keldron_risk_severity":
 			switch int(v) {
 			case 2:
@@ -185,7 +187,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 		memPct = memUsed / memTotal * 100
 	}
 	// Use keldron_risk_memory from metrics when present; otherwise compute from memPct (e.g. legacy agent)
-	if riskMemory == 0 {
+	if !riskMemoryFound {
 		riskMemory = scoring.ComputeMemory(memPct)
 	}
 
@@ -228,9 +230,24 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 				TrendDelta: 0,
 			},
 			SubScores: api.SubScores{
-				Thermal:    api.SubScoreDetail{Score: riskThermal, Weight: thermalWeight, WeightedContribution: riskThermal * thermalWeight},
-				Power:      api.SubScoreDetail{Score: riskPower, Weight: powerWeight, WeightedContribution: riskPower * powerWeight},
-				Volatility: api.SubScoreDetail{Score: riskVolatility, Weight: volWeight, WeightedContribution: riskVolatility * volWeight},
+				Thermal: api.SubScoreDetail{
+					Score:                riskThermal,
+					Weight:               thermalWeight,
+					WeightedContribution: riskThermal * thermalWeight,
+					Details:              map[string]interface{}{},
+				},
+				Power: api.SubScoreDetail{
+					Score:                riskPower,
+					Weight:               powerWeight,
+					WeightedContribution: riskPower * powerWeight,
+					Details:              map[string]interface{}{},
+				},
+				Volatility: api.SubScoreDetail{
+					Score:                riskVolatility,
+					Weight:               volWeight,
+					WeightedContribution: riskVolatility * volWeight,
+					Details:              map[string]interface{}{},
+				},
 				Memory: api.SubScoreDetail{
 					Score:                riskMemory,
 					Weight:               memWeight,

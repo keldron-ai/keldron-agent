@@ -32,12 +32,12 @@ function getBarColor(score: number): string {
 export function SubScoreBars({ subScores }: SubScoreBarsProps) {
   if (!subScores) return null
 
-  const entries: { key: keyof SubScores; score: number }[] = [
-    { key: 'thermal', score: subScores.thermal?.score ?? 0 },
-    { key: 'power', score: subScores.power?.score ?? 0 },
-    { key: 'volatility', score: subScores.volatility?.score ?? 0 },
-    { key: 'memory', score: subScores.memory?.score ?? 0 },
-  ]
+  const entries: { key: keyof SubScores; score: number }[] = (
+    Object.keys(LABELS) as (keyof SubScores)[]
+  ).map((key) => ({
+    key,
+    score: subScores[key]?.score ?? 0,
+  }))
 
   return (
     <div className="space-y-3">

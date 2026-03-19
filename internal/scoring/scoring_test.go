@@ -276,10 +276,10 @@ func TestComputeComposite_MeltingMachine(t *testing.T) {
 		t.Errorf("composite = %v, want 75.75", got)
 	}
 
-	// Classify: datacenter 80->critical
+	// Classify: datacenter_sustained [60,80] -> warning when 60 <= score < 80
 	sev := ClassifySeverity(got, "datacenter_sustained")
-	if sev != SeverityNormal {
-		t.Errorf("severity = %q, want normal (75.75 < 80)", sev)
+	if sev != SeverityWarning {
+		t.Errorf("severity = %q, want warning (60 <= 75.75 < 80)", sev)
 	}
 	// With memory=82 (97% usage), composite would be higher
 	gotHigh := ComputeComposite(100, 95, 80, 82)
