@@ -1,4 +1,5 @@
 keldron-agent
+bin/
 keldron-agent-*
 keldron-agent.yaml
 keldron-agent.dev.yaml

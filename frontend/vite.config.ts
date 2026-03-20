@@ -12,10 +12,10 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') },
   },
   server: {
-    port: 5173,
+    port: 9200,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:9200', changeOrigin: true },
-      '/ws': { target: 'ws://127.0.0.1:9200', ws: true },
+      '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      '/ws': { target: 'ws://127.0.0.1:8080', ws: true },
     },
   },
   build: {
