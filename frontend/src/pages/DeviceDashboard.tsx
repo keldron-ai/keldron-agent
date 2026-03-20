@@ -252,15 +252,25 @@ export function DeviceDashboard() {
               </p>
             </div>
 
-            {/* Center: Hex badge + trend */}
+            {/* Center: Hex badge + trend (badge links to Risk Analysis) */}
             <div className="flex flex-col items-center justify-center">
-              <RiskHexBadge
-                score={score}
-                severity={hexSeverity}
-                trend={trend}
-                size="lg"
-                trendText={getTrendText(trend)}
-              />
+              <Link
+                to="/risk"
+                title="View risk details"
+                className={
+                  reducedMotion
+                    ? 'rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer'
+                    : 'rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]'
+                }
+              >
+                <RiskHexBadge
+                  score={score}
+                  severity={hexSeverity}
+                  trend={trend}
+                  size="lg"
+                  trendText={getTrendText(trend)}
+                />
+              </Link>
             </div>
 
             {/* Right: Sub-score bars */}

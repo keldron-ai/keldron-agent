@@ -56,7 +56,8 @@ export function RiskDrilldown() {
   const tdpW = (subScores?.power?.details?.tdp_w as number) ?? 100
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-auto">
+    <div className="flex-1 px-6 py-6 overflow-auto">
+      <div className="max-w-[1280px] mx-auto space-y-6">
       {/* Back + header */}
       <div className="flex items-center gap-4">
         <Link
@@ -210,6 +211,7 @@ export function RiskDrilldown() {
           />
         )}
       </section>
+      </div>
     </div>
   )
 }

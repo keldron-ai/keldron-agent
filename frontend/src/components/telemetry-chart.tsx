@@ -40,6 +40,19 @@ function formatTimeLabel(ts: number): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatYAxisTick(v: number | string, unit: string): string {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return `—${unit}`
+  return `${Math.round(n)}${unit}`
+}
+
+/** Header value: integer when ~whole, one decimal when there is a meaningful fraction. */
+function formatHeaderValue(v: number): string {
+  const rounded = Math.round(v)
+  if (Math.abs(v - rounded) < 0.05) return String(rounded)
+  return v.toFixed(1)
+}
+
 export function TelemetryChart({
   title,
   data,
@@ -96,7 +109,7 @@ export function TelemetryChart({
           <span className="text-sm font-semibold text-[#E8ECF4]">{title}</span>
           {displayValue != null && (
             <span className="text-sm font-semibold" style={{ color: valueColor }}>
-              {displayValue.toFixed(0)}
+              {formatHeaderValue(displayValue)}
               {unit}
             </span>
           )}
@@ -166,11 +179,13 @@ export function TelemetryChart({
               />
               <YAxis
                 domain={domain}
-                tickFormatter={(v) => `${v}${unit}`}
+                allowDecimals={false}
+                tickCount={6}
+                tickFormatter={(v) => formatYAxisTick(v, unit)}
                 tick={{ fill: '#94A3B8', fontSize: 10 }}
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                 tickLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-                width={40}
+                width={44}
               />
               <Tooltip
                 contentStyle={{
@@ -179,7 +194,9 @@ export function TelemetryChart({
                   borderRadius: '6px',
                 }}
                 labelStyle={{ color: '#94A3B8' }}
-                formatter={(val: number) => [`${val?.toFixed(1) ?? ''} ${unit}`]}
+                formatter={(val: number) => [
+                  `${Number.isFinite(val) ? Math.round(val) : '—'}${unit}`,
+                ]}
                 labelFormatter={(ts) =>
                   ts ? new Date(ts).toLocaleTimeString() : ''
                 }
