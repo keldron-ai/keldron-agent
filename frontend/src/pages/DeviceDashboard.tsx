@@ -263,7 +263,7 @@ export function DeviceDashboard() {
               <Link
                 to="/risk"
                 title="View risk details"
-                aria-label={`Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity} — View risk details`}
+                aria-label={severity ? `Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity} — View risk details` : 'Risk score loading — View risk details'}
                 className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]"
               >
                 <RiskHexBadge
