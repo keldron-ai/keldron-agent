@@ -158,11 +158,7 @@ export function DeviceDashboard() {
     if (reducedMotion) {
       prevThrottle.current = th
       prevTempSev.current = tempSeverity
-      if (prevComposite.current === null) {
-        prevComposite.current = hexSeverity
-      } else {
-        prevComposite.current = hexSeverity
-      }
+      prevComposite.current = hexSeverity
       return
     }
 
@@ -188,18 +184,17 @@ export function DeviceDashboard() {
 
     prevTempSev.current = tempSeverity
 
-    if (prevComposite.current === null) {
-      prevComposite.current = hexSeverity
-    } else {
-      if (severityRank(hexSeverity) > severityRank(prevComposite.current)) {
-        setUtilChartFlash({
-          text:
-            hexSeverity === 'critical' ? '[CRITICAL RISK]' : '[ELEVATED RISK]',
-          key: Date.now(),
-        })
-      }
-      prevComposite.current = hexSeverity
+    if (
+      prevComposite.current !== null &&
+      severityRank(hexSeverity) > severityRank(prevComposite.current)
+    ) {
+      setUtilChartFlash({
+        text:
+          hexSeverity === 'critical' ? '[CRITICAL RISK]' : '[ELEVATED RISK]',
+        key: Date.now(),
+      })
     }
+    prevComposite.current = hexSeverity
   }, [
     reducedMotion,
     hexSeverity,
