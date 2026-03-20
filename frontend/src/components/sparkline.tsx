@@ -1,3 +1,7 @@
+import { useId } from "react"
+
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
+
 type SparklineType = "flat" | "moderate" | "rising" | "ramping" | "ceiling" | "bursty" | "idle" | "offline"
 
 interface SparklineProps {
@@ -30,13 +34,13 @@ function getPoints(type: SparklineType): string {
 }
 
 function getAreaPath(type: SparklineType): string {
-  const points = getPoints(type).split(" ").map(p => {
+  const points = getPoints(type).split(" ").map((p) => {
     const [x, y] = p.split(",").map(Number)
     return { x, y }
   })
-  
+
   if (points.length < 2) return ""
-  
+
   let path = `M ${points[0].x},${points[0].y}`
   for (let i = 1; i < points.length; i++) {
     path += ` L ${points[i].x},${points[i].y}`
@@ -46,14 +50,16 @@ function getAreaPath(type: SparklineType): string {
 }
 
 export function Sparkline({ type, warning, offline }: SparklineProps) {
+  const rawId = useId().replace(/:/g, "")
+  const gradientId = `sl-stroke-${rawId}`
+  const fillGradientId = `sl-fill-${rawId}`
+  const reducedMotion = usePrefersReducedMotion()
+
   const strokeColor = offline
     ? "#475569"
     : warning
-    ? "#F59E0B"
-    : "#00C9B0"
-
-  const gradientId = `sparkline-${warning ? "warning" : "teal"}-${Math.random().toString(36).slice(2, 8)}`
-  const fillGradientId = `sparkline-fill-${warning ? "warning" : "teal"}-${Math.random().toString(36).slice(2, 8)}`
+      ? "#F59E0B"
+      : "#00C9B0"
 
   if (offline) {
     return (
@@ -76,6 +82,32 @@ export function Sparkline({ type, warning, offline }: SparklineProps) {
     )
   }
 
+  if (reducedMotion) {
+    return (
+      <svg
+        width="80"
+        height="18"
+        viewBox="0 0 80 18"
+        preserveAspectRatio="none"
+        className="block"
+      >
+        <path
+          d={getAreaPath(type)}
+          fill={strokeColor}
+          fillOpacity={0.1}
+        />
+        <polyline
+          points={getPoints(type)}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
+
   return (
     <svg
       width="80"
@@ -85,25 +117,18 @@ export function Sparkline({ type, warning, offline }: SparklineProps) {
       className="block"
     >
       <defs>
-        {/* Horizontal gradient for line fade (older = faded, newer = bright) */}
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={strokeColor} stopOpacity="1" />
+          <stop offset="0%" stopColor={strokeColor} stopOpacity={0.2} />
+          <stop offset="100%" stopColor={strokeColor} stopOpacity={1} />
         </linearGradient>
-        {/* Vertical gradient for area fill */}
-        <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+        <linearGradient id={fillGradientId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={strokeColor} stopOpacity={0.05} />
+          <stop offset="100%" stopColor={strokeColor} stopOpacity={0.15} />
         </linearGradient>
       </defs>
-      
-      {/* Area fill beneath the line */}
-      <path
-        d={getAreaPath(type)}
-        fill={`url(#${fillGradientId})`}
-      />
-      
-      {/* The sparkline itself with trailing brightness */}
+
+      <path d={getAreaPath(type)} fill={`url(#${fillGradientId})`} />
+
       <polyline
         points={getPoints(type)}
         fill="none"

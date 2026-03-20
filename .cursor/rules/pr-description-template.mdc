@@ -1,0 +1,58 @@
+---
+description: Use this template for all pull request descriptions (GitHub/GitLab body text).
+alwaysApply: true
+---
+
+# Pull request descriptions
+
+When the user asks for a PR description, opening PR text, or merge-request summary, **fill and output this template** (replace placeholders like `{TICKET_ID}` with real values; omit sections only if truly N/A).
+
+````markdown
+# PR Description — {TICKET_ID}
+
+---
+
+## Summary
+
+{One paragraph: what this PR does, why, and the user-facing behavior change. Reference the ticket ID. Mention key implementation approach (e.g., "CSS-only", "no new dependencies"). Call out what is NOT changed if relevant.}
+
+---
+
+## What Changed
+
+- **{Area 1}**: {Concise description of changes in this area. Include specific values, class names, props, config — be precise enough that a reviewer knows what to look for.}
+- **{Area 2}**: {Same format. Group by logical area: Frontend, Backend, Tests, Config, Infra, etc.}
+- **Tests**: {What tests were added/updated. Note any testing limitations (e.g., "not asserted in JSDOM due to mocked CSS").}
+
+---
+
+## Files Modified
+
+| Area     | File                          | Change                                                    |
+| -------- | ----------------------------- | --------------------------------------------------------- |
+| {Area}   | `{path/to/file}`             | {Brief description of what changed in this file}          |
+| {Area}   | `{path/to/file}`             | {Brief description}                                       |
+
+---
+
+## Alternative: Plain-text version (if Markdown tables aren't supported)
+
+<!-- Include this section when the target platform (e.g., some CI tools, email) doesn't render Markdown tables. Otherwise, the Markdown version above is sufficient. -->
+
+```text
+Summary
+{Same summary as above, but with quotes instead of backticks for inline code.}
+
+What Changed
+- {Area}: {description}
+- Tests: {description}
+
+Files Modified
+- {path/to/file} — {description}
+- {path/to/file} — {description}
+```
+
+---
+````
+
+Do not substitute a shorter format unless the user explicitly asks for something different.

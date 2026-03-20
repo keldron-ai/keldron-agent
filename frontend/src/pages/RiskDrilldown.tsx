@@ -56,7 +56,8 @@ export function RiskDrilldown() {
   const tdpW = (subScores?.power?.details?.tdp_w as number) ?? 100
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-auto">
+    <div className="flex-1 px-6 py-6 overflow-auto">
+      <div className="max-w-[1280px] mx-auto space-y-6">
       {/* Back + header */}
       <div className="flex items-center gap-4">
         <Link
@@ -91,7 +92,7 @@ export function RiskDrilldown() {
                 Composite: <span className="text-[#E8ECF4] font-medium">{score >= 10 ? score.toFixed(0) : score.toFixed(1)}</span>
               </p>
               <p className="text-sm text-[#94A3B8]">
-                Severity: <span style={{ color: hexSeverity === 'normal' ? '#22C55E' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{severity ?? '—'}</span>
+                Severity: <span style={{ color: hexSeverity === 'normal' ? '#00C9B0' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{hexSeverity}</span>
               </p>
               <p className="text-sm text-[#94A3B8]">
                 Trend: {trend} ({trendDelta >= 0 ? '+' : ''}{trendDelta.toFixed(1)})
@@ -210,6 +211,7 @@ export function RiskDrilldown() {
           />
         )}
       </section>
+      </div>
     </div>
   )
 }
