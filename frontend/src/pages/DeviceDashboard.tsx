@@ -159,6 +159,8 @@ export function DeviceDashboard() {
       prevThrottle.current = th
       prevTempSev.current = tempSeverity
       prevComposite.current = hexSeverity
+      setTempChartFlash(null)
+      setUtilChartFlash(null)
       return
     }
 
@@ -262,6 +264,7 @@ export function DeviceDashboard() {
               <Link
                 to="/risk"
                 title="View risk details"
+                aria-label="View risk details"
                 className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]"
               >
                 <RiskHexBadge
