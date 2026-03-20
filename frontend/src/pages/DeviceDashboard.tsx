@@ -153,9 +153,19 @@ export function DeviceDashboard() {
         : 'warning'
       : 'normal'
   useEffect(() => {
-    if (reducedMotion) return
-
     const th = telemetry?.throttle_active ?? false
+
+    if (reducedMotion) {
+      prevThrottle.current = th
+      prevTempSev.current = tempSeverity
+      if (prevComposite.current === null) {
+        prevComposite.current = hexSeverity
+      } else {
+        prevComposite.current = hexSeverity
+      }
+      return
+    }
+
     let thermalFlash: ChartEventFlash | null = null
 
     if (prevThrottle.current !== undefined && !prevThrottle.current && th) {
@@ -257,11 +267,7 @@ export function DeviceDashboard() {
               <Link
                 to="/risk"
                 title="View risk details"
-                className={
-                  reducedMotion
-                    ? 'rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer'
-                    : 'rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]'
-                }
+                className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]"
               >
                 <RiskHexBadge
                   score={score}

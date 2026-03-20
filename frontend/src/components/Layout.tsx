@@ -5,7 +5,7 @@ import { useTelemetry } from '@/context/TelemetryContext'
 
 const STALE_MS = 15_000
 
-export function Layout() {
+function HeaderStatus() {
   const { status, connected, latest } = useTelemetry()
   const [, setNowTick] = useState(0)
 
@@ -32,8 +32,6 @@ export function Layout() {
     lastDataMs != null &&
     Date.now() - lastDataMs < STALE_MS
 
-  const hostname = status?.device?.hostname ?? '—'
-  const adapter = status?.device?.adapter ?? '—'
   const version = status?.agent?.version ?? '—'
 
   const statusLabel = !connected
@@ -41,6 +39,43 @@ export function Layout() {
     : isFresh
       ? 'Live'
       : 'Stale'
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center overflow-visible">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isFresh ? 'bg-[#00C9B0] animate-live-dot-pulse' : 'bg-[#64748B]'
+            }`}
+          />
+        </span>
+        <span className="text-[#94A3B8]">{statusLabel}</span>
+      </div>
+      <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
+        <span>v{version}</span>
+        <span>·</span>
+        <span>{status?.agent?.cloud_connected ? 'Cloud' : 'Local mode'}</span>
+      </div>
+      {status?.agent?.cloud_connected && (
+        <a
+          href="https://keldron.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
+        >
+          Keldron Cloud →
+        </a>
+      )}
+    </div>
+  )
+}
+
+export function Layout() {
+  const { status } = useTelemetry()
+
+  const hostname = status?.device?.hostname ?? '—'
+  const adapter = status?.device?.adapter ?? '—'
 
   return (
     <div className="min-h-screen bg-[#0A0C10] flex flex-col">
@@ -83,33 +118,7 @@ export function Layout() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center overflow-visible">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isFresh ? 'bg-[#00C9B0] animate-live-dot-pulse' : 'bg-[#64748B]'
-                }`}
-              />
-            </span>
-            <span className="text-[#94A3B8]">{statusLabel}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
-            <span>v{version}</span>
-            <span>·</span>
-            <span>{status?.agent?.cloud_connected ? 'Cloud' : 'Local mode'}</span>
-          </div>
-          {status?.agent?.cloud_connected && (
-            <a
-              href="https://keldron.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-[#00C9B0] hover:text-[#00E5CC] transition-colors"
-            >
-              Keldron Cloud →
-            </a>
-          )}
-        </div>
+        <HeaderStatus />
       </header>
 
       <main className="flex-1 overflow-auto">

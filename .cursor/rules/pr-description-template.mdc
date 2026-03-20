@@ -35,7 +35,9 @@ When the user asks for a PR description, opening PR text, or merge-request summa
 
 ---
 
-## Plain-text version (no Markdown table)
+## Alternative: Plain-text version (if Markdown tables aren't supported)
+
+<!-- Include this section when the target platform (e.g., some CI tools, email) doesn't render Markdown tables. Otherwise, the Markdown version above is sufficient. -->
 
 ```text
 Summary

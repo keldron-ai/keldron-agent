@@ -1,13 +1,22 @@
 import { useSyncExternalStore } from 'react'
 
+let sharedMql: MediaQueryList | null = null
+
+function getMql(): MediaQueryList {
+  if (sharedMql === null) {
+    sharedMql = window.matchMedia('(prefers-reduced-motion: reduce)')
+  }
+  return sharedMql
+}
+
 function subscribe(onChange: () => void) {
-  const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-  mq.addEventListener('change', onChange)
-  return () => mq.removeEventListener('change', onChange)
+  const mql = getMql()
+  mql.addEventListener('change', onChange)
+  return () => mql.removeEventListener('change', onChange)
 }
 
 function getSnapshot() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return getMql().matches
 }
 
 function getServerSnapshot() {
