@@ -1,13 +1,46 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { useTelemetry } from '@/context/TelemetryContext'
 
+const STALE_MS = 15_000
+
 export function Layout() {
-  const { status, connected } = useTelemetry()
+  const { status, connected, latest } = useTelemetry()
+  const [, setNowTick] = useState(0)
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const lastDataMs = useMemo(() => {
+    const times: number[] = []
+    if (latest?.timestamp) {
+      const t = new Date(latest.timestamp).getTime()
+      if (Number.isFinite(t)) times.push(t)
+    }
+    if (status?.telemetry?.timestamp) {
+      const t = new Date(status.telemetry.timestamp).getTime()
+      if (Number.isFinite(t)) times.push(t)
+    }
+    return times.length ? Math.max(...times) : null
+  }, [latest?.timestamp, status?.telemetry?.timestamp])
+
+  const isFresh =
+    connected &&
+    lastDataMs != null &&
+    Date.now() - lastDataMs < STALE_MS
 
   const hostname = status?.device?.hostname ?? '—'
   const adapter = status?.device?.adapter ?? '—'
   const version = status?.agent?.version ?? '—'
+
+  const statusLabel = !connected
+    ? 'Reconnecting…'
+    : isFresh
+      ? 'Live'
+      : 'Stale'
 
   return (
     <div className="min-h-screen bg-[#0A0C10] flex flex-col">
@@ -52,15 +85,14 @@ export function Layout() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm">
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{
-                backgroundColor: connected ? '#22C55E' : '#EF4444',
-              }}
-            />
-            <span className="text-[#94A3B8]">
-              {connected ? 'Live' : 'Reconnecting...'}
+            <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center overflow-visible">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isFresh ? 'bg-[#00C9B0] animate-live-dot-pulse' : 'bg-[#64748B]'
+                }`}
+              />
             </span>
+            <span className="text-[#94A3B8]">{statusLabel}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
             <span>v{version}</span>

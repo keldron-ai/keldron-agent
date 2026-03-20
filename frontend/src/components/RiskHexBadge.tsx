@@ -12,7 +12,7 @@ interface RiskHexBadgeProps {
 
 const SIZE_MAP = { sm: 64, md: 120, lg: 180 } as const
 const SEVERITY_COLORS = {
-  normal: '#22C55E',
+  normal: '#00C9B0',
   warning: '#F59E0B',
   critical: '#EF4444',
 } as const
@@ -39,21 +39,29 @@ export function RiskHexBadge({
     trend === 'rising'
       ? borderColor
       : trend === 'falling'
-        ? '#22C55E'
+        ? '#00C9B0'
         : '#94A3B8'
 
   const baseScoreFontSize = size === 'sm' ? 20 : size === 'md' ? 32 : 48
   const scoreFontSize = score >= 10 ? baseScoreFontSize * 0.8 : baseScoreFontSize
   const labelFontSize = size === 'sm' ? 8 : size === 'md' ? 10 : 12
 
+  const breatheClass =
+    severity === 'normal'
+      ? 'animate-hex-breathe-normal'
+      : severity === 'warning'
+        ? 'animate-hex-breathe-warning'
+        : 'animate-hex-breathe-critical'
+
   return (
     <div className="flex flex-col items-center">
-      <svg
-        width={dim}
-        height={dim}
-        viewBox="0 0 100 100"
-        className="shrink-0"
-      >
+      <div className={`shrink-0 inline-flex ${breatheClass}`}>
+        <svg
+          width={dim}
+          height={dim}
+          viewBox="0 0 100 100"
+          className="shrink-0 block"
+        >
         <polygon
           points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5"
           fill="#0F172A"
@@ -84,7 +92,8 @@ export function RiskHexBadge({
         >
           {severityLabel}
         </text>
-      </svg>
+        </svg>
+      </div>
       <span
         className="mt-2 text-sm font-medium"
         style={{ color: trendColor }}

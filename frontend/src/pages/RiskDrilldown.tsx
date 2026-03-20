@@ -91,7 +91,7 @@ export function RiskDrilldown() {
                 Composite: <span className="text-[#E8ECF4] font-medium">{score >= 10 ? score.toFixed(0) : score.toFixed(1)}</span>
               </p>
               <p className="text-sm text-[#94A3B8]">
-                Severity: <span style={{ color: hexSeverity === 'normal' ? '#22C55E' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{severity ?? '—'}</span>
+                Severity: <span style={{ color: hexSeverity === 'normal' ? '#00C9B0' : hexSeverity === 'warning' ? '#F59E0B' : '#EF4444' }}>{severity ?? '—'}</span>
               </p>
               <p className="text-sm text-[#94A3B8]">
                 Trend: {trend} ({trendDelta >= 0 ? '+' : ''}{trendDelta.toFixed(1)})

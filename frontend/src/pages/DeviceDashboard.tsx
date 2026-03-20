@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
 import { SubScoreBars } from '@/components/SubScoreBars'
 import { HealthTiles } from '@/components/health-tiles'
-import { TelemetryChart } from '@/components/telemetry-chart'
+import {
+  TelemetryChart,
+  type ChartEventFlash,
+} from '@/components/telemetry-chart'
+import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion'
 import { SystemInfoCard } from '@/components/SystemInfoCard'
 import { ProcessTable } from '@/components/ProcessTable'
 
@@ -39,6 +43,12 @@ function formatMemoryGB(bytes: number | undefined): string {
   if (bytes == null || bytes <= 0) return '—'
   const gb = bytes / (1024 * 1024 * 1024)
   return `${gb.toFixed(0)} GB Unified Memory`
+}
+
+function severityRank(s: 'normal' | 'warning' | 'critical'): number {
+  if (s === 'critical') return 2
+  if (s === 'warning') return 1
+  return 0
 }
 
 function getNumericDetail(
@@ -78,6 +88,16 @@ const TIME_RANGE_MS: Record<(typeof TIME_RANGES)[number]['key'], number> = {
 
 export function DeviceDashboard() {
   const [timeRange, setTimeRange] = useState<'30m' | '1H' | '6H' | '24H'>('30m')
+  const reducedMotion = usePrefersReducedMotion()
+  const [tempChartFlash, setTempChartFlash] = useState<ChartEventFlash | null>(
+    null
+  )
+  const [utilChartFlash, setUtilChartFlash] = useState<ChartEventFlash | null>(
+    null
+  )
+  const prevComposite = useRef<'normal' | 'warning' | 'critical' | null>(null)
+  const prevThrottle = useRef<boolean | undefined>(undefined)
+  const prevTempSev = useRef<'normal' | 'warning' | 'critical' | null>(null)
   const {
     status,
     statusLoading,
@@ -132,7 +152,50 @@ export function DeviceDashboard() {
         ? 'critical'
         : 'warning'
       : 'normal'
-  const showHighTempBadge = throttleC != null && temp >= throttleC * 0.7
+  useEffect(() => {
+    if (reducedMotion) return
+
+    const th = telemetry?.throttle_active ?? false
+    let thermalFlash: ChartEventFlash | null = null
+
+    if (prevThrottle.current !== undefined && !prevThrottle.current && th) {
+      thermalFlash = { text: '[THROTTLING]', key: Date.now() }
+    }
+    prevThrottle.current = th
+
+    if (
+      !thermalFlash &&
+      prevTempSev.current !== null &&
+      prevTempSev.current === 'normal' &&
+      (tempSeverity === 'warning' || tempSeverity === 'critical')
+    ) {
+      thermalFlash = { text: '[HIGH TEMP]', key: Date.now() }
+    }
+
+    if (thermalFlash) {
+      setTempChartFlash(thermalFlash)
+    }
+
+    prevTempSev.current = tempSeverity
+
+    if (prevComposite.current === null) {
+      prevComposite.current = hexSeverity
+    } else {
+      if (severityRank(hexSeverity) > severityRank(prevComposite.current)) {
+        setUtilChartFlash({
+          text:
+            hexSeverity === 'critical' ? '[CRITICAL RISK]' : '[ELEVATED RISK]',
+          key: Date.now(),
+        })
+      }
+      prevComposite.current = hexSeverity
+    }
+  }, [
+    reducedMotion,
+    hexSeverity,
+    tempSeverity,
+    telemetry?.throttle_active,
+  ])
 
   if (statusLoading && !status) {
     return (
@@ -176,7 +239,9 @@ export function DeviceDashboard() {
               <div className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: connected ? '#22C55E' : '#EF4444' }}
+                  style={{
+                    backgroundColor: connected ? '#00C9B0' : '#EF4444',
+                  }}
                 />
                 <span className="text-sm text-[#94A3B8]">
                   {connected ? 'Online' : 'Offline'}
@@ -263,7 +328,8 @@ export function DeviceDashboard() {
               }
               currentValue={temp}
               currentValueSeverity={tempSeverity}
-              showHighTempBadge={showHighTempBadge}
+              eventFlash={tempChartFlash}
+              onEventFlashEnd={() => setTempChartFlash(null)}
             />
             <TelemetryChart
               title="GPU Utilization"
@@ -272,6 +338,8 @@ export function DeviceDashboard() {
               color="#3B82F6"
               yDomain={[0, 100]}
               currentValue={util}
+              eventFlash={utilChartFlash}
+              onEventFlashEnd={() => setUtilChartFlash(null)}
             />
             <TelemetryChart
               title="System Power"
