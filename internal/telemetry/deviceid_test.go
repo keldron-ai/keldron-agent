@@ -46,6 +46,14 @@ func TestDeviceIDFromPoint(t *testing.T) {
 			},
 			want: "host1:0",
 		},
+		{
+			name: "fractional gpu_id rounds via FormatFloat",
+			pt: normalizer.TelemetryPoint{
+				Source:  "host1",
+				Metrics: map[string]float64{"gpu_id": 1.5},
+			},
+			want: "host1:2",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

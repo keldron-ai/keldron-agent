@@ -509,9 +509,9 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 	// WaitGroup tracks in-flight cloud Send goroutines so we can wait on shutdown.
 	var sendWg sync.WaitGroup
 
-	flushBatch := func(batch []normalizer.TelemetryPoint) {
+	flushBatch := func(batch []normalizer.TelemetryPoint) []scoring.RiskScoreOutput {
 		if len(batch) == 0 {
-			return
+			return nil
 		}
 		scores := opts.ScoreEngine.Score(batch)
 		var healthSnapshots map[string]*health.DeviceHealthSnapshot
@@ -528,6 +528,7 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				}
 			}
 		}
+		return scores
 	}
 
 	// sendCloud sends samples using a background context so in-flight sends
@@ -589,10 +590,9 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 		select {
 		case pt, ok := <-ch:
 			if !ok {
-				flushBatch(batch)
+				scores := flushBatch(batch)
 				// When no separate cloudCh, send remaining via main path.
 				if opts.CloudCh == nil {
-					scores := opts.ScoreEngine.Score(batch)
 					sendCloud(batch, scores)
 				}
 				sendWg.Wait()
@@ -600,9 +600,8 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 			}
 			batch = append(batch, pt)
 			if initialFlush {
-				flushBatch(batch)
+				scores := flushBatch(batch)
 				if opts.CloudCh == nil {
-					scores := opts.ScoreEngine.Score(batch)
 					sendCloud(batch, scores)
 				}
 				batch = batch[:0]
@@ -610,17 +609,15 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 				ticker.Reset(opts.Interval)
 			}
 		case <-ticker.C:
-			flushBatch(batch)
+			scores := flushBatch(batch)
 			if opts.CloudCh == nil {
-				scores := opts.ScoreEngine.Score(batch)
 				sendCloud(batch, scores)
 			}
 			batch = batch[:0]
 		case <-ctx.Done():
 			// Context cancelled — flush current batch then drain ch until closed.
-			flushBatch(batch)
+			scores := flushBatch(batch)
 			if opts.CloudCh == nil {
-				scores := opts.ScoreEngine.Score(batch)
 				sendCloud(batch, scores)
 			}
 			batch = batch[:0]
@@ -628,9 +625,8 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 			for pt := range ch {
 				batch = append(batch, pt)
 			}
-			flushBatch(batch)
+			scores = flushBatch(batch)
 			if opts.CloudCh == nil {
-				scores := opts.ScoreEngine.Score(batch)
 				sendCloud(batch, scores)
 			}
 			sendWg.Wait()
