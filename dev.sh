@@ -13,7 +13,11 @@ source "$SCRIPT_DIR/scripts/common.sh"
 API_PORT="${KELDRON_API_PORT:-8080}"
 FRONTEND_PORT=9200
 
+# MODE: both | agent | frontend-only
+# USE_CLOUD=1: agent runs without --local (HTTPS cloud streaming); requires KELDRON_CLOUD_API_KEY
 MODE="both"
+USE_CLOUD=0
+EXPLICIT_LOCAL=0
 AGENT_ARGS=()
 while (( $# )); do
   case "$1" in
@@ -29,12 +33,44 @@ while (( $# )); do
       MODE="frontend-only"
       shift
       ;;
+    --local)
+      EXPLICIT_LOCAL=1
+      shift
+      ;;
+    --cloud)
+      MODE="agent"
+      USE_CLOUD=1
+      shift
+      ;;
+    --full)
+      MODE="both"
+      USE_CLOUD=0
+      shift
+      ;;
+    --full-cloud)
+      MODE="both"
+      USE_CLOUD=1
+      shift
+      ;;
     *)
       AGENT_ARGS+=("$1")
       shift
       ;;
   esac
 done
+
+if [ "${EXPLICIT_LOCAL}" -eq 1 ] && [ "${USE_CLOUD}" -eq 1 ]; then
+  echo "error: --local cannot be combined with --cloud or --full-cloud" >&2
+  exit 1
+fi
+
+if [ "${USE_CLOUD}" -eq 1 ] && [ "${MODE}" != "frontend-only" ]; then
+  if [ -z "${KELDRON_CLOUD_API_KEY:-}" ]; then
+    echo "ERROR: KELDRON_CLOUD_API_KEY not set. Run:" >&2
+    echo "  export KELDRON_CLOUD_API_KEY=kldn_live_xxxxx" >&2
+    exit 1
+  fi
+fi
 
 AGENT_PID=""
 FRONTEND_PID=""
@@ -118,7 +154,7 @@ if [ "${MODE}" != "frontend-only" ]; then
   fi
 fi
 
-if [ "${MODE}" != "agent-only" ]; then
+if [ "${MODE}" != "agent" ]; then
   if ! command -v node >/dev/null 2>&1; then
     echo "error: node is not installed or not on PATH" >&2
     exit 1
@@ -131,27 +167,6 @@ fi
 
 if [ "${MODE}" != "frontend-only" ]; then
   cleanup_stale_agent
-fi
-
-echo "═══════════════════════════════════════════"
-echo "  Keldron Agent — Local Dev Runner"
-echo "═══════════════════════════════════════════"
-
-if [ "${MODE}" != "frontend-only" ]; then
-  echo "📦 Building agent..."
-  mkdir -p bin
-  go build -o ./bin/keldron-agent ./cmd/agent
-
-  if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-    echo "🍎 Apple Silicon: IOKit adapter active, no sudo required"
-  fi
-fi
-
-if [ "${MODE}" = "both" ] || [ "${MODE}" = "frontend-only" ]; then
-  if [ ! -d "${SCRIPT_DIR}/frontend/node_modules" ]; then
-    echo "📦 Installing frontend dependencies..."
-    (cd "${SCRIPT_DIR}/frontend" && npm install)
-  fi
 fi
 
 if [ ! -f keldron-agent.dev.yaml ]; then
@@ -194,6 +209,48 @@ HUB_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'listen_por
 # Default must not match FRONTEND_PORT (9200); hub and Vite cannot share a port.
 HUB_PORT="${HUB_PORT:-9300}"
 
+PROM_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'prometheus_port' | head -1 | awk '{print $2}' || true)
+PROM_PORT="${PROM_PORT:-9100}"
+
+print_mode_banner() {
+  if [ "${USE_CLOUD}" -eq 1 ]; then
+    echo ""
+    echo "  ╔══════════════════════════════════════╗"
+    echo "  ║  KELDRON AGENT — CLOUD MODE          ║"
+    echo "  ║  Streaming → api.keldron.ai          ║"
+    echo "  ║  Dashboard: http://localhost:${API_PORT}      ║"
+    echo "  ║  Metrics:   http://localhost:${PROM_PORT}/metrics  ║"
+    echo "  ╚══════════════════════════════════════╝"
+    echo ""
+  else
+    echo ""
+    echo "  ╔══════════════════════════════════════╗"
+    echo "  ║  KELDRON AGENT — LOCAL MODE          ║"
+    echo "  ║  Dashboard: http://localhost:${API_PORT}      ║"
+    echo "  ║  Metrics:   http://localhost:${PROM_PORT}/metrics  ║"
+    echo "  ╚══════════════════════════════════════╝"
+    echo ""
+  fi
+}
+
+if [ "${MODE}" != "frontend-only" ]; then
+  print_mode_banner
+  echo "📦 Building agent..."
+  mkdir -p bin
+  go build -o ./bin/keldron-agent ./cmd/agent
+
+  if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    echo "🍎 Apple Silicon: IOKit adapter active, no sudo required"
+  fi
+fi
+
+if [ "${MODE}" = "both" ] || [ "${MODE}" = "frontend-only" ]; then
+  if [ ! -d "${SCRIPT_DIR}/frontend/node_modules" ]; then
+    echo "📦 Installing frontend dependencies..."
+    (cd "${SCRIPT_DIR}/frontend" && npm install)
+  fi
+fi
+
 wait_for_api() {
   local code
   for _ in $(seq 1 120); do
@@ -214,6 +271,9 @@ wait_for_api() {
 }
 
 if [ "${MODE}" = "frontend-only" ]; then
+  echo ""
+  echo "  Frontend-only mode (no agent)"
+  echo ""
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Starting Vite dev server on :${FRONTEND_PORT}..."
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /api → localhost:${API_PORT}"
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /ws  → localhost:${API_PORT}"
@@ -225,8 +285,14 @@ fi
 
 if [ "${MODE}" = "agent" ] || [ "${MODE}" = "both" ]; then
   export KELDRON_API_PORT="${API_PORT}"
+  if [ "${USE_CLOUD}" -eq 1 ]; then
+    export KELDRON_HUB_ENABLED=false
+  fi
   printf '%b[agent]%b   %s\n' "${GREEN}" "${NC}" "Starting keldron-agent on :${API_PORT}..."
-  AGENT_CMD=(./bin/keldron-agent --config keldron-agent.dev.yaml --local)
+  AGENT_CMD=(./bin/keldron-agent --config keldron-agent.dev.yaml)
+  if [ "${USE_CLOUD}" -eq 0 ]; then
+    AGENT_CMD+=(--local)
+  fi
   if [ "${#AGENT_ARGS[@]}" -gt 0 ]; then
     AGENT_CMD+=("${AGENT_ARGS[@]}")
   fi
@@ -249,9 +315,9 @@ if [ "${MODE}" = "both" ]; then
 fi
 
 echo ""
-echo "   Prometheus metrics: http://localhost:9100/metrics"
+echo "   Prometheus metrics: http://localhost:${PROM_PORT}/metrics"
 echo "   Health check:       http://localhost:8081/health"
-echo "   Verify: curl localhost:9100/metrics | grep keldron_gpu_temperature"
+echo "   Verify: curl localhost:${PROM_PORT}/metrics | grep keldron_gpu_temperature"
 echo "   With hub enabled:   Fleet API at http://localhost:${HUB_PORT}/api/v1/fleet"
 if [ "${MODE}" = "both" ]; then
   echo "   Dashboard (Vite):   http://localhost:${FRONTEND_PORT}/"
