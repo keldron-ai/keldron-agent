@@ -4,7 +4,8 @@
 # Kill stale keldron-agent processes, excluding the current shell.
 cleanup_stale_agent() {
     local stale_pids
-    stale_pids=$(pgrep -f './keldron-agent' 2>/dev/null || true)
+    local repo_binary="${PWD}/bin/keldron-agent"
+    stale_pids=$(pgrep -f "${repo_binary}" 2>/dev/null || true)
     # Filter out current process tree
     local filtered=""
     for pid in $stale_pids; do
