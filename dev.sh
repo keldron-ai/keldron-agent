@@ -243,8 +243,9 @@ if [ "${MODE}" = "agent" ]; then
   exit $?
 elif [ "${MODE}" = "both" ]; then
   # Wait for the first child to exit; terminate the other via the EXIT trap.
-  if bash -c 'wait -n 2>/dev/null' 2>/dev/null; then
-    # wait -n is available (bash 4.3+)
+  if [ "${BASH_VERSINFO[0]}" -gt 4 ] 2>/dev/null ||
+     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 3 ]; }; then
+    # wait -n available (bash 4.3+)
     wait -n "${AGENT_PID}" "${FRONTEND_PID}"
     exit $?
   else
