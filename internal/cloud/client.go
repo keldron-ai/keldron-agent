@@ -7,16 +7,17 @@ package cloud
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const defaultMaxBuffer = 1000
@@ -115,8 +116,9 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 		return nil
 	}
 
-	// Generate a stable idempotency key for this batch so the server can deduplicate retries.
-	batchID := uuid.New().String()
+	// Compute a deterministic idempotency key from sample content so re-buffered
+	// retries send the same key, enabling server-side deduplication.
+	batchID := batchIDFromSamples(pending)
 
 	body, err := json.Marshal(IngestRequest{Samples: pending})
 	if err != nil {
@@ -214,6 +216,23 @@ func (c *Client) trimBuffer(merged []Sample) []Sample {
 	out := make([]Sample, max)
 	copy(out, merged[dropped:])
 	return out
+}
+
+// batchIDFromSamples computes a deterministic idempotency key from sample
+// identifying fields (device_id + timestamp), so the same set of samples
+// always produces the same key across retries.
+func batchIDFromSamples(samples []Sample) string {
+	keys := make([]string, len(samples))
+	for i, s := range samples {
+		keys[i] = s.DeviceID + "|" + s.Timestamp
+	}
+	sort.Strings(keys)
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // TrackSend increments the in-flight send counter. Call before spawning a Send goroutine.
