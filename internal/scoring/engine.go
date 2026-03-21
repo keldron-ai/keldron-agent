@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
+	"github.com/keldron-ai/keldron-agent/internal/telemetry"
 	"github.com/keldron-ai/keldron-agent/registry"
 )
 
@@ -44,7 +45,7 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 	// Group by device_id, keeping last point per device
 	byDevice := make(map[string]normalizer.TelemetryPoint)
 	for _, pt := range batch {
-		did := deviceIDFromPoint(pt)
+		did := telemetry.DeviceIDFromPoint(pt)
 		byDevice[did] = pt
 	}
 
@@ -200,15 +201,6 @@ func (e *ScoreEngine) getOrCreateState(deviceID string, pt normalizer.TelemetryP
 	}
 	e.states[deviceID] = s
 	return s
-}
-
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if pt.Metrics != nil {
-		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
-			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
-		}
-	}
-	return pt.Source
 }
 
 func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {

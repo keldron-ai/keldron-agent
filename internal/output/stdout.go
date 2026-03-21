@@ -15,6 +15,7 @@ import (
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
+	"github.com/keldron-ai/keldron-agent/internal/telemetry"
 )
 
 // StdoutLine is the JSON schema for one line of stdout output.
@@ -119,7 +120,7 @@ func float64Ptr(v float64) *float64 {
 }
 
 func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint, scoresByDevice map[string]scoring.RiskScoreOutput) StdoutDevice {
-	deviceID := deviceIDFromPoint(pt)
+	deviceID := telemetry.DeviceIDFromPoint(pt)
 	deviceModel := deviceModelFromPoint(pt)
 
 	dev := StdoutDevice{
@@ -157,15 +158,6 @@ func (s *Stdout) pointToDevice(pt normalizer.TelemetryPoint, scoresByDevice map[
 	}
 
 	return dev
-}
-
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if m := pt.Metrics; m != nil {
-		if gpuID, ok := m["gpu_id"]; ok {
-			return pt.Source + ":" + fmt.Sprintf("%.0f", gpuID)
-		}
-	}
-	return pt.Source
 }
 
 func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {

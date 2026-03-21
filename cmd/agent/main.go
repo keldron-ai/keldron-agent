@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
 	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
+	"github.com/keldron-ai/keldron-agent/internal/cloud"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
 	"github.com/keldron-ai/keldron-agent/internal/discovery"
@@ -155,6 +157,16 @@ func run() int {
 	// Local mode: --local flag, hub enabled, OR no cloud and (prometheus or stdout) enabled
 	isLocalMode := *localMode || cfg.Hub.Enabled || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
 
+	var cloudClient *cloud.Client
+	if cfg.Cloud.APIKey != "" && !*localMode {
+		endpoint := cfg.Cloud.Endpoint
+		if endpoint == "" {
+			endpoint = "https://api.keldron.ai"
+		}
+		cloudClient = cloud.NewClient(endpoint, cfg.Cloud.APIKey, cfg.Agent.ID, version)
+		slog.Info("cloud streaming enabled", "endpoint", endpoint)
+	}
+
 	var bufMgr *buffer.Manager
 	var sndr interface {
 		Start(context.Context) error
@@ -240,26 +252,44 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
-	} else {
-		// Cloud mode: buffer + sender
+		go runOutputBridge(ctx, norm.Output(), outputBridgeOpts{
+			Outputs:      outputs,
+			ScoreEngine:  scoreEngine,
+			StateHolder:  stateHolder,
+			HealthEngine: healthEngine,
+			Interval:     cfg.Agent.PollInterval,
+			Logger:       logger,
+			CloudClient:  cloudClient,
+			Version:      version,
+		}, outputBridgeDone)
+	} else if cfg.Sender.Target != "" {
+		// Cloud mode with gRPC sender: buffer + sender + optional output bridge
 		normCh := norm.Output()
 
-		// When the API is enabled in cloud mode, tee the normalizer output to both
-		// the buffer manager and the output bridge (for StateHolder/API scoring).
-		if cfg.API.Enabled {
+		// Tee normalizer output to the buffer manager and the output bridge when the API is enabled
+		// (dashboard) or HTTPS cloud streaming is enabled (scoring + cloud ingest).
+		if cfg.API.Enabled || cloudClient != nil {
 			bufCh := make(chan normalizer.TelemetryPoint, 256)
 			bridgeCh := make(chan normalizer.TelemetryPoint, 256)
+			// Separate lossless channel for cloud-bound telemetry.
+			var cloudCh chan normalizer.TelemetryPoint
+			if cloudClient != nil {
+				cloudCh = make(chan normalizer.TelemetryPoint, 1024)
+			}
 			var bridgeDropped uint64
 			go func() {
 				defer close(bufCh)
 				defer close(bridgeCh)
+				if cloudCh != nil {
+					defer close(cloudCh)
+				}
 				for pt := range normCh {
 					select {
 					case bufCh <- pt:
 					case <-ctx.Done():
 						return
 					}
+					// Dashboard bridge: lossy (non-blocking) — acceptable to drop for UI.
 					select {
 					case bridgeCh <- pt:
 					default:
@@ -269,13 +299,31 @@ func run() int {
 								"source", pt.Source, "adapter", pt.AdapterName, "total_dropped", bridgeDropped)
 						}
 					}
+					// Cloud channel: lossless (blocking) — every point must reach cloud for retry.
+					if cloudCh != nil {
+						select {
+						case cloudCh <- pt:
+						case <-ctx.Done():
+							return
+						}
+					}
 				}
 			}()
 			normCh = bufCh
 
 			scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 			outputBridgeDone = make(chan struct{})
-			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
+			// Pass cloudCh (lossless) for cloud sends; bridgeCh (lossy) for dashboard/API only.
+			go runOutputBridge(ctx, bridgeCh, outputBridgeOpts{
+				ScoreEngine:  scoreEngine,
+				StateHolder:  stateHolder,
+				HealthEngine: healthEngine,
+				Interval:     cfg.Agent.PollInterval,
+				Logger:       logger,
+				CloudClient:  cloudClient,
+				CloudCh:      cloudCh,
+				Version:      version,
+			}, outputBridgeDone)
 		}
 
 		var err error
@@ -295,6 +343,20 @@ func run() int {
 		go func() {
 			senderDone <- sndr.Start(ctx)
 		}()
+	} else {
+		// Cloud-only mode (HTTPS streaming, no gRPC sender): output bridge reads directly
+		// from normalizer — no buffer manager or tee needed.
+		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
+		outputBridgeDone = make(chan struct{})
+		go runOutputBridge(ctx, norm.Output(), outputBridgeOpts{
+			ScoreEngine:  scoreEngine,
+			StateHolder:  stateHolder,
+			HealthEngine: healthEngine,
+			Interval:     cfg.Agent.PollInterval,
+			Logger:       logger,
+			CloudClient:  cloudClient,
+			Version:      version,
+		}, outputBridgeDone)
 	}
 
 	// API server for dashboard (OSS-028) — works in both local and cloud modes.
@@ -373,6 +435,9 @@ func run() int {
 	if outputBridgeDone != nil {
 		<-outputBridgeDone
 	}
+	if cloudClient != nil {
+		_ = cloudClient.Close()
+	}
 
 	// Shut down the API server (works in both modes).
 	if apiServer != nil {
@@ -392,62 +457,132 @@ func run() int {
 		}
 	} else {
 		// Wait for sender to flush remaining batches and close its stream.
-		if err := <-senderDone; err != nil {
-			slog.Error("sender stopped with error", "error", err)
+		if senderDone != nil {
+			if err := <-senderDone; err != nil {
+				slog.Error("sender stopped with error", "error", err)
+			}
+			batchesSent, pointsSent, senderErrors := sndr.Stats()
+			slog.Info("sender stats",
+				"batches_sent", batchesSent,
+				"points_sent", pointsSent,
+				"errors", senderErrors,
+			)
 		}
-		batchesSent, pointsSent, senderErrors := sndr.Stats()
-		slog.Info("sender stats",
-			"batches_sent", batchesSent,
-			"points_sent", pointsSent,
-			"errors", senderErrors,
-		)
 
 		// Wait for buffer manager to close WAL.
-		if err := <-bufferDone; err != nil {
-			slog.Error("buffer manager stopped with error", "error", err)
+		if bufferDone != nil {
+			if err := <-bufferDone; err != nil {
+				slog.Error("buffer manager stopped with error", "error", err)
+			}
+			ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
+			slog.Info("buffer stats",
+				"ring_pushes", ringPushes,
+				"wal_spills", walSpills,
+				"wal_drained", walDrained,
+				"dropped", dropped,
+			)
 		}
-		ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
-		slog.Info("buffer stats",
-			"ring_pushes", ringPushes,
-			"wal_spills", walSpills,
-			"wal_drained", walDrained,
-			"dropped", dropped,
-		)
 	}
 
 	slog.Info("shutdown complete")
 	return 0
 }
 
+// outputBridgeOpts groups the configuration for runOutputBridge.
+type outputBridgeOpts struct {
+	Outputs      []output.Output
+	ScoreEngine  *scoring.ScoreEngine
+	StateHolder  *api.StateHolder
+	HealthEngine *health.Engine
+	Interval     time.Duration
+	Logger       *slog.Logger
+	CloudClient  *cloud.Client
+	CloudCh      <-chan normalizer.TelemetryPoint
+	Version      string
+}
+
 // runOutputBridge reads from the normalizer output channel, batches by poll interval,
 // computes risk scores, and calls Update on all outputs. Closes done when finished.
-// stateHolder is optional; when set, it receives batch and scores for the API.
-// healthEngine is optional; when set with stateHolder, it computes device health metrics.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, healthEngine *health.Engine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, opts outputBridgeOpts, done chan struct{}) {
 	defer close(done)
 
-	flushBatch := func(batch []normalizer.TelemetryPoint) {
+	// WaitGroup tracks in-flight cloud Send goroutines so we can wait on shutdown.
+	var sendWg sync.WaitGroup
+
+	flushBatch := func(batch []normalizer.TelemetryPoint) []scoring.RiskScoreOutput {
 		if len(batch) == 0 {
-			return
+			return nil
 		}
-		scores := scoreEngine.Score(batch)
+		scores := opts.ScoreEngine.Score(batch)
 		var healthSnapshots map[string]*health.DeviceHealthSnapshot
-		if healthEngine != nil {
-			healthSnapshots = healthEngine.Update(batch)
+		if opts.HealthEngine != nil {
+			healthSnapshots = opts.HealthEngine.Update(batch)
 		}
-		if stateHolder != nil {
-			stateHolder.Update(batch, scores, healthSnapshots)
+		if opts.StateHolder != nil {
+			opts.StateHolder.Update(batch, scores, healthSnapshots)
 		}
-		if len(outputs) > 0 {
-			for _, out := range outputs {
+		if len(opts.Outputs) > 0 {
+			for _, out := range opts.Outputs {
 				if err := out.Update(batch, scores); err != nil {
-					logger.Error("output update error", "error", err)
+					opts.Logger.Error("output update error", "error", err)
 				}
 			}
 		}
+		return scores
 	}
 
-	ticker := time.NewTicker(interval)
+	// sendCloud sends samples using a background context so in-flight sends
+	// survive parent context cancellation during shutdown.
+	sendCloud := func(batch []normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) {
+		if opts.CloudClient == nil || len(batch) == 0 {
+			return
+		}
+		samples := cloud.ConvertToSamples(batch, scores, opts.Version)
+		if len(samples) == 0 {
+			return
+		}
+		opts.CloudClient.TrackSend()
+		sendWg.Add(1)
+		go func() {
+			defer sendWg.Done()
+			defer opts.CloudClient.SendDone()
+			sendCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := opts.CloudClient.Send(sendCtx, samples); err != nil {
+				opts.Logger.Warn("cloud send failed (buffered for retry)", "error", err)
+			}
+		}()
+	}
+
+	// If we have a separate lossless cloud channel, run a dedicated goroutine for it.
+	if opts.CloudCh != nil && opts.CloudClient != nil {
+		sendWg.Add(1)
+		go func() {
+			defer sendWg.Done()
+			var cloudBatch []normalizer.TelemetryPoint
+			cloudTicker := time.NewTicker(opts.Interval)
+			defer cloudTicker.Stop()
+			for {
+				select {
+				case pt, ok := <-opts.CloudCh:
+					if !ok {
+						scores := opts.ScoreEngine.Score(cloudBatch)
+						sendCloud(cloudBatch, scores)
+						return
+					}
+					cloudBatch = append(cloudBatch, pt)
+				case <-cloudTicker.C:
+					if len(cloudBatch) > 0 {
+						scores := opts.ScoreEngine.Score(cloudBatch)
+						sendCloud(cloudBatch, scores)
+						cloudBatch = cloudBatch[:0]
+					}
+				}
+			}
+		}()
+	}
+
+	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
 	var batch []normalizer.TelemetryPoint
 	initialFlush := true // Flush on first reading for immediate metric visibility.
@@ -455,28 +590,46 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 		select {
 		case pt, ok := <-ch:
 			if !ok {
-				flushBatch(batch)
+				scores := flushBatch(batch)
+				// When no separate cloudCh, send remaining via main path.
+				if opts.CloudCh == nil {
+					sendCloud(batch, scores)
+				}
+				sendWg.Wait()
 				return
 			}
 			batch = append(batch, pt)
 			if initialFlush {
-				flushBatch(batch)
+				scores := flushBatch(batch)
+				if opts.CloudCh == nil {
+					sendCloud(batch, scores)
+				}
 				batch = batch[:0]
 				initialFlush = false
-				ticker.Reset(interval)
+				ticker.Reset(opts.Interval)
 			}
 		case <-ticker.C:
-			flushBatch(batch)
+			scores := flushBatch(batch)
+			if opts.CloudCh == nil {
+				sendCloud(batch, scores)
+			}
 			batch = batch[:0]
 		case <-ctx.Done():
 			// Context cancelled — flush current batch then drain ch until closed.
-			flushBatch(batch)
+			scores := flushBatch(batch)
+			if opts.CloudCh == nil {
+				sendCloud(batch, scores)
+			}
 			batch = batch[:0]
 			ticker.Stop()
 			for pt := range ch {
 				batch = append(batch, pt)
 			}
-			flushBatch(batch)
+			scores = flushBatch(batch)
+			if opts.CloudCh == nil {
+				sendCloud(batch, scores)
+			}
+			sendWg.Wait()
 			return
 		}
 	}
