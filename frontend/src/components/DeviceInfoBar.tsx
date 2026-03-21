@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { RiskHexBadge } from '@/components/RiskHexBadge'
 
 export interface DeviceInfoBarProps {
@@ -9,9 +8,6 @@ export interface DeviceInfoBarProps {
   score: number
   severity: 'normal' | 'warning' | 'critical'
   trend: 'stable' | 'rising' | 'falling'
-  trendText: string
-  severityLabel: string
-  trendShortLabel: string
   hexAriaLabel: string
 }
 
@@ -23,62 +19,46 @@ export function DeviceInfoBar({
   score,
   severity,
   trend,
-  trendText,
-  severityLabel,
-  trendShortLabel,
   hexAriaLabel,
 }: DeviceInfoBarProps) {
-  const sevColor =
-    severity === 'normal'
-      ? '#00C9B0'
-      : severity === 'warning'
-        ? '#F59E0B'
-        : '#EF4444'
-
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
-      <div className="space-y-1 min-w-0 flex-1">
-        <h2 className="text-base font-semibold text-[#E8ECF4] truncate">
-          {hostname}
-        </h2>
-        <p className="text-xs text-[#94A3B8] truncate">{hardwareLine}</p>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-0">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+          <h2 className="text-sm font-semibold text-[#E8ECF4] truncate">
+            {hostname}
+          </h2>
+          <span className="text-[11px] text-[#94A3B8] truncate">
+            {hardwareLine}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
           <span
-            className="w-2 h-2 rounded-full shrink-0"
+            className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{
               backgroundColor: connected ? '#00C9B0' : '#EF4444',
             }}
+            aria-hidden
           />
-          <span className="text-xs text-[#94A3B8]">
-            {connected ? 'Online' : 'Offline'}
+          <span>{connected ? 'Online' : 'Offline'}</span>
+          <span className="text-[#64748B]" aria-hidden>
+            ·
           </span>
+          <span className="text-[#64748B]">keldron-agent v{agentVersion}</span>
         </div>
-        <p className="text-[11px] text-[#64748B]">
-          keldron-agent v{agentVersion}
-        </p>
       </div>
 
-      <div className="flex flex-col items-center sm:items-end gap-1 shrink-0 self-center sm:self-start">
-        <Link
-          to="/risk"
-          title="View risk details"
-          aria-label={hexAriaLabel}
-          className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]"
-        >
-          <RiskHexBadge
-            score={score}
-            severity={severity}
-            trend={trend}
-            size="lg"
-            trendText={trendText}
-          />
-        </Link>
-        <div className="text-center sm:text-right space-y-0.5">
-          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: sevColor }}>
-            {severityLabel}
-          </p>
-          <p className="text-[11px] text-[#94A3B8]">{trendShortLabel}</p>
-        </div>
+      <div
+        className="shrink-0 self-center sm:self-center"
+        role="img"
+        aria-label={hexAriaLabel}
+      >
+        <RiskHexBadge
+          score={score}
+          severity={severity}
+          trend={trend}
+          size="md"
+        />
       </div>
     </div>
   )

@@ -27,13 +27,13 @@ export function AIInsights({
 
   return (
     <div
-      className="rounded-xl border p-3"
+      className="rounded-xl border p-2"
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-1.5">
         <Sparkles className="w-3 h-3 shrink-0 text-[#00C9B0]" aria-hidden />
         <h3
           className="text-[10px] font-bold text-[#00C9B0] uppercase tracking-widest"

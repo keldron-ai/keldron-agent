@@ -351,9 +351,6 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	window := 30 * time.Minute
 	if wStr := r.URL.Query().Get("window"); wStr != "" {
 		if d, err := time.ParseDuration(wStr); err == nil && d > 0 {
-			if d > time.Hour {
-				d = time.Hour
-			}
 			window = d
 		}
 	}

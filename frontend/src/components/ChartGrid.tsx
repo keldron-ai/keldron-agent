@@ -40,7 +40,7 @@ export function ChartGrid({
   utilChartFlash,
   onTempFlashEnd,
   onUtilFlashEnd,
-  chartHeightClassName = 'h-[200px] md:h-[120px]',
+  chartHeightClassName = 'h-[200px] md:h-[105px]',
   compactLayout = true,
 }: ChartGridProps) {
   return (

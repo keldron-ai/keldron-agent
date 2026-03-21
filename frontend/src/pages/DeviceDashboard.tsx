@@ -3,8 +3,6 @@ import { Lock } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
 import type { ChartEventFlash } from '@/components/telemetry-chart'
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion'
-import { SystemInfoCard } from '@/components/SystemInfoCard'
-import { ProcessTable } from '@/components/ProcessTable'
 import { DeviceInfoBar } from '@/components/DeviceInfoBar'
 import { ChartGrid } from '@/components/ChartGrid'
 import { SubScoresPanel } from '@/components/SubScoresPanel'
@@ -40,7 +38,7 @@ function getRiskSummaryText(
 function formatMemoryGB(bytes: number | undefined): string {
   if (bytes == null || bytes <= 0) return '—'
   const gb = bytes / (1024 * 1024 * 1024)
-  return `${gb.toFixed(0)} GB Unified Memory`
+  return `${gb.toFixed(0)} GB`
 }
 
 function severityRank(s: 'normal' | 'warning' | 'critical'): number {
@@ -59,37 +57,14 @@ function getNumericDetail(
   return undefined
 }
 
-function getTrendText(trend: 'stable' | 'rising' | 'falling'): string {
-  switch (trend) {
-    case 'rising':
-      return 'Trending up over last 45 minutes'
-    case 'falling':
-      return 'Trending down over last 45 minutes'
-    default:
-      return 'Stable'
-  }
+const TIME_RANGE_TO_QUERY: Record<'30m' | '1H' | '6H' | '24H', string> = {
+  '30m': '30m',
+  '1H': '1h',
+  '6H': '6h',
+  '24H': '24h',
 }
 
-function trendShort(trend: 'stable' | 'rising' | 'falling'): string {
-  if (trend === 'rising') return 'Rising'
-  if (trend === 'falling') return 'Falling'
-  return 'Stable'
-}
-
-const SEVERITY_LABELS: Record<'normal' | 'warning' | 'critical', string> = {
-  normal: 'NORMAL',
-  warning: 'WARNING',
-  critical: 'CRITICAL',
-}
-
-const TIME_RANGE_MS = {
-  '30m': 30 * 60 * 1000,
-  '1H': 60 * 60 * 1000,
-  '6H': 6 * 60 * 60 * 1000,
-  '24H': 24 * 60 * 60 * 1000,
-} as const
-
-type TimeRangeKey = keyof typeof TIME_RANGE_MS
+type TimeRangeKey = keyof typeof TIME_RANGE_TO_QUERY
 
 export function DeviceDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRangeKey>('30m')
@@ -111,8 +86,12 @@ export function DeviceDashboard() {
     latest,
     history,
     risk: riskDetail,
-    processes,
+    refreshHistory,
   } = useTelemetry()
+
+  useEffect(() => {
+    void refreshHistory(TIME_RANGE_TO_QUERY[timeRange])
+  }, [timeRange, refreshHistory])
 
   const telemetry = latest?.telemetry ?? status?.telemetry
   const risk = latest?.risk ?? status?.risk
@@ -156,17 +135,7 @@ export function DeviceDashboard() {
   )
   const tdpW = getNumericDetail(subScores?.power?.details, 'tdp_w')
 
-  const windowMs = TIME_RANGE_MS[timeRange]
-  const chartHistory = useMemo(() => {
-    const cutoff = Date.now() - windowMs
-    return {
-      temperature: history.temperature.filter((p) => p.timestamp > cutoff),
-      utilization: history.utilization.filter((p) => p.timestamp > cutoff),
-      power: history.power.filter((p) => p.timestamp > cutoff),
-      memory: history.memory.filter((p) => p.timestamp > cutoff),
-      risk: history.risk.filter((p) => p.timestamp > cutoff),
-    }
-  }, [history, windowMs])
+  const chartHistory = history
 
   const tempSeverity: 'normal' | 'warning' | 'critical' =
     throttleC != null && temp >= throttleC * 0.7
@@ -226,10 +195,12 @@ export function DeviceDashboard() {
   ])
 
   const hexAriaLabel = severity
-    ? `Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity} — View risk details`
-    : 'Risk score loading — View risk details'
+    ? `Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity}`
+    : 'Risk score loading'
 
   const modelLabel = device?.hardware ?? 'Device'
+
+  const hardwareLine = `${device?.hardware ?? '—'} · ${formatMemoryGB(status?.telemetry?.memory_total_bytes)} Unified Memory`
 
   if (statusLoading && !status) {
     return (
@@ -251,9 +222,10 @@ export function DeviceDashboard() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 min-h-[calc(100vh-3.5rem)] px-4 py-3 max-w-[1280px] mx-auto w-full gap-2">
-      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0">
-        <div className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0 rounded-xl border p-3"
+    <div className="flex flex-col flex-1 min-h-0 min-h-[calc(100vh-3.5rem)] px-3 py-2 max-w-[1280px] mx-auto w-full gap-2 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0">
+        <div
+          className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0 rounded-xl border p-2"
           style={{
             backgroundColor: '#0F172A',
             borderColor: 'rgba(148, 163, 184, 0.1)',
@@ -261,69 +233,62 @@ export function DeviceDashboard() {
         >
           <DeviceInfoBar
             hostname={device?.hostname ?? '—'}
-            hardwareLine={`${device?.hardware ?? '—'} · ${formatMemoryGB(status?.telemetry?.memory_total_bytes)}`}
+            hardwareLine={hardwareLine}
             connected={connected}
             agentVersion={agent?.version ?? '—'}
             score={score}
             severity={hexSeverity}
             trend={trend}
-            trendText={getTrendText(trend)}
-            severityLabel={SEVERITY_LABELS[hexSeverity]}
-            trendShortLabel={trendShort(trend)}
             hexAriaLabel={hexAriaLabel}
           />
         </div>
 
-        <div className="order-2 md:order-none md:col-start-1 md:row-start-2 flex flex-col gap-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
-              {timeRangeButtons.map(({ key, label, locked }) => (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={locked}
-                  onClick={() => !locked && setTimeRange(key)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors shrink-0 ${
-                    timeRange === key
-                      ? 'bg-[#00C9B0] text-[#0A0C10]'
-                      : locked
-                        ? 'text-[#64748B] cursor-not-allowed flex items-center gap-1'
-                        : 'text-[#94A3B8] hover:bg-white/5 hover:text-[#E8ECF4]'
-                  }`}
-                >
-                  {label}
-                  {locked && <Lock size={10} />}
-                </button>
-              ))}
-            </div>
-            {cloudConnected && (
-              <span className="text-[10px] font-medium text-[#00C9B0] whitespace-nowrap">
-                ◎ Cloud History Enabled
-              </span>
-            )}
+        <div className="order-2 md:order-none md:col-start-1 md:row-start-2 flex flex-wrap items-center gap-2 min-w-0">
+          <div className="flex gap-1 overflow-x-auto">
+            {timeRangeButtons.map(({ key, label, locked }) => (
+              <button
+                key={key}
+                type="button"
+                disabled={locked}
+                onClick={() => !locked && setTimeRange(key)}
+                className={`px-2 py-0.5 text-xs font-medium rounded-md transition-colors shrink-0 ${
+                  timeRange === key
+                    ? 'bg-[#00C9B0] text-[#0A0C10]'
+                    : locked
+                      ? 'text-[#64748B] cursor-not-allowed flex items-center gap-1'
+                      : 'text-[#94A3B8] hover:bg-white/5 hover:text-[#E8ECF4]'
+                }`}
+              >
+                {label}
+                {locked && <Lock size={10} />}
+              </button>
+            ))}
           </div>
+          {cloudConnected && (
+            <span className="text-[10px] font-medium text-[#00C9B0] whitespace-nowrap">
+              ◎ Cloud History Enabled
+            </span>
+          )}
         </div>
 
-        <div className="order-3 md:order-none md:col-start-2 md:row-start-1 min-h-0 min-w-0">
+        <div className="order-3 md:order-none md:col-start-2 md:row-start-1 md:row-span-3 flex flex-col gap-2 min-h-0 min-w-0">
           <SubScoresPanel
             subScores={subScores}
             riskSummaryLine={getRiskSummaryText(severity, score)}
           />
-        </div>
-
-        <div className="order-4 md:order-none md:col-start-2 md:row-start-2 min-h-0 min-w-0">
-          <HealthGrid health={health as ComponentProps<typeof HealthGrid>['health']} />
-        </div>
-
-        <div className="order-5 md:order-none md:col-start-2 md:row-start-3 min-h-0 min-w-0 md:self-start md:w-full">
-          <AIInsights
-            temperatureC={temp}
-            memoryPct={memPct}
-            modelLabel={modelLabel}
+          <HealthGrid
+            health={health as ComponentProps<typeof HealthGrid>['health']}
           />
+          <div className="md:self-start md:w-full min-h-0">
+            <AIInsights
+              temperatureC={temp}
+              memoryPct={memPct}
+              modelLabel={modelLabel}
+            />
+          </div>
         </div>
 
-        <div className="order-6 md:order-none md:col-start-1 md:row-start-3 min-h-0 min-w-0 flex flex-col flex-1 md:min-h-[280px]">
+        <div className="order-6 md:order-none md:col-start-1 md:row-start-3 min-h-0 min-w-0 flex flex-col flex-1 md:min-h-0">
           <ChartGrid
             chartHistory={chartHistory}
             temp={temp}
@@ -337,51 +302,11 @@ export function DeviceDashboard() {
             utilChartFlash={utilChartFlash}
             onTempFlashEnd={() => setTempChartFlash(null)}
             onUtilFlashEnd={() => setUtilChartFlash(null)}
-            chartHeightClassName="h-[200px] md:h-[120px]"
+            chartHeightClassName="h-[200px] md:h-[105px]"
             compactLayout
           />
         </div>
       </div>
-
-      <details className="rounded-xl border shrink-0 group"
-        style={{
-          backgroundColor: '#0F172A',
-          borderColor: 'rgba(148, 163, 184, 0.1)',
-        }}
-      >
-        <summary className="px-4 py-2.5 cursor-pointer text-sm text-[#94A3B8] list-none flex items-center justify-between gap-2 marker:content-none [&::-webkit-details-marker]:hidden">
-          <span className="font-medium text-[#E8ECF4]">
-            System &amp; active processes
-          </span>
-          <span className="text-[#00C9B0] text-xs group-open:hidden">Show</span>
-          <span className="text-[#00C9B0] text-xs hidden group-open:inline">Hide</span>
-        </summary>
-        <div className="px-4 pb-4 pt-0 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/[0.06] mt-2 pt-4">
-          <SystemInfoCard device={device ?? null} agent={agent ?? null} />
-          <div>
-            {processes === null ? (
-              <div
-                className="rounded-xl border p-5"
-                style={{
-                  backgroundColor: '#0F172A',
-                  borderColor: 'rgba(148, 163, 184, 0.1)',
-                }}
-              >
-                <h3 className="text-sm font-semibold text-[#E8ECF4] mb-2">
-                  Active Processes
-                </h3>
-                <p className="text-sm text-[#64748B]">Loading...</p>
-              </div>
-            ) : (
-              <ProcessTable
-                processes={processes.processes}
-                supported={processes.supported}
-                note={processes.note}
-              />
-            )}
-          </div>
-        </div>
-      </details>
     </div>
   )
 }

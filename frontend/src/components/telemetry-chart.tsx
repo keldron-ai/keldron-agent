@@ -33,7 +33,7 @@ interface TelemetryChartProps {
   showHighTempBadge?: boolean
   eventFlash?: ChartEventFlash | null
   onEventFlashEnd?: () => void
-  /** Chart plot area height (Tailwind class). Default keeps RiskDrilldown at 200px. */
+  /** Chart plot area height (Tailwind class). Default 200px for full-page charts. */
   chartHeightClassName?: string
   /** Smaller header + padding for dense dashboard grid. */
   compactLayout?: boolean
@@ -113,14 +113,14 @@ export function TelemetryChart({
 
   return (
     <div
-      className={`rounded-xl border ${compactLayout ? 'p-2' : 'p-4'}`}
+      className={`rounded-xl border ${compactLayout ? 'p-1.5' : 'p-4'}`}
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
       <div
-        className={`flex items-center justify-between gap-2 ${compactLayout ? 'mb-1' : 'mb-3'}`}
+        className={`flex items-center justify-between gap-2 ${compactLayout ? 'mb-0.5' : 'mb-3'}`}
       >
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <span className={headerTitleClass}>{title}</span>

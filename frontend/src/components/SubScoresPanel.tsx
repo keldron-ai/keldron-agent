@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Activity, ChevronDown, HardDrive, Thermometer, Zap } from 'lucide-react'
 import { SubScoreBars } from '@/components/SubScoreBars'
 
@@ -167,13 +166,13 @@ export function SubScoresPanel({
 
   return (
     <div
-      className="rounded-xl border p-3 flex flex-col min-h-0"
+      className="rounded-xl border p-2 flex flex-col min-h-0"
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <h3
           className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest shrink"
           style={{ letterSpacing: '0.08em' }}
@@ -197,16 +196,8 @@ export function SubScoresPanel({
         <SubScoreBars subScores={subScores} />
       </div>
 
-      <p className="text-[10px] text-[#94A3B8] mt-2 leading-snug">{riskSummaryLine}</p>
+      <p className="text-[10px] text-[#94A3B8] mt-1.5 leading-snug">{riskSummaryLine}</p>
       <p className="text-[9px] text-[#64748B] mt-0.5">{layerOneNote}</p>
-
-      <Link
-        to="/risk"
-        className="text-[11px] mt-2 transition-colors hover:underline"
-        style={{ color: '#00C9B0' }}
-      >
-        Full Risk Analysis →
-      </Link>
 
       {detailOpen && subScores && (
         <div

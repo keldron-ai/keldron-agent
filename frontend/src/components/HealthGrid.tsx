@@ -382,7 +382,7 @@ export function HealthGrid({ health }: HealthGridProps) {
       }}
     >
       <h4
-        className="text-[10px] uppercase text-[#94A3B8] mb-2"
+        className="text-[10px] uppercase text-[#94A3B8] mb-1"
         style={{ letterSpacing: '0.08em' }}
       >
         Device Health

@@ -109,6 +109,14 @@ interface ProcessList {
   note: string | null
 }
 
+/** Go ParseDuration strings used by /api/v1/history */
+const HISTORY_WINDOW_MS: Record<string, number> = {
+  '30m': 30 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+}
+
 interface TelemetryContextValue {
   connected: boolean
   latest: TelemetryUpdate | null
@@ -124,11 +132,21 @@ interface TelemetryContextValue {
   }
   statusLoading: boolean
   statusError: string | null
+  /** Refetch history for the given window and align live trim (e.g. "30m", "1h", "6h", "24h"). */
+  refreshHistory: (windowQuery: string) => Promise<void>
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
 
-const WINDOW_MS = 30 * 60 * 1000
+function toPoints(
+  arr: Array<Record<string, unknown>>,
+  key: string
+): SparklinePoint[] {
+  return arr.map((p) => ({
+    timestamp: new Date(p.timestamp as string).getTime(),
+    value: (p[key] as number) ?? 0,
+  }))
+}
 
 export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<DeviceStatus | null>(null)
@@ -145,6 +163,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [memoryHistory, setMemoryHistory] = useState<SparklinePoint[]>([])
   const [riskHistory, setRiskHistory] = useState<SparklinePoint[]>([])
 
+  const historyWindowMsRef = useRef(HISTORY_WINDOW_MS['30m'])
+
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
   const shouldReconnectRef = useRef(true)
@@ -155,8 +175,9 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       value: number
     ) => {
       const now = Date.now()
+      const windowMs = historyWindowMsRef.current
       setter((prev) => {
-        const cutoff = now - WINDOW_MS
+        const cutoff = now - windowMs
         const filtered = prev.filter((p) => p.timestamp > cutoff)
         return [...filtered, { timestamp: now, value }]
       })
@@ -164,33 +185,32 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
-  useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const res = await fetch('/api/v1/history?window=30m')
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.points && data.points.length > 0) {
-          const toPoints = (
-            arr: Array<Record<string, unknown>>,
-            key: string
-          ): SparklinePoint[] =>
-            arr.map((p) => ({
-              timestamp: new Date(p.timestamp as string).getTime(),
-              value: (p[key] as number) ?? 0,
-            }))
-
-          setTempHistory(toPoints(data.points, 'temperature_c'))
-          setUtilHistory(toPoints(data.points, 'gpu_utilization_pct'))
-          setPowerHistory(toPoints(data.points, 'power_draw_w'))
-          setMemoryHistory(toPoints(data.points, 'memory_used_pct'))
-          setRiskHistory(toPoints(data.points, 'composite_score'))
-        }
-      } catch {
-        /* History endpoint may not exist on older agents — silent fail */
+  const refreshHistory = useCallback(async (windowQuery: string) => {
+    const ms = HISTORY_WINDOW_MS[windowQuery] ?? HISTORY_WINDOW_MS['30m']
+    historyWindowMsRef.current = ms
+    try {
+      const res = await fetch(
+        `/api/v1/history?window=${encodeURIComponent(windowQuery)}`
+      )
+      if (!res.ok) return
+      const data = await res.json()
+      const points = data.points as Array<Record<string, unknown>> | undefined
+      if (points && points.length > 0) {
+        setTempHistory(toPoints(points, 'temperature_c'))
+        setUtilHistory(toPoints(points, 'gpu_utilization_pct'))
+        setPowerHistory(toPoints(points, 'power_draw_w'))
+        setMemoryHistory(toPoints(points, 'memory_used_pct'))
+        setRiskHistory(toPoints(points, 'composite_score'))
+      } else {
+        setTempHistory([])
+        setUtilHistory([])
+        setPowerHistory([])
+        setMemoryHistory([])
+        setRiskHistory([])
       }
+    } catch {
+      /* History endpoint may not exist on older agents — silent fail */
     }
-    loadHistory()
   }, [])
 
   useEffect(() => {
@@ -314,6 +334,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     },
     statusLoading,
     statusError,
+    refreshHistory,
   }
 
   return (
