@@ -144,14 +144,14 @@ func floatPtr(v float64) *float64 {
 }
 
 func memoryUsedMB(m map[string]float64) *float64 {
-	if v, ok := m["mem_used_bytes"]; ok && v > 0 {
+	if v, ok := m["mem_used_bytes"]; ok && v >= 0 {
 		mb := v / (1024 * 1024)
 		return &mb
 	}
 	if v, ok := m["gpu_memory_used_mb"]; ok {
 		return &v
 	}
-	if v, ok := m["gpu_memory_used"]; ok && v > 0 {
+	if v, ok := m["gpu_memory_used"]; ok && v >= 0 {
 		mb := v / (1024 * 1024)
 		return &mb
 	}

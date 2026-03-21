@@ -31,6 +31,7 @@ type Client struct {
 	bufferMu   sync.Mutex
 	MaxBuffer  int
 	logger     *slog.Logger
+	wg         sync.WaitGroup // tracks in-flight Send goroutines
 }
 
 // Sample is the JSON payload format matching the cloud ingest API.
@@ -95,12 +96,13 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 		return nil
 	}
 
+	// Snapshot pending samples under lock, then release before network I/O.
 	c.bufferMu.Lock()
-	defer c.bufferMu.Unlock()
-
 	pending := make([]Sample, 0, len(c.buffer)+len(samples))
 	pending = append(pending, c.buffer...)
 	pending = append(pending, samples...)
+	c.buffer = nil
+	c.bufferMu.Unlock()
 
 	if len(pending) == 0 {
 		return nil
@@ -108,13 +110,17 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 
 	body, err := json.Marshal(IngestRequest{Samples: pending})
 	if err != nil {
-		c.buffer = c.trimBuffer(pending)
+		c.bufferMu.Lock()
+		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.bufferMu.Unlock()
 		return fmt.Errorf("marshal ingest body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.ingestURL, bytes.NewReader(body))
 	if err != nil {
-		c.buffer = c.trimBuffer(pending)
+		c.bufferMu.Lock()
+		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.bufferMu.Unlock()
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("X-API-Key", c.apiKey)
@@ -122,7 +128,9 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.buffer = c.trimBuffer(pending)
+		c.bufferMu.Lock()
+		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.bufferMu.Unlock()
 		c.logger.Warn("cloud ingest request failed (buffered for retry)", "error", err, "agent_id", c.agentID)
 		return err
 	}
@@ -131,7 +139,9 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	if resp.StatusCode != http.StatusAccepted {
-		c.buffer = c.trimBuffer(pending)
+		c.bufferMu.Lock()
+		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.bufferMu.Unlock()
 		c.logger.Warn("cloud ingest non-202 (buffered for retry)",
 			"status", resp.StatusCode,
 			"body", string(respBody),
@@ -151,7 +161,7 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 		)
 	}
 
-	c.buffer = c.buffer[:0]
+	// Success — buffer already cleared above (set to nil).
 	return nil
 }
 
@@ -176,10 +186,33 @@ func (c *Client) trimBuffer(merged []Sample) []Sample {
 	return out
 }
 
-// Close releases client resources (currently a no-op; buffer is in-memory only).
+// TrackSend increments the in-flight send counter. Call before spawning a Send goroutine.
+func (c *Client) TrackSend() { c.wg.Add(1) }
+
+// SendDone decrements the in-flight send counter. Call when a Send goroutine completes.
+func (c *Client) SendDone() { c.wg.Done() }
+
+// Close waits for in-flight Send goroutines, then flushes any remaining buffered samples.
 func (c *Client) Close() error {
 	if c == nil {
 		return nil
 	}
-	return nil
+
+	// Wait for all in-flight sends to finish.
+	c.wg.Wait()
+
+	// Flush any remaining buffered samples with a generous timeout.
+	c.bufferMu.Lock()
+	remaining := c.buffer
+	c.buffer = nil
+	c.bufferMu.Unlock()
+
+	if len(remaining) == 0 {
+		return nil
+	}
+
+	c.logger.Info("cloud client flushing remaining samples on close", "count", len(remaining))
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return c.Send(ctx, remaining)
 }
