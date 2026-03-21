@@ -84,7 +84,23 @@ on_exit() {
   exit "$ec"
 }
 
-if [ "${MODE}" != "frontend-only" ]; then
+on_exit_frontend() {
+  local ec=$?
+  if [ "${CLEANUP_DONE:-0}" -eq 1 ]; then
+    exit "$ec"
+  fi
+  CLEANUP_DONE=1
+  trap - EXIT
+  terminate_pid "${FRONTEND_PID}"
+  if [ "$ec" -eq 130 ] || [ "$ec" -eq 143 ]; then
+    ec=0
+  fi
+  exit "$ec"
+}
+
+if [ "${MODE}" = "frontend-only" ]; then
+  trap 'on_exit_frontend' EXIT
+else
   trap 'on_exit' EXIT
 fi
 
@@ -181,6 +197,12 @@ HUB_PORT="${HUB_PORT:-9300}"
 wait_for_api() {
   local code
   for _ in $(seq 1 120); do
+    if [ -n "${AGENT_PID}" ] && ! kill -0 "${AGENT_PID}" 2>/dev/null; then
+      wait "${AGENT_PID}" 2>/dev/null
+      local agent_ec=$?
+      echo "error: agent process (PID ${AGENT_PID}) exited with status ${agent_ec} during startup" >&2
+      return "${agent_ec}"
+    fi
     code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${API_PORT}/api/v1/status" 2>/dev/null || true)
     if [ "${code}" = "200" ] || [ "${code}" = "503" ]; then
       return 0
