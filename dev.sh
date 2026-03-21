@@ -84,7 +84,9 @@ on_exit() {
   exit "$ec"
 }
 
-trap 'on_exit' EXIT
+if [ "${MODE}" != "frontend-only" ]; then
+  trap 'on_exit' EXIT
+fi
 
 if [ "${MODE}" = "both" ]; then
   if ! command -v curl >/dev/null 2>&1; then
@@ -111,7 +113,9 @@ if [ "${MODE}" != "agent-only" ]; then
   fi
 fi
 
-cleanup_stale_agent
+if [ "${MODE}" != "frontend-only" ]; then
+  cleanup_stale_agent
+fi
 
 echo "═══════════════════════════════════════════"
 echo "  Keldron Agent — Local Dev Runner"
@@ -192,11 +196,9 @@ if [ "${MODE}" = "frontend-only" ]; then
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Starting Vite dev server on :${FRONTEND_PORT}..."
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /api → localhost:${API_PORT}"
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /ws  → localhost:${API_PORT}"
-  (cd "${SCRIPT_DIR}/frontend" && npm run dev) > >(prefix_frontend) 2> >(prefix_frontend) &
+  (cd "${SCRIPT_DIR}/frontend" && exec npm run dev) > >(prefix_frontend) 2> >(prefix_frontend) &
   FRONTEND_PID=$!
   wait "${FRONTEND_PID}"
-  CLEANUP_DONE=1
-  trap - EXIT
   exit 0
 fi
 
@@ -221,7 +223,7 @@ if [ "${MODE}" = "both" ]; then
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Starting Vite dev server on :${FRONTEND_PORT}..."
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /api → localhost:${API_PORT}"
   printf '%b[frontend]%b %s\n' "${CYAN}" "${NC}" "Proxying /ws  → localhost:${API_PORT}"
-  (cd "${SCRIPT_DIR}/frontend" && npm run dev) > >(prefix_frontend) 2> >(prefix_frontend) &
+  (cd "${SCRIPT_DIR}/frontend" && exec npm run dev) > >(prefix_frontend) 2> >(prefix_frontend) &
   FRONTEND_PID=$!
 fi
 
@@ -236,13 +238,27 @@ fi
 echo "   Press Ctrl+C to stop"
 echo ""
 
-if [ "${MODE}" = "both" ]; then
-  wait "${AGENT_PID}" || true
-  wait "${FRONTEND_PID}" || true
-elif [ "${MODE}" = "agent" ]; then
-  wait "${AGENT_PID}" || true
+if [ "${MODE}" = "agent" ]; then
+  wait "${AGENT_PID}"
+  exit $?
+elif [ "${MODE}" = "both" ]; then
+  # Wait for the first child to exit; terminate the other via the EXIT trap.
+  if bash -c 'wait -n 2>/dev/null' 2>/dev/null; then
+    # wait -n is available (bash 4.3+)
+    wait -n "${AGENT_PID}" "${FRONTEND_PID}"
+    exit $?
+  else
+    # Fallback: poll both PIDs
+    while true; do
+      if ! kill -0 "${AGENT_PID}" 2>/dev/null; then
+        wait "${AGENT_PID}" 2>/dev/null
+        exit $?
+      fi
+      if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
+        wait "${FRONTEND_PID}" 2>/dev/null
+        exit $?
+      fi
+      sleep 0.2
+    done
+  fi
 fi
-
-CLEANUP_DONE=1
-trap - EXIT
-exit 0
