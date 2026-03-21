@@ -33,10 +33,12 @@ interface TelemetryChartProps {
   showHighTempBadge?: boolean
   eventFlash?: ChartEventFlash | null
   onEventFlashEnd?: () => void
-  /** Chart plot area height (Tailwind class). Default 200px for full-page charts. */
+  /** Chart plot area height (Tailwind class). Default 200px for full-page charts. Ignored when fillChart is true. */
   chartHeightClassName?: string
   /** Smaller header + padding for dense dashboard grid. */
   compactLayout?: boolean
+  /** Grow plot to fill remaining card height (dashboard grid with flex parent). */
+  fillChart?: boolean
 }
 
 function formatTimeLabel(ts: number): string {
@@ -78,6 +80,7 @@ export function TelemetryChart({
   onEventFlashEnd,
   chartHeightClassName = 'h-[200px]',
   compactLayout = false,
+  fillChart = false,
 }: TelemetryChartProps) {
   const rawId = useId().replace(/:/g, '')
   const strokeGradId = `tc-stroke-${rawId}`
@@ -111,16 +114,24 @@ export function TelemetryChart({
     ? 'text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]'
     : 'text-sm font-semibold text-[#E8ECF4]'
 
+  const cardOuterClass = [
+    'rounded-xl border overflow-hidden',
+    compactLayout ? 'p-1.5' : 'p-4',
+    fillChart && compactLayout ? 'flex flex-col h-full min-h-0' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div
-      className={`rounded-xl border ${compactLayout ? 'p-1.5' : 'p-4'}`}
+      className={cardOuterClass}
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
       <div
-        className={`flex items-center justify-between gap-2 ${compactLayout ? 'mb-0.5' : 'mb-3'}`}
+        className={`flex items-center justify-between gap-2 shrink-0 ${compactLayout ? 'mb-0.5' : 'mb-3'}`}
       >
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <span className={headerTitleClass}>{title}</span>
@@ -161,7 +172,13 @@ export function TelemetryChart({
           )}
         </div>
       </div>
-      <div className={`${chartHeightClassName} w-full`}>
+      <div
+        className={
+          fillChart
+            ? 'flex-1 min-h-0 w-full'
+            : `${chartHeightClassName} w-full`
+        }
+      >
         {chartData.length >= 2 ? (
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart

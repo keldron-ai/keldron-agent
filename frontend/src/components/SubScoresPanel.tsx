@@ -166,7 +166,7 @@ export function SubScoresPanel({
 
   return (
     <div
-      className="rounded-xl border p-2 flex flex-col min-h-0"
+      className="rounded-xl border p-2 flex flex-col min-h-0 overflow-hidden"
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',

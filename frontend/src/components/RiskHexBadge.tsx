@@ -8,6 +8,8 @@ interface RiskHexBadgeProps {
   trend: Trend
   size?: Size
   trendText?: string
+  /** Omit trend arrow row below the hex (compact toolbar use). */
+  hideTrendRow?: boolean
 }
 
 const SIZE_MAP = { sm: 64, md: 120, lg: 180 } as const
@@ -28,6 +30,7 @@ export function RiskHexBadge({
   trend,
   size = 'md',
   trendText,
+  hideTrendRow = false,
 }: RiskHexBadgeProps) {
   const dim = SIZE_MAP[size]
   const borderColor = SEVERITY_COLORS[severity]
@@ -94,12 +97,14 @@ export function RiskHexBadge({
         </text>
         </svg>
       </div>
-      <span
-        className="mt-2 text-sm font-medium"
-        style={{ color: trendColor }}
-      >
-        {trendArrow}
-      </span>
+      {!hideTrendRow && (
+        <span
+          className="mt-2 text-sm font-medium"
+          style={{ color: trendColor }}
+        >
+          {trendArrow}
+        </span>
+      )}
       {trendText && (
         <span className="mt-1 text-xs text-[#94A3B8] block">
           {trendText}

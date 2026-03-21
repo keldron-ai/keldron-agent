@@ -200,7 +200,7 @@ export function DeviceDashboard() {
 
   const modelLabel = device?.hardware ?? 'Device'
 
-  const hardwareLine = `${device?.hardware ?? '—'} · ${formatMemoryGB(status?.telemetry?.memory_total_bytes)} Unified Memory`
+  const memoryLabel = formatMemoryGB(status?.telemetry?.memory_total_bytes)
 
   if (statusLoading && !status) {
     return (
@@ -223,17 +223,12 @@ export function DeviceDashboard() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 min-h-[calc(100vh-3.5rem)] px-3 py-2 max-w-[1280px] mx-auto w-full gap-2 overflow-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0">
-        <div
-          className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0 rounded-xl border p-2"
-          style={{
-            backgroundColor: '#0F172A',
-            borderColor: 'rgba(148, 163, 184, 0.1)',
-          }}
-        >
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,65%)_minmax(0,35%)] md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0">
+        <div className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0">
           <DeviceInfoBar
             hostname={device?.hostname ?? '—'}
-            hardwareLine={hardwareLine}
+            hardware={device?.hardware ?? '—'}
+            memoryLabel={memoryLabel}
             connected={connected}
             agentVersion={agent?.version ?? '—'}
             score={score}
@@ -288,7 +283,7 @@ export function DeviceDashboard() {
           </div>
         </div>
 
-        <div className="order-6 md:order-none md:col-start-1 md:row-start-3 min-h-0 min-w-0 flex flex-col flex-1 md:min-h-0">
+        <div className="order-6 md:order-none md:col-start-1 md:row-start-3 min-h-0 min-w-0 flex flex-col flex-1 h-full">
           <ChartGrid
             chartHistory={chartHistory}
             temp={temp}
@@ -302,8 +297,8 @@ export function DeviceDashboard() {
             utilChartFlash={utilChartFlash}
             onTempFlashEnd={() => setTempChartFlash(null)}
             onUtilFlashEnd={() => setUtilChartFlash(null)}
-            chartHeightClassName="h-[200px] md:h-[105px]"
             compactLayout
+            fillChart
           />
         </div>
       </div>

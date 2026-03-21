@@ -27,7 +27,7 @@ export function AIInsights({
 
   return (
     <div
-      className="rounded-xl border p-2"
+      className="rounded-xl border p-2 overflow-hidden"
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
