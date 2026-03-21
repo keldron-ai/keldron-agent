@@ -108,6 +108,7 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 
 	body, err := json.Marshal(IngestRequest{Samples: pending})
 	if err != nil {
+		c.buffer = c.trimBuffer(pending)
 		return fmt.Errorf("marshal ingest body: %w", err)
 	}
 
