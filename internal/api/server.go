@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
+	telutil "github.com/keldron-ai/keldron-agent/internal/telemetry"
 	"github.com/keldron-ai/keldron-agent/registry"
 )
 
@@ -205,7 +205,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	var healthResp *health.DeviceHealthSnapshot
 	if healthMap != nil {
-		healthResp = healthMap[deviceIDFromPoint(pt)]
+		healthResp = healthMap[telutil.DeviceIDFromPoint(pt)]
 	}
 
 	resp := StatusResponse{
@@ -437,20 +437,10 @@ func latestPoint(batch []normalizer.TelemetryPoint) normalizer.TelemetryPoint {
 	return best
 }
 
-// deviceIDFromPoint mirrors the scoring engine's device ID derivation.
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if pt.Metrics != nil {
-		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
-			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
-		}
-	}
-	return pt.Source
-}
-
 // matchScore finds the score matching the given point's device ID, or returns
 // a zero-value score and false.
 func matchScore(pt normalizer.TelemetryPoint, scores []scoring.RiskScoreOutput) (scoring.RiskScoreOutput, bool) {
-	did := deviceIDFromPoint(pt)
+	did := telutil.DeviceIDFromPoint(pt)
 	for _, sc := range scores {
 		if sc.DeviceID == did {
 			return sc, true

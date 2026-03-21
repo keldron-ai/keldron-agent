@@ -11,6 +11,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
+	telutil "github.com/keldron-ai/keldron-agent/internal/telemetry"
 )
 
 // StateHolder holds the latest telemetry batch, risk scores, and health for the API.
@@ -132,7 +133,7 @@ func buildTelemetryUpdate(batch []normalizer.TelemetryPoint, scores []scoring.Ri
 			}
 		}
 		if healthSnapshots != nil {
-			did := deviceIDFromPoint(pt)
+			did := telutil.DeviceIDFromPoint(pt)
 			if snap := healthSnapshots[did]; snap != nil {
 				healthSummary = snap.ToHealthSummary()
 			}

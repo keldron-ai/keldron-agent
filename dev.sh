@@ -221,21 +221,30 @@ PROM_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'prometheu
 PROM_PORT="${PROM_PORT:-9100}"
 
 print_mode_banner() {
+  local dash_label dash_url
+  if [ "${MODE}" = "both" ]; then
+    dash_label="Dashboard"
+    dash_url="http://localhost:${FRONTEND_PORT}"
+  else
+    dash_label="Agent API"
+    dash_url="http://localhost:${API_PORT}"
+  fi
+
   if [ "${USE_CLOUD}" -eq 1 ]; then
     echo ""
     echo "  ╔══════════════════════════════════════╗"
     echo "  ║  KELDRON AGENT — CLOUD MODE          ║"
     echo "  ║  Streaming → api.keldron.ai          ║"
-    echo "  ║  Dashboard: http://localhost:${API_PORT}      ║"
-    echo "  ║  Metrics:   http://localhost:${PROM_PORT}/metrics  ║"
+    printf '  ║  %-10s %s%*s║\n' "${dash_label}:" "${dash_url}" $((22 - ${#dash_url})) ""
+    printf '  ║  Metrics:   http://localhost:%s/metrics%*s║\n' "${PROM_PORT}" $((2)) ""
     echo "  ╚══════════════════════════════════════╝"
     echo ""
   else
     echo ""
     echo "  ╔══════════════════════════════════════╗"
     echo "  ║  KELDRON AGENT — LOCAL MODE          ║"
-    echo "  ║  Dashboard: http://localhost:${API_PORT}      ║"
-    echo "  ║  Metrics:   http://localhost:${PROM_PORT}/metrics  ║"
+    printf '  ║  %-10s %s%*s║\n' "${dash_label}:" "${dash_url}" $((22 - ${#dash_url})) ""
+    printf '  ║  Metrics:   http://localhost:%s/metrics%*s║\n' "${PROM_PORT}" $((2)) ""
     echo "  ╚══════════════════════════════════════╝"
     echo ""
   fi

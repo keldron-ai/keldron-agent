@@ -5,10 +5,10 @@ package health
 
 import (
 	"sort"
-	"strconv"
 	"sync"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
+	"github.com/keldron-ai/keldron-agent/internal/telemetry"
 )
 
 // Engine computes device health metrics from telemetry.
@@ -52,7 +52,7 @@ func (e *Engine) Update(batch []normalizer.TelemetryPoint) map[string]*DeviceHea
 	defer e.mu.Unlock()
 
 	for _, pt := range sorted {
-		deviceID := deviceIDFromPoint(pt)
+		deviceID := telemetry.DeviceIDFromPoint(pt)
 		state := e.getOrCreateState(deviceID)
 
 		m := pt.Metrics
@@ -163,15 +163,6 @@ func (e *Engine) SnapshotForWS(deviceID string) *HealthSummary {
 	}
 
 	return summary
-}
-
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if pt.Metrics != nil {
-		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
-			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
-		}
-	}
-	return pt.Source
 }
 
 func getMetricFloat(m map[string]float64, keys ...string) float64 {

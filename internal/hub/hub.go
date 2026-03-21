@@ -19,6 +19,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/discovery"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
+	"github.com/keldron-ai/keldron-agent/internal/telemetry"
 )
 
 // Hub aggregates metrics from peer agents and exposes a fleet API.
@@ -339,7 +340,7 @@ func telemetryToPeerDevices(readings []normalizer.TelemetryPoint, scores []scori
 
 	devicesByID := make(map[string]*PeerDevice)
 	for _, pt := range readings {
-		deviceID := deviceIDFromPoint(pt)
+		deviceID := telemetry.DeviceIDFromPoint(pt)
 		model := deviceModelFromPoint(pt)
 		d, ok := devicesByID[deviceID]
 		if !ok {
@@ -393,15 +394,6 @@ func telemetryToPeerDevices(readings []normalizer.TelemetryPoint, scores []scori
 		out = append(out, *d)
 	}
 	return out
-}
-
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if pt.Metrics != nil {
-		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
-			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
-		}
-	}
-	return pt.Source
 }
 
 func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {

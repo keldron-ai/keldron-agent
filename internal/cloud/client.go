@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const defaultMaxBuffer = 1000
@@ -89,6 +91,11 @@ func NewClient(endpoint, apiKey, agentID, version string) *Client {
 	}
 }
 
+// isTransientStatus returns true for HTTP status codes that warrant a retry.
+func isTransientStatus(code int) bool {
+	return code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code >= 500
+}
+
 // Send POSTs samples to the ingest endpoint. On failure, payloads are retained in an in-memory FIFO buffer
 // (up to MaxBuffer); oldest samples are dropped when full. Thread-safe.
 func (c *Client) Send(ctx context.Context, samples []Sample) error {
@@ -108,10 +115,13 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 		return nil
 	}
 
+	// Generate a stable idempotency key for this batch so the server can deduplicate retries.
+	batchID := uuid.New().String()
+
 	body, err := json.Marshal(IngestRequest{Samples: pending})
 	if err != nil {
 		c.bufferMu.Lock()
-		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.buffer = c.trimBuffer(append(pending, c.buffer...))
 		c.bufferMu.Unlock()
 		return fmt.Errorf("marshal ingest body: %w", err)
 	}
@@ -119,19 +129,21 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.ingestURL, bytes.NewReader(body))
 	if err != nil {
 		c.bufferMu.Lock()
-		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.buffer = c.trimBuffer(append(pending, c.buffer...))
 		c.bufferMu.Unlock()
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("X-API-Key", c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", batchID)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.bufferMu.Lock()
-		c.buffer = c.trimBuffer(append(c.buffer, pending...))
+		c.buffer = c.trimBuffer(append(pending, c.buffer...))
 		c.bufferMu.Unlock()
-		c.logger.Warn("cloud ingest request failed (buffered for retry)", "error", err, "agent_id", c.agentID)
+		c.logger.Warn("cloud ingest request failed (buffered for retry)",
+			"error", err, "batch_id", batchID, "agent_id", c.agentID)
 		return err
 	}
 	defer resp.Body.Close()
@@ -139,29 +151,47 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	if resp.StatusCode != http.StatusAccepted {
-		c.bufferMu.Lock()
-		c.buffer = c.trimBuffer(append(c.buffer, pending...))
-		c.bufferMu.Unlock()
-		c.logger.Warn("cloud ingest non-202 (buffered for retry)",
-			"status", resp.StatusCode,
-			"body", string(respBody),
-			"agent_id", c.agentID,
-		)
+		if isTransientStatus(resp.StatusCode) {
+			c.bufferMu.Lock()
+			c.buffer = c.trimBuffer(append(pending, c.buffer...))
+			c.bufferMu.Unlock()
+			c.logger.Warn("cloud ingest transient error (buffered for retry)",
+				"status", resp.StatusCode,
+				"body", string(respBody),
+				"batch_id", batchID,
+				"agent_id", c.agentID,
+			)
+		} else {
+			c.logger.Error("cloud ingest permanent error (samples dropped)",
+				"status", resp.StatusCode,
+				"body", string(respBody),
+				"batch_id", batchID,
+				"samples", len(pending),
+				"agent_id", c.agentID,
+			)
+		}
 		return fmt.Errorf("cloud ingest: status %d", resp.StatusCode)
 	}
 
 	var ing IngestResponse
 	if err := json.Unmarshal(respBody, &ing); err != nil {
-		c.logger.Warn("cloud ingest: decode response body", "error", err)
+		c.logger.Warn("cloud ingest: decode response body", "error", err, "batch_id", batchID)
+	} else if ing.Rejected > 0 {
+		c.logger.Warn("cloud ingest partially rejected",
+			"accepted", ing.Accepted,
+			"rejected", ing.Rejected,
+			"errors", ing.Errors,
+			"batch_id", batchID,
+			"agent_id", c.agentID,
+		)
 	} else {
 		c.logger.Info("cloud ingest accepted",
 			"accepted", ing.Accepted,
-			"rejected", ing.Rejected,
+			"batch_id", batchID,
 			"agent_id", c.agentID,
 		)
 	}
 
-	// Success — buffer already cleared above (set to nil).
 	return nil
 }
 
@@ -187,10 +217,20 @@ func (c *Client) trimBuffer(merged []Sample) []Sample {
 }
 
 // TrackSend increments the in-flight send counter. Call before spawning a Send goroutine.
-func (c *Client) TrackSend() { c.wg.Add(1) }
+func (c *Client) TrackSend() {
+	if c == nil {
+		return
+	}
+	c.wg.Add(1)
+}
 
 // SendDone decrements the in-flight send counter. Call when a Send goroutine completes.
-func (c *Client) SendDone() { c.wg.Done() }
+func (c *Client) SendDone() {
+	if c == nil {
+		return
+	}
+	c.wg.Done()
+}
 
 // Close waits for in-flight Send goroutines, then flushes any remaining buffered samples.
 func (c *Client) Close() error {

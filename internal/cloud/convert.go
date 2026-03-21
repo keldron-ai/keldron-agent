@@ -4,11 +4,12 @@
 package cloud
 
 import (
-	"strconv"
+	"sort"
 	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
+	"github.com/keldron-ai/keldron-agent/internal/telemetry"
 )
 
 // ConvertToSamples converts a batch of TelemetryPoints and RiskScoreOutputs into cloud API samples.
@@ -30,12 +31,20 @@ func ConvertToSamples(
 	// Last point per device (same order as scoring: map iteration order not used; we iterate points in order).
 	byDevice := make(map[string]normalizer.TelemetryPoint)
 	for _, pt := range points {
-		did := deviceIDFromPoint(pt)
+		did := telemetry.DeviceIDFromPoint(pt)
 		byDevice[did] = pt
 	}
 
-	out := make([]Sample, 0, len(byDevice))
-	for did, pt := range byDevice {
+	// Sort device IDs for deterministic output ordering.
+	deviceIDs := make([]string, 0, len(byDevice))
+	for did := range byDevice {
+		deviceIDs = append(deviceIDs, did)
+	}
+	sort.Strings(deviceIDs)
+
+	out := make([]Sample, 0, len(deviceIDs))
+	for _, did := range deviceIDs {
+		pt := byDevice[did]
 		score, ok := scoreByDevice[did]
 		if !ok {
 			continue
@@ -43,16 +52,6 @@ func ConvertToSamples(
 		out = append(out, pointToSample(pt, score, agentVersion))
 	}
 	return out
-}
-
-// deviceIDFromPoint mirrors internal/scoring/engine.go deviceIDFromPoint.
-func deviceIDFromPoint(pt normalizer.TelemetryPoint) string {
-	if pt.Metrics != nil {
-		if gpuID, ok := pt.Metrics["gpu_id"]; ok {
-			return pt.Source + ":" + strconv.FormatFloat(gpuID, 'f', 0, 64)
-		}
-	}
-	return pt.Source
 }
 
 func pointToSample(pt normalizer.TelemetryPoint, score scoring.RiskScoreOutput, agentVersion string) Sample {
@@ -67,7 +66,7 @@ func pointToSample(pt normalizer.TelemetryPoint, score scoring.RiskScoreOutput, 
 	}
 
 	s := Sample{
-		DeviceID:           deviceIDFromPoint(pt),
+		DeviceID:           telemetry.DeviceIDFromPoint(pt),
 		Hostname:           hostname,
 		AdapterType:        mapAdapterType(pt.AdapterName),
 		HardwareModel:      hardwareModel(pt),
