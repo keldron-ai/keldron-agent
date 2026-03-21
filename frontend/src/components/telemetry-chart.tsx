@@ -33,6 +33,10 @@ interface TelemetryChartProps {
   showHighTempBadge?: boolean
   eventFlash?: ChartEventFlash | null
   onEventFlashEnd?: () => void
+  /** Chart plot area height (Tailwind class). Default keeps RiskDrilldown at 200px. */
+  chartHeightClassName?: string
+  /** Smaller header + padding for dense dashboard grid. */
+  compactLayout?: boolean
 }
 
 function formatTimeLabel(ts: number): string {
@@ -53,6 +57,11 @@ function formatHeaderValue(v: number): string {
   return v.toFixed(1)
 }
 
+function formatTooltipValue(val: number): string {
+  if (!Number.isFinite(val)) return '—'
+  return val.toFixed(1)
+}
+
 export function TelemetryChart({
   title,
   data,
@@ -67,6 +76,8 @@ export function TelemetryChart({
   showHighTempBadge = false,
   eventFlash,
   onEventFlashEnd,
+  chartHeightClassName = 'h-[200px]',
+  compactLayout = false,
 }: TelemetryChartProps) {
   const rawId = useId().replace(/:/g, '')
   const strokeGradId = `tc-stroke-${rawId}`
@@ -96,17 +107,23 @@ export function TelemetryChart({
   const areaFill = reducedMotion ? color : `url(#${fillGradId})`
   const areaFillOpacity = reducedMotion ? 0.1 : 1
 
+  const headerTitleClass = compactLayout
+    ? 'text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]'
+    : 'text-sm font-semibold text-[#E8ECF4]'
+
   return (
     <div
-      className="rounded-xl border p-4"
+      className={`rounded-xl border ${compactLayout ? 'p-2' : 'p-4'}`}
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-center justify-between mb-3 gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-[#E8ECF4]">{title}</span>
+      <div
+        className={`flex items-center justify-between gap-2 ${compactLayout ? 'mb-1' : 'mb-3'}`}
+      >
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className={headerTitleClass}>{title}</span>
           {displayValue != null && (
             <span className="text-sm font-semibold" style={{ color: valueColor }}>
               {formatHeaderValue(displayValue)}
@@ -144,7 +161,7 @@ export function TelemetryChart({
           )}
         </div>
       </div>
-      <div className="h-[200px] w-full">
+      <div className={`${chartHeightClassName} w-full`}>
         {chartData.length >= 2 ? (
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
@@ -195,7 +212,7 @@ export function TelemetryChart({
                 }}
                 labelStyle={{ color: '#94A3B8' }}
                 formatter={(val: number) => [
-                  `${Number.isFinite(val) ? Math.round(val) : '—'}${unit}`,
+                  `${Number.isFinite(val) ? formatTooltipValue(val) : '—'}${unit}`,
                 ]}
                 labelFormatter={(ts) =>
                   ts ? new Date(ts).toLocaleTimeString() : ''

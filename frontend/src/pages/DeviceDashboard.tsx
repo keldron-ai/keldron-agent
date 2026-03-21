@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { Lock } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
-import { RiskHexBadge } from '@/components/RiskHexBadge'
-import { SubScoreBars } from '@/components/SubScoreBars'
-import { HealthTiles } from '@/components/health-tiles'
-import {
-  TelemetryChart,
-  type ChartEventFlash,
-} from '@/components/telemetry-chart'
+import type { ChartEventFlash } from '@/components/telemetry-chart'
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion'
 import { SystemInfoCard } from '@/components/SystemInfoCard'
 import { ProcessTable } from '@/components/ProcessTable'
+import { DeviceInfoBar } from '@/components/DeviceInfoBar'
+import { ChartGrid } from '@/components/ChartGrid'
+import { SubScoresPanel } from '@/components/SubScoresPanel'
+import { HealthGrid } from '@/components/HealthGrid'
+import { AIInsights } from '@/components/AIInsights'
 
 function mapApiSeverity(
   severity: string | undefined,
@@ -72,22 +70,29 @@ function getTrendText(trend: 'stable' | 'rising' | 'falling'): string {
   }
 }
 
-const TIME_RANGES = [
-  { key: '30m' as const, label: '30m', locked: false },
-  { key: '1H' as const, label: '1H', locked: true },
-  { key: '6H' as const, label: '6H', locked: true },
-  { key: '24H' as const, label: '24H', locked: true },
-]
+function trendShort(trend: 'stable' | 'rising' | 'falling'): string {
+  if (trend === 'rising') return 'Rising'
+  if (trend === 'falling') return 'Falling'
+  return 'Stable'
+}
 
-const TIME_RANGE_MS: Record<(typeof TIME_RANGES)[number]['key'], number> = {
+const SEVERITY_LABELS: Record<'normal' | 'warning' | 'critical', string> = {
+  normal: 'NORMAL',
+  warning: 'WARNING',
+  critical: 'CRITICAL',
+}
+
+const TIME_RANGE_MS = {
   '30m': 30 * 60 * 1000,
   '1H': 60 * 60 * 1000,
   '6H': 6 * 60 * 60 * 1000,
   '24H': 24 * 60 * 60 * 1000,
-}
+} as const
+
+type TimeRangeKey = keyof typeof TIME_RANGE_MS
 
 export function DeviceDashboard() {
-  const [timeRange, setTimeRange] = useState<'30m' | '1H' | '6H' | '24H'>('30m')
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>('30m')
   const reducedMotion = usePrefersReducedMotion()
   const [tempChartFlash, setTempChartFlash] = useState<ChartEventFlash | null>(
     null
@@ -114,6 +119,23 @@ export function DeviceDashboard() {
   const device = status?.device
   const agent = status?.agent
   const health = status?.health ?? null
+  const cloudConnected = status?.agent?.cloud_connected === true
+
+  const timeRangeButtons = useMemo(
+    () => [
+      { key: '30m' as const, label: '30m', locked: false },
+      { key: '1H' as const, label: '1H', locked: !cloudConnected },
+      { key: '6H' as const, label: '6H', locked: !cloudConnected },
+      { key: '24H' as const, label: '24H', locked: !cloudConnected },
+    ],
+    [cloudConnected]
+  )
+
+  useEffect(() => {
+    if (!cloudConnected && timeRange !== '30m') {
+      setTimeRange('30m')
+    }
+  }, [cloudConnected, timeRange])
 
   const score = risk?.composite_score ?? 0
   const severity = risk?.severity
@@ -203,6 +225,12 @@ export function DeviceDashboard() {
     telemetry?.throttle_active,
   ])
 
+  const hexAriaLabel = severity
+    ? `Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity} — View risk details`
+    : 'Risk score loading — View risk details'
+
+  const modelLabel = device?.hardware ?? 'Device'
+
   if (statusLoading && !status) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-[#94A3B8]">
@@ -223,80 +251,39 @@ export function DeviceDashboard() {
   }
 
   return (
-    <div className="flex-1 px-6 py-6">
-      <div className="max-w-[1280px] mx-auto space-y-6">
-        {/* Hero card: 3 columns + health */}
-        <div
-          className="rounded-xl border p-6"
+    <div className="flex flex-col flex-1 min-h-0 min-h-[calc(100vh-3.5rem)] px-4 py-3 max-w-[1280px] mx-auto w-full gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0">
+        <div className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0 rounded-xl border p-3"
           style={{
             backgroundColor: '#0F172A',
             borderColor: 'rgba(148, 163, 184, 0.1)',
           }}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left: Device info */}
-            <div className="space-y-2">
-              <h2 className="text-lg font-semibold text-[#E8ECF4]">
-                {device?.hostname ?? '—'}
-              </h2>
-              <p className="text-sm text-[#94A3B8]">
-                {device?.hardware ?? '—'} · {formatMemoryGB(status?.telemetry?.memory_total_bytes)}
-              </p>
-              <div className="flex items-center gap-2">
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{
-                    backgroundColor: connected ? '#00C9B0' : '#EF4444',
-                  }}
-                />
-                <span className="text-sm text-[#94A3B8]">
-                  {connected ? 'Online' : 'Offline'}
-                </span>
-              </div>
-              <p className="text-xs text-[#64748B]">
-                keldron-agent v{agent?.version ?? '—'}
-              </p>
-            </div>
-
-            {/* Center: Hex badge + trend (badge links to Risk Analysis) */}
-            <div className="flex flex-col items-center justify-center">
-              <Link
-                to="/risk"
-                title="View risk details"
-                aria-label={severity ? `Risk score ${score >= 10 ? score.toFixed(0) : score.toFixed(1)}, ${hexSeverity} — View risk details` : 'Risk score loading — View risk details'}
-                className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#00C9B0]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] cursor-pointer transition-transform duration-200 motion-safe:hover:scale-[1.03]"
-              >
-                <RiskHexBadge
-                  score={score}
-                  severity={hexSeverity}
-                  trend={trend}
-                  size="lg"
-                  trendText={getTrendText(trend)}
-                />
-              </Link>
-            </div>
-
-            {/* Right: Sub-score bars */}
-            <div className="flex flex-col justify-center">
-              <SubScoreBars subScores={subScores} />
-            </div>
-          </div>
-
-          {/* Device Health mini-cards */}
-          <HealthTiles health={health} />
+          <DeviceInfoBar
+            hostname={device?.hostname ?? '—'}
+            hardwareLine={`${device?.hardware ?? '—'} · ${formatMemoryGB(status?.telemetry?.memory_total_bytes)}`}
+            connected={connected}
+            agentVersion={agent?.version ?? '—'}
+            score={score}
+            severity={hexSeverity}
+            trend={trend}
+            trendText={getTrendText(trend)}
+            severityLabel={SEVERITY_LABELS[hexSeverity]}
+            trendShortLabel={trendShort(trend)}
+            hexAriaLabel={hexAriaLabel}
+          />
         </div>
 
-        {/* Chart section: 2x2 grid + time range buttons */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-1">
-              {TIME_RANGES.map(({ key, label, locked }) => (
+        <div className="order-2 md:order-none md:col-start-1 md:row-start-2 flex flex-col gap-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+              {timeRangeButtons.map(({ key, label, locked }) => (
                 <button
                   key={key}
                   type="button"
                   disabled={locked}
                   onClick={() => !locked && setTimeRange(key)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors shrink-0 ${
                     timeRange === key
                       ? 'bg-[#00C9B0] text-[#0A0C10]'
                       : locked
@@ -309,86 +296,67 @@ export function DeviceDashboard() {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TelemetryChart
-              title="SoC Temperature"
-              data={chartHistory.temperature}
-              unit="°C"
-              color="#00C9B0"
-              thresholdValue={throttleC}
-              thresholdLabel="Throttle"
-              thresholdStrokeColor="#EF4444"
-              yDomain={
-                chartHistory.temperature.length > 0 && throttleC != null
-                  ? [
-                      Math.min(
-                        Math.min(
-                          ...chartHistory.temperature.map((p) => p.value)
-                        ),
-                        throttleC - 20
-                      ),
-                      Math.max(
-                        Math.max(
-                          ...chartHistory.temperature.map((p) => p.value)
-                        ),
-                        throttleC + 10,
-                        100
-                      ),
-                    ]
-                  : [0, 100]
-              }
-              currentValue={temp}
-              currentValueSeverity={tempSeverity}
-              eventFlash={tempChartFlash}
-              onEventFlashEnd={() => setTempChartFlash(null)}
-            />
-            <TelemetryChart
-              title="GPU Utilization"
-              data={chartHistory.utilization}
-              unit="%"
-              color="#3B82F6"
-              yDomain={[0, 100]}
-              currentValue={util}
-              eventFlash={utilChartFlash}
-              onEventFlashEnd={() => setUtilChartFlash(null)}
-            />
-            <TelemetryChart
-              title="System Power"
-              data={chartHistory.power}
-              unit="W"
-              color="#F59E0B"
-              thresholdValue={tdpW}
-              thresholdLabel={tdpW != null ? `TDP ${tdpW}W` : undefined}
-              thresholdStrokeColor="#F59E0B"
-              yDomain={
-                chartHistory.power.length > 0 && tdpW != null
-                  ? [
-                      0,
-                      Math.max(
-                        Math.max(...chartHistory.power.map((p) => p.value)),
-                        tdpW * 1.1,
-                        150
-                      ),
-                    ]
-                  : [0, 150]
-              }
-              currentValue={power}
-            />
-            <TelemetryChart
-              title="Unified Memory"
-              data={chartHistory.memory}
-              unit="%"
-              color="#00E5CC"
-              yDomain={[0, 100]}
-              currentValue={memPct}
-            />
+            {cloudConnected && (
+              <span className="text-[10px] font-medium text-[#00C9B0] whitespace-nowrap">
+                ◎ Cloud History Enabled
+              </span>
+            )}
           </div>
         </div>
 
-        {/* System + Active Processes side by side */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="order-3 md:order-none md:col-start-2 md:row-start-1 min-h-0 min-w-0">
+          <SubScoresPanel
+            subScores={subScores}
+            riskSummaryLine={getRiskSummaryText(severity, score)}
+          />
+        </div>
+
+        <div className="order-4 md:order-none md:col-start-2 md:row-start-2 min-h-0 min-w-0">
+          <HealthGrid health={health as ComponentProps<typeof HealthGrid>['health']} />
+        </div>
+
+        <div className="order-5 md:order-none md:col-start-2 md:row-start-3 min-h-0 min-w-0 md:self-start md:w-full">
+          <AIInsights
+            temperatureC={temp}
+            memoryPct={memPct}
+            modelLabel={modelLabel}
+          />
+        </div>
+
+        <div className="order-6 md:order-none md:col-start-1 md:row-start-3 min-h-0 min-w-0 flex flex-col flex-1 md:min-h-[280px]">
+          <ChartGrid
+            chartHistory={chartHistory}
+            temp={temp}
+            util={util}
+            power={power}
+            memPct={memPct}
+            throttleC={throttleC}
+            tdpW={tdpW}
+            tempSeverity={tempSeverity}
+            tempChartFlash={tempChartFlash}
+            utilChartFlash={utilChartFlash}
+            onTempFlashEnd={() => setTempChartFlash(null)}
+            onUtilFlashEnd={() => setUtilChartFlash(null)}
+            chartHeightClassName="h-[200px] md:h-[120px]"
+            compactLayout
+          />
+        </div>
+      </div>
+
+      <details className="rounded-xl border shrink-0 group"
+        style={{
+          backgroundColor: '#0F172A',
+          borderColor: 'rgba(148, 163, 184, 0.1)',
+        }}
+      >
+        <summary className="px-4 py-2.5 cursor-pointer text-sm text-[#94A3B8] list-none flex items-center justify-between gap-2 marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="font-medium text-[#E8ECF4]">
+            System &amp; active processes
+          </span>
+          <span className="text-[#00C9B0] text-xs group-open:hidden">Show</span>
+          <span className="text-[#00C9B0] text-xs hidden group-open:inline">Hide</span>
+        </summary>
+        <div className="px-4 pb-4 pt-0 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/[0.06] mt-2 pt-4">
           <SystemInfoCard device={device ?? null} agent={agent ?? null} />
           <div>
             {processes === null ? (
@@ -413,31 +381,7 @@ export function DeviceDashboard() {
             )}
           </div>
         </div>
-
-        {/* Footer: severity + Layer 1 + drill-down link */}
-        <div
-          className="rounded-xl border p-5 flex items-center justify-between flex-wrap gap-3"
-          style={{
-            backgroundColor: '#0F172A',
-            borderColor: 'rgba(148, 163, 184, 0.1)',
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-[#94A3B8]">
-              {getRiskSummaryText(severity, score)}
-            </p>
-            <span className="text-xs text-[#64748B]">·</span>
-            <p className="text-xs text-[#64748B]">Layer 1 local scoring</p>
-          </div>
-          <Link
-            to="/risk"
-            className="text-sm transition-colors"
-            style={{ color: '#00C9B0' }}
-          >
-            View Risk Details →
-          </Link>
-        </div>
-      </div>
+      </details>
     </div>
   )
 }
