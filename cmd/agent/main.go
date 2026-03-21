@@ -555,7 +555,9 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 
 	// If we have a separate lossless cloud channel, run a dedicated goroutine for it.
 	if opts.CloudCh != nil && opts.CloudClient != nil {
+		sendWg.Add(1)
 		go func() {
+			defer sendWg.Done()
 			var cloudBatch []normalizer.TelemetryPoint
 			cloudTicker := time.NewTicker(opts.Interval)
 			defer cloudTicker.Stop()
