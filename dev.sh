@@ -179,9 +179,8 @@ HUB_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'listen_por
 HUB_PORT="${HUB_PORT:-9300}"
 
 wait_for_api() {
-  local i
   local code
-  for i in $(seq 1 120); do
+  for _ in $(seq 1 120); do
     code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${API_PORT}/api/v1/status" 2>/dev/null || true)
     if [ "${code}" = "200" ] || [ "${code}" = "503" ]; then
       return 0
