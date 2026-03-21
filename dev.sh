@@ -14,7 +14,7 @@ API_PORT="${KELDRON_API_PORT:-8080}"
 FRONTEND_PORT=9200
 
 # MODE: both | agent | frontend-only
-# USE_CLOUD=1: agent runs without --local (HTTPS cloud streaming); requires KELDRON_CLOUD_API_KEY
+# USE_CLOUD=1: agent runs without --local (HTTPS cloud streaming); requires API key via env or keldron-agent.dev.yaml
 MODE="both"
 USE_CLOUD=0
 EXPLICIT_LOCAL=0
@@ -66,9 +66,17 @@ fi
 
 if [ "${USE_CLOUD}" -eq 1 ] && [ "${MODE}" != "frontend-only" ]; then
   if [ -z "${KELDRON_CLOUD_API_KEY:-}" ]; then
-    echo "ERROR: KELDRON_CLOUD_API_KEY not set. Run:" >&2
-    echo "  export KELDRON_CLOUD_API_KEY=kldn_live_xxxxx" >&2
-    exit 1
+    # Env preferred; YAML fallback for local dev (keldron-agent.dev.yaml is gitignored)
+    if [ -f keldron-agent.dev.yaml ] && \
+       grep -q "api_key:" keldron-agent.dev.yaml 2>/dev/null && \
+       ! grep -q 'api_key: ""' keldron-agent.dev.yaml 2>/dev/null; then
+      echo "  Using cloud API key from keldron-agent.dev.yaml"
+    else
+      echo "ERROR: KELDRON_CLOUD_API_KEY not set. Run:" >&2
+      echo "  export KELDRON_CLOUD_API_KEY=kldn_live_xxxxx" >&2
+      echo "  Or set cloud.api_key in keldron-agent.dev.yaml (keep that file gitignored)." >&2
+      exit 1
+    fi
   fi
 fi
 

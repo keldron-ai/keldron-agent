@@ -12,3 +12,4 @@ coverage.out
 internal/api/static/
 *.tsbuildinfo
 .gomodcache/
+.local/

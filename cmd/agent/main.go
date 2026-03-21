@@ -252,8 +252,8 @@ func run() int {
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
 		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger, cloudClient, version)
-	} else {
-		// Cloud mode: buffer + sender
+	} else if cfg.Sender.Target != "" {
+		// Cloud mode with gRPC sender: buffer + sender + optional output bridge
 		normCh := norm.Output()
 
 		// Tee normalizer output to the buffer manager and the output bridge when the API is enabled
@@ -306,6 +306,12 @@ func run() int {
 		go func() {
 			senderDone <- sndr.Start(ctx)
 		}()
+	} else {
+		// Cloud-only mode (HTTPS streaming, no gRPC sender): output bridge reads directly
+		// from normalizer — no buffer manager or tee needed.
+		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
+		outputBridgeDone = make(chan struct{})
+		go runOutputBridge(ctx, norm.Output(), nil, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger, cloudClient, version)
 	}
 
 	// API server for dashboard (OSS-028) — works in both local and cloud modes.
@@ -406,27 +412,31 @@ func run() int {
 		}
 	} else {
 		// Wait for sender to flush remaining batches and close its stream.
-		if err := <-senderDone; err != nil {
-			slog.Error("sender stopped with error", "error", err)
+		if senderDone != nil {
+			if err := <-senderDone; err != nil {
+				slog.Error("sender stopped with error", "error", err)
+			}
+			batchesSent, pointsSent, senderErrors := sndr.Stats()
+			slog.Info("sender stats",
+				"batches_sent", batchesSent,
+				"points_sent", pointsSent,
+				"errors", senderErrors,
+			)
 		}
-		batchesSent, pointsSent, senderErrors := sndr.Stats()
-		slog.Info("sender stats",
-			"batches_sent", batchesSent,
-			"points_sent", pointsSent,
-			"errors", senderErrors,
-		)
 
 		// Wait for buffer manager to close WAL.
-		if err := <-bufferDone; err != nil {
-			slog.Error("buffer manager stopped with error", "error", err)
+		if bufferDone != nil {
+			if err := <-bufferDone; err != nil {
+				slog.Error("buffer manager stopped with error", "error", err)
+			}
+			ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
+			slog.Info("buffer stats",
+				"ring_pushes", ringPushes,
+				"wal_spills", walSpills,
+				"wal_drained", walDrained,
+				"dropped", dropped,
+			)
 		}
-		ringPushes, walSpills, walDrained, dropped := bufMgr.Stats()
-		slog.Info("buffer stats",
-			"ring_pushes", ringPushes,
-			"wal_spills", walSpills,
-			"wal_drained", walDrained,
-			"dropped", dropped,
-		)
 	}
 
 	slog.Info("shutdown complete")
