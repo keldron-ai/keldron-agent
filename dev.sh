@@ -171,7 +171,8 @@ EOF
 fi
 
 HUB_PORT=$(grep -v '^\s*#' keldron-agent.dev.yaml 2>/dev/null | grep 'listen_port' | head -1 | awk '{print $2}' || true)
-HUB_PORT="${HUB_PORT:-9200}"
+# Default must not match FRONTEND_PORT (9200); hub and Vite cannot share a port.
+HUB_PORT="${HUB_PORT:-9300}"
 
 wait_for_api() {
   local i
