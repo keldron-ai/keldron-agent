@@ -25,6 +25,7 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/adapter/temperature"
 	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/buffer"
+	"github.com/keldron-ai/keldron-agent/internal/cloud"
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/dcgm"
 	"github.com/keldron-ai/keldron-agent/internal/discovery"
@@ -155,6 +156,16 @@ func run() int {
 	// Local mode: --local flag, hub enabled, OR no cloud and (prometheus or stdout) enabled
 	isLocalMode := *localMode || cfg.Hub.Enabled || (cfg.Cloud.APIKey == "" && (cfg.Output.Prometheus || cfg.Output.Stdout))
 
+	var cloudClient *cloud.Client
+	if cfg.Cloud.APIKey != "" && !*localMode {
+		endpoint := cfg.Cloud.Endpoint
+		if endpoint == "" {
+			endpoint = "https://api.keldron.ai"
+		}
+		cloudClient = cloud.NewClient(endpoint, cfg.Cloud.APIKey, cfg.Agent.ID, version)
+		slog.Info("cloud streaming enabled", "endpoint", endpoint)
+	}
+
 	var bufMgr *buffer.Manager
 	var sndr interface {
 		Start(context.Context) error
@@ -240,14 +251,14 @@ func run() int {
 		// Output bridge: read from normalizer, batch by poll interval, score, update outputs
 		scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 		outputBridgeDone = make(chan struct{})
-		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
+		go runOutputBridge(ctx, norm.Output(), outputs, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger, cloudClient, version)
 	} else {
 		// Cloud mode: buffer + sender
 		normCh := norm.Output()
 
-		// When the API is enabled in cloud mode, tee the normalizer output to both
-		// the buffer manager and the output bridge (for StateHolder/API scoring).
-		if cfg.API.Enabled {
+		// Tee normalizer output to the buffer manager and the output bridge when the API is enabled
+		// (dashboard) or HTTPS cloud streaming is enabled (scoring + cloud ingest).
+		if cfg.API.Enabled || cloudClient != nil {
 			bufCh := make(chan normalizer.TelemetryPoint, 256)
 			bridgeCh := make(chan normalizer.TelemetryPoint, 256)
 			var bridgeDropped uint64
@@ -275,7 +286,7 @@ func run() int {
 
 			scoreEngine := scoring.NewScoreEngine(cfg.Agent.ElectricityRate)
 			outputBridgeDone = make(chan struct{})
-			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger)
+			go runOutputBridge(ctx, bridgeCh, nil, scoreEngine, stateHolder, healthEngine, cfg.Agent.PollInterval, outputBridgeDone, logger, cloudClient, version)
 		}
 
 		var err error
@@ -373,6 +384,9 @@ func run() int {
 	if outputBridgeDone != nil {
 		<-outputBridgeDone
 	}
+	if cloudClient != nil {
+		_ = cloudClient.Close()
+	}
 
 	// Shut down the API server (works in both modes).
 	if apiServer != nil {
@@ -423,7 +437,7 @@ func run() int {
 // computes risk scores, and calls Update on all outputs. Closes done when finished.
 // stateHolder is optional; when set, it receives batch and scores for the API.
 // healthEngine is optional; when set with stateHolder, it computes device health metrics.
-func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, healthEngine *health.Engine, interval time.Duration, done chan struct{}, logger *slog.Logger) {
+func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, outputs []output.Output, scoreEngine *scoring.ScoreEngine, stateHolder *api.StateHolder, healthEngine *health.Engine, interval time.Duration, done chan struct{}, logger *slog.Logger, cloudClient *cloud.Client, version string) {
 	defer close(done)
 
 	flushBatch := func(batch []normalizer.TelemetryPoint) {
@@ -444,6 +458,14 @@ func runOutputBridge(ctx context.Context, ch <-chan normalizer.TelemetryPoint, o
 					logger.Error("output update error", "error", err)
 				}
 			}
+		}
+		if cloudClient != nil {
+			samples := cloud.ConvertToSamples(batch, scores, version)
+			go func() {
+				if err := cloudClient.Send(ctx, samples); err != nil {
+					logger.Warn("cloud send failed (buffered for retry)", "error", err)
+				}
+			}()
 		}
 	}
 
