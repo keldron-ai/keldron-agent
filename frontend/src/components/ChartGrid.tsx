@@ -80,16 +80,34 @@ export function ChartGrid({
   }, [chartHistory.temperature, throttleC])
 
   const powerYDomain = useMemo((): [number, number] => {
-    if (chartHistory.power.length > 0 && tdpW != null) {
-      const maxVal = Math.max(
-        Math.max(...chartHistory.power.map((p) => p.value)),
-        tdpW * 1.1,
-        150
-      )
-      return [0, maxVal]
+    if (chartHistory.power.length === 0) return [0, 1]
+    const values = chartHistory.power.map((p) => p.value)
+    const dataMin = Math.min(...values)
+    const dataMax = Math.max(...values)
+    let minVal = Math.max(0, dataMin - 2)
+    let maxVal = dataMax + 5
+    if (minVal >= maxVal) {
+      const mid = (dataMin + dataMax) / 2
+      minVal = Math.max(0, mid - 1)
+      maxVal = mid + 1
     }
-    return [0, 150]
-  }, [chartHistory.power, tdpW])
+    return [minVal, maxVal]
+  }, [chartHistory.power])
+
+  const memoryYDomain = useMemo((): [number, number] => {
+    if (chartHistory.memory.length === 0) return [0, 100]
+    const values = chartHistory.memory.map((p) => p.value)
+    const dataMin = Math.min(...values)
+    const dataMax = Math.max(...values)
+    let minVal = Math.max(0, dataMin - 5)
+    let maxVal = Math.min(100, dataMax + 2)
+    if (minVal >= maxVal) {
+      const mid = (dataMin + dataMax) / 2
+      minVal = Math.max(0, mid - 1)
+      maxVal = Math.min(100, mid + 1)
+    }
+    return [minVal, maxVal]
+  }, [chartHistory.memory])
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2 flex-1 min-h-0 h-full w-full">
@@ -143,7 +161,7 @@ export function ChartGrid({
           data={chartHistory.memory}
           unit="%"
           color="#00E5CC"
-          yDomain={[0, 100]}
+          yDomain={memoryYDomain}
           currentValue={memPct}
           {...chartProps}
         />
