@@ -329,8 +329,10 @@ func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Thresholds: Thresholds{
-			Warning:  thresholds[0],
-			Critical: thresholds[1],
+			Active:   thresholds[0],
+			Elevated: thresholds[1],
+			Warning:  thresholds[2],
+			Critical: thresholds[3],
 		},
 	}
 	writeJSON(w, http.StatusOK, resp)

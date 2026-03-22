@@ -4,6 +4,7 @@ import {
   type ChartEventFlash,
 } from '@/components/telemetry-chart'
 import type { SparklinePoint } from '@/types/sparkline'
+import type { RiskSeverityBand } from '@/types/severity'
 
 export interface ChartGridProps {
   chartHistory: {
@@ -18,7 +19,7 @@ export interface ChartGridProps {
   memPct: number
   throttleC: number | undefined
   tdpW: number | undefined
-  tempSeverity: 'normal' | 'warning' | 'critical'
+  tempSeverity: RiskSeverityBand
   tempChartFlash: ChartEventFlash | null
   utilChartFlash: ChartEventFlash | null
   onTempFlashEnd: () => void
