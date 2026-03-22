@@ -10,8 +10,7 @@ import {
 } from 'recharts'
 
 import type { SparklinePoint } from '@/types/sparkline'
-
-type Severity = 'normal' | 'warning' | 'critical'
+import type { RiskSeverityBand } from '@/types/severity'
 
 interface MetricSparklineProps {
   label: string
@@ -19,7 +18,7 @@ interface MetricSparklineProps {
   unit: string
   history: SparklinePoint[]
   thresholdValue?: number
-  severity?: Severity
+  severity?: RiskSeverityBand
   min?: number
   max?: number
 }

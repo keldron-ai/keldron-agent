@@ -1,4 +1,5 @@
 import type { SubScores } from '@/types/risk'
+import { subScoreColor } from '@/types/severity'
 
 interface SubScoreBarsProps {
   subScores: SubScores | null | undefined
@@ -9,12 +10,6 @@ const LABELS: Record<keyof SubScores, string> = {
   power: 'Power headroom',
   volatility: 'Load volatility',
   memory: 'Memory pressure',
-}
-
-function getBarColor(score: number): string {
-  if (score < 40) return '#22C55E'
-  if (score < 70) return '#F59E0B'
-  return '#EF4444'
 }
 
 export function SubScoreBars({ subScores }: SubScoreBarsProps) {
@@ -30,7 +25,7 @@ export function SubScoreBars({ subScores }: SubScoreBarsProps) {
   return (
     <div className="space-y-3">
       {entries.map(({ key, score }) => {
-        const color = getBarColor(score)
+        const color = subScoreColor(score)
         return (
           <div key={key} className="flex items-center gap-3">
             <span className="text-xs text-[#94A3B8] w-28 shrink-0">

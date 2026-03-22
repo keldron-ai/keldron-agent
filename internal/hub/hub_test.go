@@ -27,7 +27,7 @@ keldron_gpu_utilization_ratio{adapter="apple_silicon",behavior_class="consumer",
 # HELP keldron_risk_composite Composite risk score
 # TYPE keldron_risk_composite gauge
 keldron_risk_composite{behavior_class="consumer",device_id="ransoms-mbp.lan:0"} 1.48
-# HELP keldron_risk_severity 0=normal, 1=warning, 2=critical
+# HELP keldron_risk_severity 0=normal, 1=active, 2=elevated, 3=warning, 4=critical
 # TYPE keldron_risk_severity gauge
 keldron_risk_severity{device_id="ransoms-mbp.lan:0"} 0
 # HELP keldron_gpu_memory_pressure_ratio GPU memory used/total ratio
@@ -183,12 +183,16 @@ func TestSeverityFromFloat(t *testing.T) {
 		v    float64
 		want string
 	}{
+		{-1, "critical"},
+		{-0.5, "critical"},
 		{0, "normal"},
 		{0.5, "normal"},
-		{1, "warning"},
-		{1.5, "warning"},
-		{2, "critical"},
-		{3, "critical"},
+		{1, "active"},
+		{1.5, "active"},
+		{2, "elevated"},
+		{3, "warning"},
+		{4, "critical"},
+		{5, "critical"},
 	}
 	for _, tt := range tests {
 		got := severityFromFloat(tt.v)

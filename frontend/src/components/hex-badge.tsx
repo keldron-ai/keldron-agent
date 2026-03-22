@@ -1,46 +1,43 @@
-type Severity = "healthy" | "elevated" | "warning" | "critical" | "offline"
+type HexSeverity =
+  | 'healthy'
+  | 'normal'
+  | 'active'
+  | 'elevated'
+  | 'warning'
+  | 'critical'
+  | 'offline'
 
 interface HexBadgeProps {
   score: number | null
-  severity: Severity
+  severity: HexSeverity
+}
+
+const BG: Record<HexSeverity, string> = {
+  healthy: '#00C9B0',
+  normal: '#00C9B0',
+  active: '#3B82F6',
+  elevated: '#F5A623',
+  warning: '#FF6B35',
+  critical: '#FF3B3B',
+  offline: '#1E293B',
 }
 
 export function HexBadge({ score, severity }: HexBadgeProps) {
-  const getBgColor = () => {
-    switch (severity) {
-      case "healthy":
-        return "#10B981"
-      case "elevated":
-        return "#00C9B0"
-      case "warning":
-        return "#F59E0B"
-      case "critical":
-        return "#EF4444"
-      case "offline":
-        return "#1E293B"
-      default:
-        return "#1E293B"
-    }
-  }
-
-  const getTextColor = () => {
-    if (severity === "critical") return "#FFFFFF"
-    if (severity === "offline") return "#475569"
-    return "#0A0C10"
-  }
-
   const getGlowClass = () => {
     switch (severity) {
-      case "healthy":
-        return "animate-glow-healthy"
-      case "elevated":
-        return "animate-glow-elevated"
-      case "warning":
-        return "animate-glow-warning"
-      case "critical":
-        return "animate-glow-critical"
+      case 'healthy':
+      case 'normal':
+        return 'animate-glow-healthy'
+      case 'active':
+        return 'animate-hex-breathe-active'
+      case 'elevated':
+        return 'animate-hex-breathe-elevated'
+      case 'warning':
+        return 'animate-glow-warning'
+      case 'critical':
+        return 'animate-glow-critical'
       default:
-        return ""
+        return ''
     }
   }
 
@@ -48,15 +45,17 @@ export function HexBadge({ score, severity }: HexBadgeProps) {
     <div
       className={`w-16 h-14 flex items-center justify-center ${getGlowClass()}`}
       style={{
-        backgroundColor: getBgColor(),
-        clipPath: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+        backgroundColor: BG[severity],
+        clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
       }}
     >
       <span
         className="text-[22px] font-bold"
-        style={{ color: getTextColor() }}
+        style={{
+          color: severity === 'critical' ? '#FFFFFF' : severity === 'offline' ? '#E2E8F0' : '#0A0C10',
+        }}
       >
-        {score !== null ? score : "—"}
+        {score !== null ? score : '—'}
       </span>
     </div>
   )

@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 
 import type { SparklinePoint } from '@/types/sparkline'
+import type { RiskSeverityBand } from '@/types/severity'
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion'
 
 export interface ChartEventFlash {
@@ -30,7 +31,7 @@ interface TelemetryChartProps {
   thresholdStrokeColor?: string
   yDomain?: [number, number]
   currentValue?: number
-  currentValueSeverity?: 'normal' | 'warning' | 'critical'
+  currentValueSeverity?: RiskSeverityBand
   showHighTempBadge?: boolean
   eventFlash?: ChartEventFlash | null
   onEventFlashEnd?: () => void
@@ -100,12 +101,14 @@ export function TelemetryChart({
 
   const displayValue =
     currentValue ?? (chartData.length > 0 ? chartData[chartData.length - 1].value : null)
-  const valueColor =
-    currentValueSeverity === 'critical'
-      ? '#EF4444'
-      : currentValueSeverity === 'warning'
-        ? '#F59E0B'
-        : '#00C9B0'
+  const severityHeaderColors: Record<RiskSeverityBand, string> = {
+    normal: '#00C9B0',
+    active: '#3B82F6',
+    elevated: '#F5A623',
+    warning: '#FF6B35',
+    critical: '#FF3B3B',
+  }
+  const valueColor = severityHeaderColors[currentValueSeverity]
 
   const lineStroke = reducedMotion ? color : `url(#${strokeGradId})`
   const areaFill = reducedMotion ? color : `url(#${fillGradId})`

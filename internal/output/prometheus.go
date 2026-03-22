@@ -205,7 +205,7 @@ func (p *Prometheus) registerMetricsWith(reg prometheus.Registerer) {
 	}, stringsToLabels(deviceIDLabels))
 	p.riskSeverity = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_risk_severity",
-		Help: "0=normal, 1=warning, 2=critical",
+		Help: "0=normal, 1=active, 2=elevated, 3=warning, 4=critical",
 	}, stringsToLabels(deviceIDLabels))
 	p.riskWarmingUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "keldron_risk_warming_up",
@@ -509,10 +509,14 @@ func (p *Prometheus) updatePoint(pt normalizer.TelemetryPoint, score *scoring.Ri
 		p.riskMemory.With(deviceIDLbls).Set(score.Memory)
 		sev := 0.0
 		switch score.Severity {
-		case scoring.SeverityWarning:
+		case scoring.SeverityActive:
 			sev = 1
-		case scoring.SeverityCritical:
+		case scoring.SeverityElevated:
 			sev = 2
+		case scoring.SeverityWarning:
+			sev = 3
+		case scoring.SeverityCritical:
+			sev = 4
 		}
 		p.riskSeverity.With(deviceIDLbls).Set(sev)
 		warm := 0.0

@@ -8,16 +8,40 @@ import { ChartGrid } from '@/components/ChartGrid'
 import { SubScoresPanel } from '@/components/SubScoresPanel'
 import { HealthGrid, type StatusHealth } from '@/components/HealthGrid'
 import { AIInsights } from '@/components/AIInsights'
+import type { RiskSeverityBand } from '@/types/severity'
+
+const DEFAULT_THRESHOLDS: {
+  active: number
+  elevated: number
+  warning: number
+  critical: number
+} = {
+  active: 30,
+  elevated: 50,
+  warning: 70,
+  critical: 90,
+}
 
 function mapApiSeverity(
   severity: string | undefined,
-  score: number
-): 'normal' | 'warning' | 'critical' {
-  if (!severity) return 'normal'
-  if (severity === 'critical') return 'critical'
-  if (severity === 'warning') return 'warning'
-  if (score >= 80) return 'critical'
-  if (score >= 60) return 'warning'
+  score: number,
+  thresholds: {
+    active: number
+    elevated: number
+    warning: number
+    critical: number
+  } = DEFAULT_THRESHOLDS
+): RiskSeverityBand {
+  const s = severity?.toLowerCase()
+  if (s === 'critical') return 'critical'
+  if (s === 'warning') return 'warning'
+  if (s === 'elevated') return 'elevated'
+  if (s === 'active') return 'active'
+  if (s === 'normal') return 'normal'
+  if (score >= thresholds.critical) return 'critical'
+  if (score >= thresholds.warning) return 'warning'
+  if (score >= thresholds.elevated) return 'elevated'
+  if (score >= thresholds.active) return 'active'
   return 'normal'
 }
 
@@ -26,13 +50,27 @@ function getRiskSummaryText(
   score: number
 ): string {
   if (!severity) return 'Loading...'
-  if (severity === 'normal' && score < 60)
-    return 'Normal — all metrics within thresholds'
-  if (severity === 'warning' || (score >= 60 && score < 80))
-    return 'Warning — thermal or power score elevated'
-  if (severity === 'critical' || score >= 80)
-    return 'Critical — immediate attention required'
-  return 'Stable'
+  const sev = severity.toLowerCase()
+  switch (sev) {
+    case 'normal':
+      return 'Normal — all metrics within thresholds'
+    case 'active':
+      return 'Active — working under load, within expected range'
+    case 'elevated':
+      return 'Elevated — running hard; worth monitoring'
+    case 'warning':
+      return 'Warning — approaching thermal or power limits'
+    case 'critical':
+      return 'Critical — near throttle or shutdown; attention required'
+    default:
+      if (score >= DEFAULT_THRESHOLDS.critical) {
+        return 'Critical — near throttle or shutdown; attention required'
+      }
+      if (score >= DEFAULT_THRESHOLDS.warning) {
+        return 'Warning — approaching thermal or power limits'
+      }
+      return 'Stable'
+  }
 }
 
 function formatMemoryGB(bytes: number | undefined): string {
@@ -41,10 +79,15 @@ function formatMemoryGB(bytes: number | undefined): string {
   return `${gb.toFixed(0)} GB`
 }
 
-function severityRank(s: 'normal' | 'warning' | 'critical'): number {
-  if (s === 'critical') return 2
-  if (s === 'warning') return 1
-  return 0
+function severityRank(s: RiskSeverityBand): number {
+  const order: Record<RiskSeverityBand, number> = {
+    normal: 0,
+    active: 1,
+    elevated: 2,
+    warning: 3,
+    critical: 4,
+  }
+  return order[s]
 }
 
 function getNumericDetail(
@@ -79,9 +122,9 @@ export function DeviceDashboard() {
   const [utilChartFlash, setUtilChartFlash] = useState<ChartEventFlash | null>(
     null
   )
-  const prevComposite = useRef<'normal' | 'warning' | 'critical' | null>(null)
+  const prevComposite = useRef<RiskSeverityBand | null>(null)
   const prevThrottle = useRef<boolean | undefined>(undefined)
-  const prevTempSev = useRef<'normal' | 'warning' | 'critical' | null>(null)
+  const prevTempSev = useRef<RiskSeverityBand | null>(null)
   const {
     status,
     statusLoading,
@@ -125,7 +168,8 @@ export function DeviceDashboard() {
   const rawTrend = risk?.trend
   const trend: 'stable' | 'rising' | 'falling' =
     rawTrend === 'rising' || rawTrend === 'falling' ? rawTrend : 'stable'
-  const hexSeverity = mapApiSeverity(severity, score)
+  const th = riskDetail?.thresholds
+  const hexSeverity = mapApiSeverity(severity, score, th ?? DEFAULT_THRESHOLDS)
 
   const temp = telemetry?.temperature_c ?? 0
   const util = telemetry?.gpu_utilization_pct ?? 0
@@ -141,7 +185,7 @@ export function DeviceDashboard() {
 
   const chartHistory = history
 
-  const tempSeverity: 'normal' | 'warning' | 'critical' =
+  const tempSeverity: RiskSeverityBand =
     throttleC != null && temp >= throttleC * 0.7
       ? temp >= throttleC
         ? 'critical'
@@ -186,7 +230,11 @@ export function DeviceDashboard() {
     ) {
       setUtilChartFlash({
         text:
-          hexSeverity === 'critical' ? '[CRITICAL RISK]' : '[ELEVATED RISK]',
+          hexSeverity === 'critical'
+            ? '[CRITICAL RISK]'
+            : hexSeverity === 'warning'
+              ? '[HIGH RISK]'
+              : '[ELEVATED RISK]',
         key: Date.now(),
       })
     }

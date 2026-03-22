@@ -8,12 +8,7 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import type { SubScore, SubScores } from '@/types/risk'
-
-function getSeverityColor(score: number): string {
-  if (score < 40) return '#22C55E'
-  if (score < 70) return '#F59E0B'
-  return '#EF4444'
-}
+import { subScoreColor } from '@/types/severity'
 
 function fmt1(n: unknown): string {
   if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
@@ -69,7 +64,7 @@ function SubScoreHeader({
         {icon}
         {label}
       </span>{' '}
-      <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
+      <span style={{ color: subScoreColor(data.score) }}>● {fmt1(data.score)}</span>
       <span className="text-[#94A3B8]">
         {' '}
         × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts

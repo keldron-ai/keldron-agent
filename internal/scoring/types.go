@@ -18,7 +18,7 @@ type RiskScoreOutput struct {
 	Power             float64
 	Volatility        float64
 	Memory            float64
-	Severity          string  // "normal", "warning", "critical"
+	Severity          string  // "normal", "active", "elevated", "warning", "critical"
 	Trend             string  // "rising", "falling", "stable"
 	TrendDelta        float64 // composite - previous composite (for API)
 	TimeToHotspot     *float64
@@ -37,11 +37,13 @@ type RiskScoreOutput struct {
 	SwapPressure     float64 // 0.0-1.0, Apple Silicon only
 }
 
-// Severity constants.
+// Severity constants (composite score bands).
 const (
-	SeverityNormal   = "normal"
-	SeverityWarning  = "warning"
-	SeverityCritical = "critical"
+	SeverityNormal   = "normal"   // idle or light use
+	SeverityActive   = "active"   // working, expected under load
+	SeverityElevated = "elevated" // running hard, worth monitoring
+	SeverityWarning  = "warning"  // approaching limits
+	SeverityCritical = "critical" // near throttle/shutdown
 )
 
 // DeviceScoreState holds per-device state for scoring (buffers, last composite).

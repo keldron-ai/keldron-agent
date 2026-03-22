@@ -83,9 +83,23 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 			state.VolBuffer.Add(tCurrent)
 		}
 
+		// Extract clock metrics early — needed for both power scoring and bonus metrics
+		clockActual := getFloat(m, "sm_clock_mhz")
+		clockMax := getFloat(m, "sm_clock_max_mhz")
+
+		// GPU utilization: prefer direct gpu_utilization_pct (Apple Silicon, ROCm),
+		// fall back to clock ratio (NVIDIA DCGM/SMI).
+		gpuUtil := getFloat(m, "gpu_utilization_pct")
+		if gpuUtil < 0 && clockActual > 0 && clockMax > 0 {
+			gpuUtil = (clockActual / clockMax) * 100
+		}
+		if gpuUtil < 0 {
+			gpuUtil = 0
+		}
+
 		// Compute sub-scores
 		thermal, rocPenalty, thermalWarming := ComputeThermal(tCurrent, state.ThermalBuffer, state.Spec, thermalPressureState)
-		power := ComputePower(powerW, state.Spec)
+		power := ComputePower(powerW, gpuUtil, state.Spec)
 		volatility, volWarming := ComputeVolatility(state.VolBuffer, state.Spec)
 		warmingUp := thermalWarming || volWarming
 
@@ -95,12 +109,8 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 		if memTotal > 0 {
 			memoryUsedPct = memUsed / memTotal * 100
 		}
-		memory := ComputeMemory(memoryUsedPct)
+		memory := ComputeMemory(memoryUsedPct, state.Spec)
 		rLocal := ComputeComposite(thermal, power, volatility, memory)
-
-		// Bonus metrics
-		clockActual := getFloat(m, "sm_clock_mhz")
-		clockMax := getFloat(m, "sm_clock_max_mhz")
 		tJunction := getFloat(m, "temperature_junction_c")
 		tEdge := getFloat(m, "temperature_edge")
 		swapUsed := int64(getFloat(m, "swap_used_bytes"))
