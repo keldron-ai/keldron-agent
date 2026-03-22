@@ -92,6 +92,13 @@ func pointToSample(pt normalizer.TelemetryPoint, score scoring.RiskScoreOutput, 
 	s.ThermalSubScore = floatPtr(score.Thermal)
 	s.PowerSubScore = floatPtr(score.Power)
 	s.VolatilitySubScore = floatPtr(score.Volatility)
+	s.MemorySubScore = floatPtr(score.Memory)
+	if v := firstFloatPtr(m, "mem_total_bytes"); v != nil && *v > 0 {
+		s.MemoryTotalBytes = v
+	}
+	if score.TDPW > 0 {
+		s.TDPW = floatPtr(score.TDPW)
+	}
 
 	if agentVersion != "" {
 		s.AgentVersion = &agentVersion

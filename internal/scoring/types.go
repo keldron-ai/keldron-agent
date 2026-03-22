@@ -18,6 +18,7 @@ type RiskScoreOutput struct {
 	Power             float64
 	Volatility        float64
 	Memory            float64
+	TDPW              float64 // watts from registry spec (for cloud ingest)
 	Severity          string  // "normal", "active", "elevated", "warning", "critical"
 	Trend             string  // "rising", "falling", "stable"
 	TrendDelta        float64 // composite - previous composite (for API)
