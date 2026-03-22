@@ -175,23 +175,55 @@ func TestComputeThermal_WarmingUp(t *testing.T) {
 
 func TestComputePower(t *testing.T) {
 	spec := registry.GPUSpec{TDPW: 450}
-	got := ComputePower(225, spec)
+	// No utilization — original behavior preserved
+	got := ComputePower(225, 0, spec)
 	if got != 0 {
-		t.Errorf("ComputePower(225, 450) = %v, want 0 (below 70%% TDP)", got)
+		t.Errorf("ComputePower(225, 0, 450) = %v, want 0 (below 70%% TDP)", got)
 	}
 	// 85% TDP → ((0.85-0.70)/0.30)*50 = 25
-	got = ComputePower(0.85*450, spec)
+	got = ComputePower(0.85*450, 0, spec)
 	if math.Abs(got-25) > 0.01 {
 		t.Errorf("ComputePower(85%% TDP) = %v, want 25", got)
 	}
 	// 130% TDP → 50 + (0.30/0.30)*50 = 100
-	got = ComputePower(1.3*450, spec)
+	got = ComputePower(1.3*450, 0, spec)
 	if got != 100 {
 		t.Errorf("ComputePower(130%% TDP) = %v, want 100 (capped)", got)
 	}
-	got = ComputePower(0, spec)
+	got = ComputePower(0, 0, spec)
 	if got != 0 {
-		t.Errorf("ComputePower(0, 450) = %v, want 0", got)
+		t.Errorf("ComputePower(0, 0, 450) = %v, want 0", got)
+	}
+}
+
+func TestComputePower_UtilizationFloor(t *testing.T) {
+	spec := registry.GPUSpec{TDPW: 30}
+
+	// Apple Silicon scenario: 21.4W / 30W TDP = 71.3%, 100% util
+	// Power-only score ≈ 2.2, but util floor at 100% = 30
+	got := ComputePower(21.4, 100, spec)
+	if math.Abs(got-30) > 0.5 {
+		t.Errorf("21.4W @ 100%% util = %v, want 30", got)
+	}
+
+	// 50% util — no floor applied
+	got = ComputePower(21.4, 50, spec)
+	wantRatio := ((21.4/30 - 0.70) / 0.30) * 50 // ≈ 2.2
+	if math.Abs(got-wantRatio) > 0.5 {
+		t.Errorf("21.4W @ 50%% util = %v, want ~%.1f (no floor)", got, wantRatio)
+	}
+
+	// 80% util → floor = ((80-50)/50)*30 = 18
+	got = ComputePower(21.4, 80, spec)
+	if math.Abs(got-18) > 0.5 {
+		t.Errorf("21.4W @ 80%% util = %v, want 18", got)
+	}
+
+	// High power + high util — power score dominates, floor doesn't interfere
+	// 93% TDP = 27.9W → ratio score = ((0.93-0.70)/0.30)*50 = 38.3
+	got = ComputePower(0.93*30, 100, spec)
+	if math.Abs(got-38.3) > 0.5 {
+		t.Errorf("93%% TDP @ 100%% util = %v, want ~38.3 (power dominates)", got)
 	}
 }
 
