@@ -86,13 +86,17 @@ export function ChartGrid({
     const dataMax = Math.max(...values)
     let minVal = Math.max(0, dataMin - 2)
     let maxVal = dataMax + 5
+    if (tdpW != null) {
+      maxVal = Math.max(maxVal, tdpW + 5)
+      minVal = Math.min(minVal, Math.max(0, tdpW - 5))
+    }
     if (minVal >= maxVal) {
       const mid = (dataMin + dataMax) / 2
       minVal = Math.max(0, mid - 1)
       maxVal = mid + 1
     }
     return [minVal, maxVal]
-  }, [chartHistory.power])
+  }, [chartHistory.power, tdpW])
 
   const memoryYDomain = useMemo((): [number, number] => {
     if (chartHistory.memory.length === 0) return [0, 100]
