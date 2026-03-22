@@ -82,8 +82,6 @@ type SubScoreDetail struct {
 }
 
 type Thresholds struct {
-	Active   float64 `json:"active"`
-	Elevated float64 `json:"elevated"`
 	Warning  float64 `json:"warning"`
 	Critical float64 `json:"critical"`
 }

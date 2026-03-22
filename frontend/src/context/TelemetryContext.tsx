@@ -8,7 +8,6 @@ import React, {
 } from 'react'
 
 import type { SparklinePoint } from '@/types/sparkline'
-import type { RiskSeverityBand } from '@/types/severity'
 
 interface TelemetryUpdate {
   type: 'telemetry_update'
@@ -23,7 +22,7 @@ interface TelemetryUpdate {
   }
   risk: {
     composite_score: number
-    severity: RiskSeverityBand
+    severity: 'normal' | 'warning' | 'critical'
     trend: 'stable' | 'rising' | 'falling'
   }
   health?: {
@@ -59,7 +58,7 @@ interface DeviceStatus {
   }
   risk: {
     composite_score: number
-    severity: RiskSeverityBand
+    severity: 'normal' | 'warning' | 'critical'
     trend: 'stable' | 'rising' | 'falling'
     trend_delta: number
   }
@@ -83,7 +82,7 @@ interface RiskBreakdown {
   timestamp: string
   composite: {
     score: number
-    severity: RiskSeverityBand
+    severity: 'normal' | 'warning' | 'critical'
     trend: 'stable' | 'rising' | 'falling'
     trend_delta: number
   }
@@ -93,12 +92,7 @@ interface RiskBreakdown {
     volatility: SubScore
     memory: SubScore
   }
-  thresholds: {
-    active: number
-    elevated: number
-    warning: number
-    critical: number
-  }
+  thresholds: { warning: number; critical: number }
 }
 
 interface ProcessList {

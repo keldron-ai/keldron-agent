@@ -4,14 +4,7 @@ import { Sparkline } from "./sparkline"
 
 type Trend = "stable" | "rising-normal" | "rising-concerning" | "falling"
 type SparklineType = "flat" | "moderate" | "rising" | "ramping" | "ceiling" | "bursty" | "idle" | "offline"
-type Severity =
-  | "healthy"
-  | "normal"
-  | "active"
-  | "elevated"
-  | "warning"
-  | "critical"
-  | "offline"
+type Severity = "healthy" | "elevated" | "warning" | "critical" | "offline"
 type Status = "online" | "offline"
 
 interface Metric {
@@ -62,10 +55,9 @@ export function DeviceCard({
   lastUpdate,
 }: DeviceCardProps) {
   const isOffline = status === "offline"
-  const needsAttention =
-    severity === "elevated" || severity === "warning" || severity === "critical"
+  const isWarning = severity === "warning"
 
-  const borderClass = needsAttention
+  const borderClass = isWarning
     ? "border-[rgba(245,158,11,0.2)]"
     : "border-white/[0.06]"
 
@@ -102,25 +94,19 @@ export function DeviceCard({
         <HexBadge score={score} severity={severity} />
         <span
           className={`mt-1.5 text-xs font-semibold ${
-            severity === "healthy" || severity === "normal"
-              ? "text-[#00C9B0]"
-              : severity === "active"
-              ? "text-[#3B82F6]"
+            severity === "healthy"
+              ? "text-[#10B981]"
               : severity === "elevated"
-              ? "text-[#F5A623]"
+              ? "text-[#00C9B0]"
               : severity === "warning"
-              ? "text-[#FF6B35]"
+              ? "text-[#F59E0B]"
               : severity === "critical"
-              ? "text-[#FF3B3B]"
+              ? "text-[#EF4444]"
               : "text-[#475569]"
           }`}
         >
           {severity === "healthy"
             ? "Healthy"
-            : severity === "normal"
-            ? "Normal"
-            : severity === "active"
-            ? "Active"
             : severity === "elevated"
             ? "Elevated"
             : severity === "warning"

@@ -31,7 +31,7 @@ keldron_gpu_utilization_ratio{adapter="dcgm",behavior_class="datacenter",device_
 # HELP keldron_risk_composite Composite risk score
 # TYPE keldron_risk_composite gauge
 keldron_risk_composite{behavior_class="datacenter",device_id="gpu-0"} 34.2
-# HELP keldron_risk_severity 0=normal, 1=active, 2=elevated, 3=warning, 4=critical
+# HELP keldron_risk_severity 0=normal, 1=warning, 2=critical
 # TYPE keldron_risk_severity gauge
 keldron_risk_severity{device_id="gpu-0"} 0
 # HELP keldron_gpu_memory_pressure_ratio GPU memory used/total ratio

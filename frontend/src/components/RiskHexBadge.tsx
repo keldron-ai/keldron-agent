@@ -1,11 +1,10 @@
-import type { RiskSeverityBand } from '@/types/severity'
-
+type Severity = 'normal' | 'warning' | 'critical'
 type Trend = 'stable' | 'rising' | 'falling'
 type Size = 'sm' | 'md' | 'lg'
 
 interface RiskHexBadgeProps {
   score: number
-  severity: RiskSeverityBand
+  severity: Severity
   trend: Trend
   size?: Size
   trendText?: string
@@ -14,28 +13,16 @@ interface RiskHexBadgeProps {
 }
 
 const SIZE_MAP = { sm: 64, md: 120, lg: 180 } as const
-const SEVERITY_COLORS: Record<RiskSeverityBand, string> = {
+const SEVERITY_COLORS = {
   normal: '#00C9B0',
-  active: '#3B82F6',
-  elevated: '#F5A623',
-  warning: '#FF6B35',
-  critical: '#FF3B3B',
-}
-const SEVERITY_LABELS: Record<RiskSeverityBand, string> = {
+  warning: '#F59E0B',
+  critical: '#EF4444',
+} as const
+const SEVERITY_LABELS = {
   normal: 'NORMAL',
-  active: 'ACTIVE',
-  elevated: 'ELEVATED',
   warning: 'WARNING',
   critical: 'CRITICAL',
-}
-
-const BREATHE_CLASS: Record<RiskSeverityBand, string> = {
-  normal: 'animate-hex-breathe-normal',
-  active: 'animate-hex-breathe-active',
-  elevated: 'animate-hex-breathe-elevated',
-  warning: 'animate-hex-breathe-warning',
-  critical: 'animate-hex-breathe-critical',
-}
+} as const
 
 export function RiskHexBadge({
   score,
@@ -66,7 +53,12 @@ export function RiskHexBadge({
   const scoreY = size === 'sm' ? 46 : 48
   const labelY = size === 'sm' ? 70 : 68
 
-  const breatheClass = BREATHE_CLASS[severity]
+  const breatheClass =
+    severity === 'normal'
+      ? 'animate-hex-breathe-normal'
+      : severity === 'warning'
+        ? 'animate-hex-breathe-warning'
+        : 'animate-hex-breathe-critical'
 
   return (
     <div className="flex flex-col items-center">

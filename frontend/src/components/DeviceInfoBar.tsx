@@ -1,5 +1,4 @@
 import { RiskHexBadge } from '@/components/RiskHexBadge'
-import type { RiskSeverityBand } from '@/types/severity'
 
 export interface DeviceInfoBarProps {
   hostname: string
@@ -8,7 +7,7 @@ export interface DeviceInfoBarProps {
   connected: boolean
   agentVersion: string
   score: number
-  severity: RiskSeverityBand
+  severity: 'normal' | 'warning' | 'critical'
   trend: 'stable' | 'rising' | 'falling'
   hexAriaLabel: string
 }

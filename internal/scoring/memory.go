@@ -3,48 +3,36 @@
 
 package scoring
 
-import "github.com/keldron-ai/keldron-agent/registry"
-
 // ComputeMemory computes the memory pressure sub-score (0-100).
-// Apple Silicon SoCs (soc_integrated) use a gentler curve because macOS uses
-// most RAM for cache; discrete-GPU systems use a steeper curve.
-func ComputeMemory(memoryUsedPct float64, spec registry.GPUSpec) float64 {
-	if spec.BehaviorClass == "soc_integrated" {
-		return computeMemoryAppleSilicon(memoryUsedPct)
-	}
-	return computeMemoryDefault(memoryUsedPct)
-}
-
-// Default (discrete GPU / non-unified): piecewise linear 70/85/95 breakpoints.
-func computeMemoryDefault(memoryUsedPct float64) float64 {
+// On Apple Silicon, GPU and CPU share unified memory — high memory usage
+// directly degrades GPU throughput even before the OS reports memory pressure.
+//
+// Piecewise linear:
+//
+//	0-70%  usage → score 0       (plenty of headroom)
+//	70-85% usage → score 0-30    (moderate, linear ramp)
+//	85-95% usage → score 30-70   (high, steeper ramp)
+//	95-100% usage → score 70-100 (critical, steep ramp)
+//
+// This reflects that memory degradation is nonlinear — the last 5%
+// (95-100%) is dramatically worse than the 70-85% range because the OS
+// is actively compressing and swapping.
+func ComputeMemory(memoryUsedPct float64) float64 {
 	switch {
 	case memoryUsedPct < 70:
 		return 0
 	case memoryUsedPct < 85:
+		// Linear: 70% → 0, 85% → 30
 		return ((memoryUsedPct - 70) / 15) * 30
 	case memoryUsedPct < 95:
+		// Steeper: 85% → 30, 95% → 70
 		return 30 + ((memoryUsedPct-85)/10)*40
 	default:
+		// Critical: 95% → 70, 100% → 100
 		pct := memoryUsedPct
 		if pct > 100 {
 			pct = 100
 		}
 		return 70 + ((pct-95)/5)*30
-	}
-}
-
-// Apple Silicon unified memory: 0 below 80%; 80–95% → 0–40; 95–100% → 40–100.
-func computeMemoryAppleSilicon(memoryUsedPct float64) float64 {
-	switch {
-	case memoryUsedPct < 80:
-		return 0
-	case memoryUsedPct < 95:
-		return ((memoryUsedPct - 80) / 15) * 40
-	default:
-		pct := memoryUsedPct
-		if pct > 100 {
-			pct = 100
-		}
-		return 40 + ((pct-95)/5)*60
 	}
 }

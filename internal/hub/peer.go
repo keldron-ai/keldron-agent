@@ -18,7 +18,7 @@ type PeerDevice struct {
 	PowerW           float64
 	Utilization      float64
 	RiskComposite    float64
-	RiskSeverity     string // "normal", "active", "elevated", "warning", "critical"
+	RiskSeverity     string // "normal", "warning", "critical"
 	MemoryPressure   float64
 	MemoryUsedBytes  float64 // 0 = unknown
 	MemoryTotalBytes float64 // 0 = unknown

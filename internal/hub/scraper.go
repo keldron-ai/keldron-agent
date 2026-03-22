@@ -183,15 +183,11 @@ func (s *Scraper) LastDuration() time.Duration {
 }
 
 func severityFromFloat(v float64) string {
-	switch int(v) {
-	case 4:
+	switch {
+	case v >= 2:
 		return "critical"
-	case 3:
+	case v >= 1:
 		return "warning"
-	case 2:
-		return "elevated"
-	case 1:
-		return "active"
 	default:
 		return "normal"
 	}

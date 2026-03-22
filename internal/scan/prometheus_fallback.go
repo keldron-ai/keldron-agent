@@ -18,7 +18,6 @@ import (
 
 	"github.com/keldron-ai/keldron-agent/internal/api"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
-	"github.com/keldron-ai/keldron-agent/registry"
 )
 
 const prometheusTimeout = 5 * time.Second
@@ -162,16 +161,12 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 			riskMemoryFound = true
 		case "keldron_risk_severity":
 			switch int(v) {
-			case 4:
-				riskSeverity = scoring.SeverityCritical
-			case 3:
-				riskSeverity = scoring.SeverityWarning
 			case 2:
-				riskSeverity = scoring.SeverityElevated
+				riskSeverity = "critical"
 			case 1:
-				riskSeverity = scoring.SeverityActive
+				riskSeverity = "warning"
 			default:
-				riskSeverity = scoring.SeverityNormal
+				riskSeverity = "normal"
 			}
 		case "keldron_device_uptime_seconds":
 			uptime = v
@@ -191,13 +186,9 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	if memTotal > 0 {
 		memPct = memUsed / memTotal * 100
 	}
-	spec := registry.Lookup(registry.NormalizeModelName(deviceModel))
-	if behaviorClass != "" {
-		spec.BehaviorClass = behaviorClass
-	}
 	// Use keldron_risk_memory from metrics when present; otherwise compute from memPct (e.g. legacy agent)
 	if !riskMemoryFound {
-		riskMemory = scoring.ComputeMemory(memPct, spec)
+		riskMemory = scoring.ComputeMemory(memPct)
 	}
 
 	// Use authoritative thresholds from scoring engine
@@ -205,6 +196,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 	if !ok {
 		thresholds = scoring.SeverityThresholds["consumer_active_cooled"]
 	}
+	warning, critical := thresholds[0], thresholds[1]
 
 	// Use authoritative weights from scoring engine
 	thermalWeight, powerWeight, volWeight, memWeight := scoring.W_THERMAL, scoring.W_POWER, scoring.W_VOLATILITY, scoring.W_MEMORY
@@ -267,12 +259,7 @@ func parsePrometheusToDashboard(families map[string]*dto.MetricFamily) (*Prometh
 					},
 				},
 			},
-			Thresholds: api.Thresholds{
-				Active:   thresholds[0],
-				Elevated: thresholds[1],
-				Warning:  thresholds[2],
-				Critical: thresholds[3],
-			},
+			Thresholds: api.Thresholds{Warning: warning, Critical: critical},
 		},
 		Agent: api.AgentInfo{
 			Version:        version,

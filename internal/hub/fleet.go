@@ -44,10 +44,8 @@ func BuildFleetState(local []PeerDevice, registry *PeerRegistry) FleetState {
 		switch d.RiskSeverity {
 		case "critical":
 			critical++
-		case "warning", "elevated":
+		case "warning":
 			warning++
-		case "normal", "active":
-			healthy++
 		default:
 			healthy++
 		}

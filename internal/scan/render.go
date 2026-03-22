@@ -204,10 +204,6 @@ func statusDisplay(severity string) (string, string) {
 		return "CRIT", ansiRed
 	case "warning":
 		return "WARN", ansiYellow
-	case "elevated":
-		return "HIGH", ansiYellow
-	case "active":
-		return "BUSY", ansiCyan
 	case "normal", "":
 		return "OK", ansiGreen
 	default:
@@ -271,7 +267,7 @@ func renderFooter(w io.Writer, devices []DeviceResponse, opts RenderOpts) {
 	var sumRisk float64
 	for _, d := range devices {
 		sev := strings.ToLower(d.RiskSeverity)
-		if sev == "elevated" || sev == "warning" || sev == "critical" {
+		if sev == "warning" || sev == "critical" {
 			hasWarnOrCrit = true
 		}
 		if d.RiskComposite > highest.RiskComposite {

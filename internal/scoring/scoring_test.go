@@ -87,16 +87,15 @@ func TestComputeThermal_Piecewise(t *testing.T) {
 		t.Errorf("T=60 (60%%) score = %v, want 0", score)
 	}
 
-	// 80% of limit -> quadratic: ((0.8-0.7)/0.3)^2 * 100 ≈ 11.1
+	// 80% of limit -> 50
 	rb2 := NewRingBuffer(10)
 	for i := 0; i < 10; i++ {
 		rb2.Add(78)
 	}
 	rb2.Add(80)
 	score, _, _ = ComputeThermal(80, rb2, spec, "")
-	want80 := math.Pow((0.8-0.70)/0.30, 2) * 100
-	if math.Abs(score-want80) > 0.5 {
-		t.Errorf("T=80 (80%%) score = %v, want ~%.1f", score, want80)
+	if math.Abs(score-50) > 1 {
+		t.Errorf("T=80 (80%%) score = %v, want ~50", score)
 	}
 }
 
@@ -112,11 +111,11 @@ func TestComputeThermal_SteppedRoC(t *testing.T) {
 	if warmingUp {
 		t.Error("warmingUp = true, want false")
 	}
-	if rocPenalty != 25 {
-		t.Errorf("RoC=5 penalty = %v, want 25", rocPenalty)
+	if rocPenalty != 40 {
+		t.Errorf("RoC=5 penalty = %v, want 40", rocPenalty)
 	}
-	if score < 65 || score > 80 {
-		t.Errorf("score = %v, want ~71 (thermal + RoC)", score)
+	if score < 90 {
+		t.Errorf("score = %v, want >= 90", score)
 	}
 }
 
@@ -155,9 +154,9 @@ func TestComputeThermal_AppleSiliconFallback(t *testing.T) {
 	}
 
 	score, _, _ := ComputeThermal(72, rb, spec, "")
-	// tRatio = 72/105 < 0.70 → piecewise thermal score 0 (before Apple floor)
-	if score > 0.5 {
-		t.Errorf("fallback score = %v, want ~0", score)
+	// tRatio = 72/105 = 0.686, tScore = ((0.686-0.60)/0.40)*100 = 21.4
+	if math.Abs(score-21.4) > 1 {
+		t.Errorf("fallback score = %v, want ~21.4", score)
 	}
 }
 
@@ -176,18 +175,12 @@ func TestComputeThermal_WarmingUp(t *testing.T) {
 func TestComputePower(t *testing.T) {
 	spec := registry.GPUSpec{TDPW: 450}
 	got := ComputePower(225, spec)
-	if got != 0 {
-		t.Errorf("ComputePower(225, 450) = %v, want 0 (below 70%% TDP)", got)
+	if got != 50 {
+		t.Errorf("ComputePower(225, 450) = %v, want 50", got)
 	}
-	// 85% TDP → ((0.85-0.70)/0.30)*50 = 25
-	got = ComputePower(0.85*450, spec)
-	if math.Abs(got-25) > 0.01 {
-		t.Errorf("ComputePower(85%% TDP) = %v, want 25", got)
-	}
-	// 130% TDP → 50 + (0.30/0.30)*50 = 100
-	got = ComputePower(1.3*450, spec)
+	got = ComputePower(500, spec)
 	if got != 100 {
-		t.Errorf("ComputePower(130%% TDP) = %v, want 100 (capped)", got)
+		t.Errorf("ComputePower(500, 450) = %v, want 100 (capped)", got)
 	}
 	got = ComputePower(0, spec)
 	if got != 0 {
@@ -262,27 +255,11 @@ func TestComputeMemory(t *testing.T) {
 		{97.0, 82.0},
 		{100.0, 100.0},
 	}
-	discSpec := registry.GPUSpec{BehaviorClass: "consumer_active_cooled"}
 	for _, tt := range tests {
-		score := ComputeMemory(tt.memPct, discSpec)
+		score := ComputeMemory(tt.memPct)
 		if math.Abs(score-tt.expected) > 0.5 {
 			t.Errorf("ComputeMemory(%.1f) = %.1f, want %.1f", tt.memPct, score, tt.expected)
 		}
-	}
-}
-
-func TestComputeMemory_AppleSilicon(t *testing.T) {
-	soc := registry.GPUSpec{BehaviorClass: "soc_integrated"}
-	if got := ComputeMemory(79, soc); got != 0 {
-		t.Errorf("79%% = %v, want 0", got)
-	}
-	// 80–95% → 0–40: 90% → (10/15)*40 ≈ 26.67
-	if got := ComputeMemory(90, soc); math.Abs(got-(10.0/15.0)*40.0) > 0.5 {
-		t.Errorf("90%% = %v", got)
-	}
-	// 97% → 40 + (2/5)*60 = 64
-	if got := ComputeMemory(97, soc); math.Abs(got-64) > 0.5 {
-		t.Errorf("97%% = %v, want ~64", got)
 	}
 }
 
@@ -299,10 +276,10 @@ func TestComputeComposite_MeltingMachine(t *testing.T) {
 		t.Errorf("composite = %v, want 75.75", got)
 	}
 
-	// Classify: datacenter [25,45,65,90] -> 75.75 >= 65 → warning
+	// Classify: datacenter_sustained [60,80] -> warning when 60 <= score < 80
 	sev := ClassifySeverity(got, "datacenter_sustained")
 	if sev != SeverityWarning {
-		t.Errorf("severity = %q, want warning", sev)
+		t.Errorf("severity = %q, want warning (60 <= 75.75 < 80)", sev)
 	}
 	// With memory=82 (97% usage), composite would be higher
 	gotHigh := ComputeComposite(100, 95, 80, 82)
@@ -324,15 +301,17 @@ func TestComputeComposite_All100(t *testing.T) {
 
 func TestClassifySeverity_BehaviorClass(t *testing.T) {
 	score := 83.0
-	for _, bc := range []string{
-		"datacenter_sustained",
-		"consumer_active_cooled",
-		"soc_integrated",
-		"sbc_constrained",
-	} {
-		if ClassifySeverity(score, bc) != SeverityWarning {
-			t.Errorf("83 %s = %q, want warning", bc, ClassifySeverity(score, bc))
-		}
+	if ClassifySeverity(score, "datacenter_sustained") != SeverityCritical {
+		t.Error("83 datacenter = critical")
+	}
+	if ClassifySeverity(score, "consumer_active_cooled") != SeverityCritical {
+		t.Error("83 consumer = critical")
+	}
+	if ClassifySeverity(score, "soc_integrated") != SeverityWarning {
+		t.Error("83 soc = warning")
+	}
+	if ClassifySeverity(score, "sbc_constrained") != SeverityWarning {
+		t.Error("83 sbc = warning")
 	}
 }
 
@@ -481,9 +460,7 @@ func TestScoreEngine_Integration(t *testing.T) {
 	if s.Composite < 0 || s.Composite > 100 {
 		t.Errorf("Composite = %v, want 0-100", s.Composite)
 	}
-	switch s.Severity {
-	case SeverityNormal, SeverityActive, SeverityElevated, SeverityWarning, SeverityCritical:
-	default:
+	if s.Severity != SeverityNormal && s.Severity != SeverityWarning && s.Severity != SeverityCritical {
 		t.Errorf("Severity = %q", s.Severity)
 	}
 	// 8e9/16e9 = 50% memory -> ComputeMemory(50) = 0

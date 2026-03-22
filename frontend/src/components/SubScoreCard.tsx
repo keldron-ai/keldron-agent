@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { subScoreColor } from '@/types/severity'
 
 interface SubScoreCardProps {
   name: string
@@ -8,6 +7,12 @@ interface SubScoreCardProps {
   weighted_contribution: number
   details: Record<string, unknown>
   icon: ReactNode
+}
+
+function getSeverityColor(score: number): string {
+  if (score < 40) return '#22C55E'
+  if (score < 70) return '#F59E0B'
+  return '#EF4444'
 }
 
 function formatKey(key: string): string {
@@ -33,7 +38,7 @@ export function SubScoreCard({
   details,
   icon,
 }: SubScoreCardProps) {
-  const color = subScoreColor(score)
+  const color = getSeverityColor(score)
 
   return (
     <div
