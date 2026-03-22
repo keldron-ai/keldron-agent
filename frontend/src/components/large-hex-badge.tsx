@@ -76,7 +76,7 @@ export function LargeHexBadge({ score, severity, trendText }: LargeHexBadgeProps
         <span
           className="text-[32px] font-bold"
           style={{
-            color: severity === 'critical' ? '#FFFFFF' : severity === 'offline' ? '#94A3B8' : '#0A0C10',
+            color: severity === 'critical' ? '#FFFFFF' : severity === 'offline' ? '#475569' : '#0A0C10',
           }}
         >
           {score}
