@@ -4,17 +4,20 @@ export interface AIInsightsProps {
   temperatureC: number
   memoryPct: number
   modelLabel: string
+  /** Thermal throttle threshold in °C. Defaults to 105. */
+  throttleThreshold?: number
 }
 
 export function AIInsights({
   temperatureC,
   memoryPct,
   modelLabel,
+  throttleThreshold = 105,
 }: AIInsightsProps) {
   const tempInsight =
     temperatureC < 50
-      ? `running cool at ${Math.round(temperatureC)}°C with ${Math.round(105 - temperatureC)}°C of headroom`
-      : temperatureC < 70
+      ? `running cool at ${Math.round(temperatureC)}°C with ${Math.round(throttleThreshold - temperatureC)}°C of headroom`
+      : temperatureC < throttleThreshold * 0.67
         ? `moderately warm at ${Math.round(temperatureC)}°C — within normal range`
         : `running hot at ${Math.round(temperatureC)}°C — approaching thermal limits`
 

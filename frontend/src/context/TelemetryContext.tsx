@@ -142,10 +142,13 @@ function toPoints(
   arr: Array<Record<string, unknown>>,
   key: string
 ): SparklinePoint[] {
-  return arr.map((p) => ({
-    timestamp: new Date(p.timestamp as string).getTime(),
-    value: (p[key] as number) ?? 0,
-  }))
+  return arr.map((p) => {
+    const parsed = Date.parse(p.timestamp as string)
+    const timestamp = Number.isNaN(parsed) ? Date.now() : parsed
+    const raw = Number(p[key])
+    const value = Number.isNaN(raw) ? 0 : raw
+    return { timestamp, value }
+  })
 }
 
 export function TelemetryProvider({ children }: { children: React.ReactNode }) {
@@ -187,13 +190,13 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
 
   const refreshHistory = useCallback(async (windowQuery: string) => {
     const ms = HISTORY_WINDOW_MS[windowQuery] ?? HISTORY_WINDOW_MS['30m']
-    historyWindowMsRef.current = ms
     try {
       const res = await fetch(
         `/api/v1/history?window=${encodeURIComponent(windowQuery)}`
       )
       if (!res.ok) return
       const data = await res.json()
+      historyWindowMsRef.current = ms
       const points = data.points as Array<Record<string, unknown>> | undefined
       if (points && points.length > 0) {
         setTempHistory(toPoints(points, 'temperature_c'))

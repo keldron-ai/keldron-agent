@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Activity, ChevronDown, HardDrive, Thermometer, Zap } from 'lucide-react'
 import { SubScoreBars } from '@/components/SubScoreBars'
 import {
@@ -7,20 +7,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-
-interface SubScore {
-  score: number
-  weight: number
-  weighted_contribution: number
-  details: Record<string, unknown>
-}
-
-interface SubScores {
-  thermal: SubScore
-  power: SubScore
-  volatility: SubScore
-  memory: SubScore
-}
+import type { SubScore, SubScores } from '@/types/risk'
 
 function getSeverityColor(score: number): string {
   if (score < 40) return '#22C55E'
@@ -38,6 +25,20 @@ function fmtBytesGB(n: unknown): string {
   return `${(n / 1073741824).toFixed(1)} GB`
 }
 
+function getNumeric(
+  d: Record<string, unknown>,
+  key: string
+): number | undefined {
+  const v = d[key]
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  return undefined
+}
+
+function fmtWithUnit(formatter: (n: unknown) => string, value: unknown, unit: string): string {
+  const v = formatter(value)
+  return v === '—' ? v : `${v}${unit}`
+}
+
 function DetailRow({
   label,
   value,
@@ -53,28 +54,46 @@ function DetailRow({
   )
 }
 
+function SubScoreHeader({
+  icon,
+  label,
+  data,
+}: {
+  icon: React.ReactNode
+  label: string
+  data: SubScore
+}) {
+  return (
+    <p className="text-[11px] text-[#E8ECF4]">
+      <span className="inline-flex items-center gap-1 text-[#94A3B8]">
+        {icon}
+        {label}
+      </span>{' '}
+      <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
+      <span className="text-[#94A3B8]">
+        {' '}
+        × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts
+      </span>
+    </p>
+  )
+}
+
 function ThermalBlock({ data }: { data: SubScore }) {
   const d = data.details ?? {}
-  const t = d.current_temp_c
-  const th = d.throttle_threshold_c
-  const hr = d.headroom_pct
-  const roc = d.roc_penalty
+  const t = getNumeric(d, 'current_temp_c')
+  const th = getNumeric(d, 'throttle_threshold_c')
+  const hr = getNumeric(d, 'headroom_pct')
+  const roc = getNumeric(d, 'roc_penalty')
   return (
     <div className="space-y-1">
-      <p className="text-[11px] text-[#E8ECF4]">
-        <span className="inline-flex items-center gap-1 text-[#94A3B8]">
-          <Thermometer className="w-3 h-3" aria-hidden />
-          Thermal
-        </span>{' '}
-        <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
-        <span className="text-[#94A3B8]">
-          {' '}
-          × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts
-        </span>
-      </p>
-      <DetailRow label="Current Temp" value={`${fmt1(t)}°C`} />
-      <DetailRow label="Throttle Limit" value={`${fmt1(th)}°C`} />
-      <DetailRow label="Headroom" value={hr != null && typeof hr === 'number' ? `${fmt1(hr)}%` : '—'} />
+      <SubScoreHeader
+        icon={<Thermometer className="w-3 h-3" aria-hidden />}
+        label="Thermal"
+        data={data}
+      />
+      <DetailRow label="Current Temp" value={fmtWithUnit(fmt1, t, '°C')} />
+      <DetailRow label="Throttle Limit" value={fmtWithUnit(fmt1, th, '°C')} />
+      <DetailRow label="Headroom" value={hr != null ? fmtWithUnit(fmt1, hr, '%') : '—'} />
       <DetailRow label="RoC Penalty" value={fmt1(roc)} />
     </div>
   )
@@ -84,52 +103,32 @@ function PowerBlock({ data }: { data: SubScore }) {
   const d = data.details ?? {}
   return (
     <div className="space-y-1">
-      <p className="text-[11px] text-[#E8ECF4]">
-        <span className="inline-flex items-center gap-1 text-[#94A3B8]">
-          <Zap className="w-3 h-3" aria-hidden />
-          Power
-        </span>{' '}
-        <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
-        <span className="text-[#94A3B8]">
-          {' '}
-          × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts
-        </span>
-      </p>
-      <DetailRow label="Current Power" value={`${fmt1(d.current_power_w)}W`} />
-      <DetailRow label="TDP" value={`${fmt1(d.tdp_w)}W`} />
-      <DetailRow label="Utilization" value={`${fmt1(d.utilization_pct)}%`} />
+      <SubScoreHeader
+        icon={<Zap className="w-3 h-3" aria-hidden />}
+        label="Power"
+        data={data}
+      />
+      <DetailRow label="Current Power" value={fmtWithUnit(fmt1, getNumeric(d, 'current_power_w'), 'W')} />
+      <DetailRow label="TDP" value={fmtWithUnit(fmt1, getNumeric(d, 'tdp_w'), 'W')} />
+      <DetailRow label="Utilization" value={fmtWithUnit(fmt1, getNumeric(d, 'utilization_pct'), '%')} />
     </div>
   )
 }
 
 function VolatilityBlock({ data }: { data: SubScore }) {
   const d = data.details ?? {}
-  const cv = d.cv
-  const cvStr =
-    cv == null || (typeof cv === 'number' && !Number.isFinite(cv))
-      ? '—'
-      : fmt1(cv)
+  const cv = getNumeric(d, 'cv')
   return (
     <div className="space-y-1">
-      <p className="text-[11px] text-[#E8ECF4]">
-        <span className="inline-flex items-center gap-1 text-[#94A3B8]">
-          <Activity className="w-3 h-3" aria-hidden />
-          Volatility
-        </span>{' '}
-        <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
-        <span className="text-[#94A3B8]">
-          {' '}
-          × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts
-        </span>
-      </p>
-      <DetailRow label="CV" value={cvStr} />
+      <SubScoreHeader
+        icon={<Activity className="w-3 h-3" aria-hidden />}
+        label="Volatility"
+        data={data}
+      />
+      <DetailRow label="CV" value={fmt1(cv)} />
       <DetailRow
         label="Window"
-        value={
-          d.window_minutes != null && typeof d.window_minutes === 'number'
-            ? `${fmt1(d.window_minutes)} min`
-            : '—'
-        }
+        value={fmtWithUnit(fmt1, getNumeric(d, 'window_minutes'), ' min')}
       />
     </div>
   )
@@ -139,20 +138,14 @@ function MemoryBlock({ data }: { data: SubScore }) {
   const d = data.details ?? {}
   return (
     <div className="space-y-1">
-      <p className="text-[11px] text-[#E8ECF4]">
-        <span className="inline-flex items-center gap-1 text-[#94A3B8]">
-          <HardDrive className="w-3 h-3" aria-hidden />
-          Memory
-        </span>{' '}
-        <span style={{ color: getSeverityColor(data.score) }}>● {fmt1(data.score)}</span>
-        <span className="text-[#94A3B8]">
-          {' '}
-          × {fmt1(data.weight)} = {fmt1(data.weighted_contribution)} pts
-        </span>
-      </p>
-      <DetailRow label="Memory Used" value={fmtBytesGB(d.memory_used_bytes)} />
-      <DetailRow label="Memory Total" value={fmtBytesGB(d.memory_total_bytes)} />
-      <DetailRow label="Used Pct" value={`${fmt1(d.memory_used_pct)}%`} />
+      <SubScoreHeader
+        icon={<HardDrive className="w-3 h-3" aria-hidden />}
+        label="Memory"
+        data={data}
+      />
+      <DetailRow label="Memory Used" value={fmtBytesGB(getNumeric(d, 'memory_used_bytes'))} />
+      <DetailRow label="Memory Total" value={fmtBytesGB(getNumeric(d, 'memory_total_bytes'))} />
+      <DetailRow label="Used Pct" value={fmtWithUnit(fmt1, getNumeric(d, 'memory_used_pct'), '%')} />
     </div>
   )
 }
@@ -169,6 +162,12 @@ export function SubScoresPanel({
   layerOneNote = 'Layer 1 local scoring',
 }: SubScoresPanelProps) {
   const [detailOpen, setDetailOpen] = useState(false)
+
+  useEffect(() => {
+    if (!subScores) {
+      setDetailOpen(false)
+    }
+  }, [subScores])
 
   return (
     <div

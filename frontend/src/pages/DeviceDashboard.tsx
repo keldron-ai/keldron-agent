@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { useTelemetry } from '@/context/TelemetryContext'
 import type { ChartEventFlash } from '@/components/telemetry-chart'
@@ -6,7 +6,7 @@ import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion'
 import { DeviceInfoBar } from '@/components/DeviceInfoBar'
 import { ChartGrid } from '@/components/ChartGrid'
 import { SubScoresPanel } from '@/components/SubScoresPanel'
-import { HealthGrid } from '@/components/HealthGrid'
+import { HealthGrid, type StatusHealth } from '@/components/HealthGrid'
 import { AIInsights } from '@/components/AIInsights'
 
 function mapApiSeverity(
@@ -89,16 +89,20 @@ export function DeviceDashboard() {
     refreshHistory,
   } = useTelemetry()
 
-  useEffect(() => {
-    void refreshHistory(TIME_RANGE_TO_QUERY[timeRange])
-  }, [timeRange, refreshHistory])
-
   const telemetry = latest?.telemetry ?? status?.telemetry
   const risk = latest?.risk ?? status?.risk
   const device = status?.device
   const agent = status?.agent
-  const health = status?.health ?? null
+  const health = (status?.health as StatusHealth | null) ?? null
   const cloudConnected = status?.agent?.cloud_connected === true
+
+  useEffect(() => {
+    if (!cloudConnected && timeRange !== '30m') {
+      setTimeRange('30m')
+      return
+    }
+    void refreshHistory(TIME_RANGE_TO_QUERY[timeRange])
+  }, [cloudConnected, timeRange, refreshHistory])
 
   const timeRangeButtons = useMemo(
     () => [
@@ -109,12 +113,6 @@ export function DeviceDashboard() {
     ],
     [cloudConnected]
   )
-
-  useEffect(() => {
-    if (!cloudConnected && timeRange !== '30m') {
-      setTimeRange('30m')
-    }
-  }, [cloudConnected, timeRange])
 
   const score = risk?.composite_score ?? 0
   const severity = risk?.severity
@@ -222,7 +220,7 @@ export function DeviceDashboard() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 min-h-[calc(100vh-3.5rem)] px-3 py-2 max-w-[1280px] mx-auto w-full gap-2 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-[calc(100vh-3.5rem)] px-3 py-2 max-w-[1280px] mx-auto w-full gap-2 overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,65%)_minmax(0,35%)] md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0">
         <div className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0">
           <DeviceInfoBar
@@ -272,13 +270,14 @@ export function DeviceDashboard() {
             riskSummaryLine={getRiskSummaryText(severity, score)}
           />
           <HealthGrid
-            health={health as ComponentProps<typeof HealthGrid>['health']}
+            health={health}
           />
           <div className="md:self-start md:w-full min-h-0">
             <AIInsights
               temperatureC={temp}
               memoryPct={memPct}
               modelLabel={modelLabel}
+              throttleThreshold={throttleC}
             />
           </div>
         </div>

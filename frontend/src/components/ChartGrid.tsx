@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import {
   TelemetryChart,
   type ChartEventFlash,
@@ -65,6 +65,31 @@ export function ChartGrid({
     chartHeightClassName: fillChart ? undefined : chartHeightClassName,
   }
 
+  const tempYDomain = useMemo((): [number, number] => {
+    if (chartHistory.temperature.length > 0 && throttleC != null) {
+      const values = chartHistory.temperature.map((p) => p.value)
+      const minVal = Math.max(
+        Math.min(Math.min(...values), throttleC - 20),
+        0
+      )
+      const maxVal = Math.max(Math.max(...values), throttleC + 10, 100)
+      return [minVal, maxVal]
+    }
+    return [0, 100]
+  }, [chartHistory.temperature, throttleC])
+
+  const powerYDomain = useMemo((): [number, number] => {
+    if (chartHistory.power.length > 0 && tdpW != null) {
+      const maxVal = Math.max(
+        Math.max(...chartHistory.power.map((p) => p.value)),
+        tdpW * 1.1,
+        150
+      )
+      return [0, maxVal]
+    }
+    return [0, 150]
+  }, [chartHistory.power, tdpW])
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2 flex-1 min-h-0 h-full w-full">
       <ChartCell>
@@ -76,21 +101,7 @@ export function ChartGrid({
           thresholdValue={throttleC}
           thresholdLabel="Throttle"
           thresholdStrokeColor="#EF4444"
-          yDomain={
-            chartHistory.temperature.length > 0 && throttleC != null
-              ? [
-                  Math.min(
-                    Math.min(...chartHistory.temperature.map((p) => p.value)),
-                    throttleC - 20
-                  ),
-                  Math.max(
-                    Math.max(...chartHistory.temperature.map((p) => p.value)),
-                    throttleC + 10,
-                    100
-                  ),
-                ]
-              : [0, 100]
-          }
+          yDomain={tempYDomain}
           currentValue={temp}
           currentValueSeverity={tempSeverity}
           eventFlash={tempChartFlash}
@@ -120,18 +131,7 @@ export function ChartGrid({
           thresholdValue={tdpW}
           thresholdLabel={tdpW != null ? `TDP ${tdpW}W` : undefined}
           thresholdStrokeColor="#F59E0B"
-          yDomain={
-            chartHistory.power.length > 0 && tdpW != null
-              ? [
-                  0,
-                  Math.max(
-                    Math.max(...chartHistory.power.map((p) => p.value)),
-                    tdpW * 1.1,
-                    150
-                  ),
-                ]
-              : [0, 150]
-          }
+          yDomain={powerYDomain}
           currentValue={power}
           {...chartProps}
         />

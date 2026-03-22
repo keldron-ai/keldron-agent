@@ -1,16 +1,4 @@
-interface SubScore {
-  score: number
-  weight: number
-  weighted_contribution: number
-  details: Record<string, unknown>
-}
-
-interface SubScores {
-  thermal: SubScore
-  power: SubScore
-  volatility: SubScore
-  memory: SubScore
-}
+import type { SubScores } from '@/types/risk'
 
 interface SubScoreBarsProps {
   subScores: SubScores | null | undefined

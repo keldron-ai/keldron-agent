@@ -1,8 +1,7 @@
 import * as React from 'react'
+import { useId } from 'react'
 import { HelpCircle, Zap } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-
-const { useId } = React
 
 type Rating =
   | 'normal'
@@ -24,7 +23,7 @@ interface HealthTileData {
   available: boolean
 }
 
-interface StatusHealth {
+export interface StatusHealth {
   thermal_dynamic_range?: {
     available: boolean
     tdr_celsius: number | null
@@ -72,6 +71,16 @@ const unavailableMessages: Record<MetricKey, string> = {
   recovery: 'No recovery data yet',
   efficiency: '(power < 1W)',
   stability: '(no sustained load)',
+}
+
+const VALID_RATINGS = new Set<string>([
+  'normal', 'excellent', 'stable', 'compressed', 'slow', 'elevated', 'critical', 'poor', 'unstable',
+])
+
+function toRating(val: string | null | undefined): Rating | undefined {
+  if (val == null) return undefined
+  const lower = val.toLowerCase()
+  return VALID_RATINGS.has(lower) ? (lower as Rating) : undefined
 }
 
 function getRatingColor(rating: Rating): string {
@@ -246,7 +255,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
     value: tdr?.tdr_celsius != null ? `${tdr.tdr_celsius.toFixed(0)}°C` : undefined,
     idleTemp: tdr?.idle_temp_c ?? undefined,
     peakTemp: tdr?.peak_temp_c ?? undefined,
-    rating: (tdr?.rating?.toLowerCase() as Rating) ?? undefined,
+    rating: toRating(tdr?.rating),
   }
 
   const hasRecoveryData =
@@ -258,7 +267,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
       tre?.last_recovery_seconds != null
         ? `~${tre.last_recovery_seconds}s`
         : undefined,
-    rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+    rating: toRating(tre?.rating),
   }
 
   const efficiency: HealthTileData = {
@@ -274,7 +283,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
       stab?.std_dev_celsius != null
         ? `±${stab.std_dev_celsius.toFixed(1)}°C`
         : undefined,
-    rating: (stab?.rating?.toLowerCase() as Rating) ?? undefined,
+    rating: toRating(stab?.rating),
   }
 
   return [thermal, recovery, efficiency, stability]

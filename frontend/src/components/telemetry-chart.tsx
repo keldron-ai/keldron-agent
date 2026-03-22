@@ -229,7 +229,7 @@ export function TelemetryChart({
                 }}
                 labelStyle={{ color: '#94A3B8' }}
                 formatter={(val: number) => [
-                  `${Number.isFinite(val) ? formatTooltipValue(val) : '—'}${unit}`,
+                  `${formatTooltipValue(val)}${unit}`,
                 ]}
                 labelFormatter={(ts) =>
                   ts ? new Date(ts).toLocaleTimeString() : ''
