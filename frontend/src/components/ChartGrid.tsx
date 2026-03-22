@@ -80,7 +80,12 @@ export function ChartGrid({
   }, [chartHistory.temperature, throttleC])
 
   const powerYDomain = useMemo((): [number, number] => {
-    if (chartHistory.power.length === 0) return [0, 1]
+    if (chartHistory.power.length === 0) {
+      if (tdpW != null) {
+        return [Math.max(0, tdpW - 5), tdpW + 5]
+      }
+      return [0, 1]
+    }
     const values = chartHistory.power.map((p) => p.value)
     const dataMin = Math.min(...values)
     const dataMax = Math.max(...values)
@@ -107,8 +112,12 @@ export function ChartGrid({
     let maxVal = Math.min(100, dataMax + 2)
     if (minVal >= maxVal) {
       const mid = (dataMin + dataMax) / 2
-      minVal = Math.max(0, mid - 1)
-      maxVal = Math.min(100, mid + 1)
+      minVal = Math.max(0, Math.min(100, mid - 1))
+      maxVal = Math.max(0, Math.min(100, mid + 1))
+      if (minVal >= maxVal) {
+        maxVal = Math.min(minVal + 1, 100)
+        if (minVal >= maxVal) minVal = Math.max(0, maxVal - 1)
+      }
     }
     return [minVal, maxVal]
   }, [chartHistory.memory])
