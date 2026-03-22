@@ -51,10 +51,13 @@ type Sample struct {
 	FanSpeed             *float64 `json:"fan_speed"`
 	ClockSpeed           *float64 `json:"clock_speed"`
 	MemoryUsed           *float64 `json:"memory_used"`
+	MemoryTotalBytes     *float64 `json:"memory_total_bytes,omitempty"`
 	CompositeRiskScore   float64  `json:"composite_risk_score"`
 	ThermalSubScore      *float64 `json:"thermal_sub_score"`
 	PowerSubScore        *float64 `json:"power_sub_score"`
 	VolatilitySubScore   *float64 `json:"volatility_sub_score"`
+	MemorySubScore       *float64 `json:"memory_sub_score,omitempty"`
+	TDPW                 *float64 `json:"tdp_w,omitempty"`
 	SeverityBand         string   `json:"severity_band"`
 	StressState          *string  `json:"stress_state"`
 	StressInstanceID     *string  `json:"stress_instance_id"`

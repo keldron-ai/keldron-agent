@@ -136,6 +136,7 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 			Power:             power,
 			Volatility:        volatility,
 			Memory:            memory,
+			TDPW:              state.Spec.TDPW,
 			BehaviorClass:     state.Spec.BehaviorClass,
 			WarmingUp:         warmingUp,
 			MemoryPressure:    ComputeMemoryPressure(memUsed, memTotal),

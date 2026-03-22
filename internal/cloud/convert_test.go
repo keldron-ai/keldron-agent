@@ -159,3 +159,60 @@ func TestConvertToSamples_memoryMB(t *testing.T) {
 		t.Fatalf("memory MB = %v", out[0].MemoryUsed)
 	}
 }
+
+func TestConvertToSamples_memorySubScoreTDPAndTotalBytes(t *testing.T) {
+	t.Parallel()
+	ts := time.Now()
+	pt := normalizer.TelemetryPoint{
+		Source: "s", AdapterName: "nvidia_consumer", Timestamp: ts,
+		Metrics: map[string]float64{
+			"temperature_c":   40,
+			"mem_total_bytes": 16 * 1024 * 1024 * 1024,
+		},
+	}
+	sc := scoring.RiskScoreOutput{
+		DeviceID: "s", Composite: 10, Severity: scoring.SeverityNormal,
+		Memory: 42, TDPW: 350,
+	}
+	out := ConvertToSamples([]normalizer.TelemetryPoint{pt}, []scoring.RiskScoreOutput{sc}, "")
+	if len(out) != 1 {
+		t.Fatalf("len = %d", len(out))
+	}
+	s := out[0]
+	if s.MemorySubScore == nil || math.Abs(*s.MemorySubScore-42) > 1e-9 {
+		t.Errorf("memory_sub_score = %v, want 42", s.MemorySubScore)
+	}
+	if s.MemoryTotalBytes == nil || math.Abs(*s.MemoryTotalBytes-float64(16*1024*1024*1024)) > 1e-6 {
+		t.Errorf("memory_total_bytes = %v", s.MemoryTotalBytes)
+	}
+	if s.TDPW == nil || math.Abs(*s.TDPW-350) > 1e-9 {
+		t.Errorf("tdp_w = %v, want 350", s.TDPW)
+	}
+}
+
+func TestConvertToSamples_zeroMemoryAndTDPAreNil(t *testing.T) {
+	t.Parallel()
+	ts := time.Now()
+	pt := normalizer.TelemetryPoint{
+		Source: "s", AdapterName: "nvidia_consumer", Timestamp: ts,
+		Metrics: map[string]float64{
+			"temperature_c":   40,
+			"mem_total_bytes": 0,
+		},
+	}
+	sc := scoring.RiskScoreOutput{
+		DeviceID: "s", Composite: 5, Severity: scoring.SeverityNormal,
+		Memory: 0, TDPW: 0,
+	}
+	out := ConvertToSamples([]normalizer.TelemetryPoint{pt}, []scoring.RiskScoreOutput{sc}, "")
+	if len(out) != 1 {
+		t.Fatalf("len = %d, want 1", len(out))
+	}
+	s := out[0]
+	if s.MemoryTotalBytes != nil {
+		t.Errorf("memory_total_bytes = %v, want nil for zero input", s.MemoryTotalBytes)
+	}
+	if s.TDPW != nil {
+		t.Errorf("tdp_w = %v, want nil for zero input", s.TDPW)
+	}
+}
