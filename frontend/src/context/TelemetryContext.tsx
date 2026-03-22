@@ -133,7 +133,7 @@ interface TelemetryContextValue {
   statusLoading: boolean
   statusError: string | null
   /** Refetch history for the given window and align live trim (e.g. "30m", "1h", "6h", "24h"). */
-  refreshHistory: (windowQuery: string) => Promise<void>
+  refreshHistory: (windowQuery: string, signal?: AbortSignal) => Promise<void>
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
@@ -188,11 +188,12 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
-  const refreshHistory = useCallback(async (windowQuery: string) => {
+  const refreshHistory = useCallback(async (windowQuery: string, signal?: AbortSignal) => {
     const ms = HISTORY_WINDOW_MS[windowQuery] ?? HISTORY_WINDOW_MS['30m']
     try {
       const res = await fetch(
-        `/api/v1/history?window=${encodeURIComponent(windowQuery)}`
+        `/api/v1/history?window=${encodeURIComponent(windowQuery)}`,
+        signal ? { signal } : undefined
       )
       if (!res.ok) return
       const data = await res.json()

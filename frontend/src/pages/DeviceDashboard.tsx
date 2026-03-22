@@ -66,6 +66,10 @@ const TIME_RANGE_TO_QUERY: Record<'30m' | '1H' | '6H' | '24H', string> = {
 
 type TimeRangeKey = keyof typeof TIME_RANGE_TO_QUERY
 
+/** 2-column (65% / 35%) layout with 3 rows: auto, auto, flexible fill. */
+const GRID_LAYOUT =
+  'grid grid-cols-1 md:grid-cols-[minmax(0,65%)_minmax(0,35%)] md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0'
+
 export function DeviceDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRangeKey>('30m')
   const reducedMotion = usePrefersReducedMotion()
@@ -101,7 +105,9 @@ export function DeviceDashboard() {
       setTimeRange('30m')
       return
     }
-    void refreshHistory(TIME_RANGE_TO_QUERY[timeRange])
+    const controller = new AbortController()
+    void refreshHistory(TIME_RANGE_TO_QUERY[timeRange], controller.signal)
+    return () => controller.abort()
   }, [cloudConnected, timeRange, refreshHistory])
 
   const timeRangeButtons = useMemo(
@@ -221,7 +227,7 @@ export function DeviceDashboard() {
 
   return (
     <div className="flex flex-col flex-1 min-h-[calc(100vh-3.5rem)] px-3 py-2 max-w-[1280px] mx-auto w-full gap-2 overflow-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,65%)_minmax(0,35%)] md:grid-rows-[auto_auto_minmax(0,1fr)] gap-2 flex-1 min-h-0 min-w-0">
+      <div className={GRID_LAYOUT}>
         <div className="order-1 md:order-none md:col-start-1 md:row-start-1 min-w-0">
           <DeviceInfoBar
             hostname={device?.hostname ?? '—'}

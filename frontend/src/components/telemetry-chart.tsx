@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { cn } from '@/lib/utils'
 import {
   Line,
   Area,
@@ -114,13 +115,11 @@ export function TelemetryChart({
     ? 'text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]'
     : 'text-sm font-semibold text-[#E8ECF4]'
 
-  const cardOuterClass = [
+  const cardOuterClass = cn(
     'rounded-xl border overflow-hidden',
     compactLayout ? 'p-1.5' : 'p-4',
-    fillChart && compactLayout ? 'flex flex-col h-full min-h-0' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
+    fillChart && compactLayout && 'flex flex-col h-full min-h-0'
+  )
 
   return (
     <div
@@ -161,7 +160,7 @@ export function TelemetryChart({
                 color: '#F59E0B',
               }}
               onAnimationEnd={(e) => {
-                const name = (e as AnimationEvent).animationName
+                const name = e.animationName
                 if (name.includes('chart-event-label')) {
                   onEventFlashEnd?.()
                 }
