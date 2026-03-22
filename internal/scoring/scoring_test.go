@@ -368,6 +368,36 @@ func TestClassifySeverity_BehaviorClass(t *testing.T) {
 	}
 }
 
+func TestClassifySeverity_Boundaries(t *testing.T) {
+	expected := []string{SeverityNormal, SeverityActive, SeverityElevated, SeverityWarning, SeverityCritical}
+
+	for bc, thresholds := range SeverityThresholds {
+		// Below first threshold → normal
+		if got := ClassifySeverity(thresholds[0]-0.1, bc); got != SeverityNormal {
+			t.Errorf("%s: score %.1f = %q, want %q", bc, thresholds[0]-0.1, got, SeverityNormal)
+		}
+
+		// At and just above each threshold
+		for i, th := range thresholds {
+			wantAt := expected[i+1]
+			if got := ClassifySeverity(th, bc); got != wantAt {
+				t.Errorf("%s: score %.1f (at threshold) = %q, want %q", bc, th, got, wantAt)
+			}
+			if got := ClassifySeverity(th+0.1, bc); got != wantAt {
+				t.Errorf("%s: score %.1f (above threshold) = %q, want %q", bc, th+0.1, got, wantAt)
+			}
+		}
+
+		// Just below each threshold stays in previous band
+		for i, th := range thresholds {
+			wantBelow := expected[i]
+			if got := ClassifySeverity(th-0.1, bc); got != wantBelow {
+				t.Errorf("%s: score %.1f (below threshold) = %q, want %q", bc, th-0.1, got, wantBelow)
+			}
+		}
+	}
+}
+
 func TestComputeTrend(t *testing.T) {
 	if ComputeTrend(85, 82) != "rising" {
 		t.Error("delta 3 = rising")

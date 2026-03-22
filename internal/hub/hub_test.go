@@ -190,7 +190,7 @@ func TestSeverityFromFloat(t *testing.T) {
 		{2, "elevated"},
 		{3, "warning"},
 		{4, "critical"},
-		{5, "normal"},
+		{5, "critical"},
 	}
 	for _, tt := range tests {
 		got := severityFromFloat(tt.v)

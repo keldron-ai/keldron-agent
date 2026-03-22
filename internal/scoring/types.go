@@ -39,11 +39,11 @@ type RiskScoreOutput struct {
 
 // Severity constants (composite score bands).
 const (
-	SeverityNormal   = "normal"   // 0–29: idle or light use
-	SeverityActive   = "active"   // 30–49: working, expected under load
-	SeverityElevated = "elevated" // 50–69: running hard, worth monitoring
-	SeverityWarning  = "warning"  // 70–89: approaching limits
-	SeverityCritical = "critical" // 90–100: near throttle/shutdown
+	SeverityNormal   = "normal"   // idle or light use
+	SeverityActive   = "active"   // working, expected under load
+	SeverityElevated = "elevated" // running hard, worth monitoring
+	SeverityWarning  = "warning"  // approaching limits
+	SeverityCritical = "critical" // near throttle/shutdown
 )
 
 // DeviceScoreState holds per-device state for scoring (buffers, last composite).

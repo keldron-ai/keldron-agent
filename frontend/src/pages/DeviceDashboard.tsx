@@ -124,7 +124,7 @@ export function DeviceDashboard() {
   )
   const prevComposite = useRef<RiskSeverityBand | null>(null)
   const prevThrottle = useRef<boolean | undefined>(undefined)
-  const prevTempSev = useRef<'normal' | 'warning' | 'critical' | null>(null)
+  const prevTempSev = useRef<RiskSeverityBand | null>(null)
   const {
     status,
     statusLoading,

@@ -32,7 +32,7 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 		}
 	}
 
-	// Piecewise linear based on actual temperature
+	// Quadratic ramp based on actual temperature
 	if spec.ThermalLimitC <= 0 {
 		return math.Max(appleFloor, 0), 0, true
 	}
