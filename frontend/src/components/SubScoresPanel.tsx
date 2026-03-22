@@ -218,10 +218,10 @@ export function SubScoresPanel({
             align="end"
             side="bottom"
             sideOffset={6}
-            className="w-[min(28rem,calc(100vw-1rem))] p-0 border border-white/[0.1] bg-[#0F172A] text-[#E8ECF4] shadow-xl z-[100]"
+            className="w-[min(32rem,calc(100vw-1rem))] p-0 border border-white/[0.1] bg-[#0F172A] text-[#E8ECF4] shadow-xl z-[100]"
           >
             <div
-              className="p-4 space-y-4 max-h-[min(40vh,320px)] overflow-y-auto pr-1"
+              className="p-4 space-y-4 max-h-[min(72vh,560px)] overflow-y-auto pr-1"
               role="region"
               aria-label="Risk sub-score breakdown"
             >
