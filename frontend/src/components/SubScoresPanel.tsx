@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { Activity, ChevronDown, HardDrive, Thermometer, Zap } from 'lucide-react'
 import { SubScoreBars } from '@/components/SubScoreBars'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 interface SubScore {
   score: number
@@ -172,45 +178,61 @@ export function SubScoresPanel({
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <h3
-          className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest shrink"
-          style={{ letterSpacing: '0.08em' }}
-        >
-          Risk Sub-scores
-        </h3>
-        <button
-          type="button"
-          onClick={() => setDetailOpen((o) => !o)}
-          className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-[#00C9B0] hover:text-[#00E5CC] shrink-0"
-        >
-          {detailOpen ? 'Hide detail' : 'Show detail'}
-          <ChevronDown
-            className={`w-3 h-3 transition-transform ${detailOpen ? 'rotate-180' : ''}`}
-            aria-hidden
-          />
-        </button>
-      </div>
-
-      <div className="capitalize">
-        <SubScoreBars subScores={subScores} />
-      </div>
-
-      <p className="text-[10px] text-[#94A3B8] mt-1.5 leading-snug">{riskSummaryLine}</p>
-      <p className="text-[9px] text-[#64748B] mt-0.5">{layerOneNote}</p>
-
-      {detailOpen && subScores && (
-        <div
-          className="mt-3 pt-3 border-t border-white/[0.06] space-y-4 max-h-[min(40vh,320px)] overflow-y-auto pr-1"
-          role="region"
-          aria-label="Risk sub-score breakdown"
-        >
-          <ThermalBlock data={subScores.thermal} />
-          <PowerBlock data={subScores.power} />
-          <VolatilityBlock data={subScores.volatility} />
-          <MemoryBlock data={subScores.memory} />
+      <Popover open={detailOpen} onOpenChange={setDetailOpen}>
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <h3
+            className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest shrink"
+            style={{ letterSpacing: '0.08em' }}
+          >
+            Risk Sub-scores
+          </h3>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={!subScores}
+              className={cn(
+                'flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider shrink-0',
+                subScores
+                  ? 'text-[#00C9B0] hover:text-[#00E5CC]'
+                  : 'text-[#64748B] cursor-not-allowed'
+              )}
+            >
+              {detailOpen ? 'Hide detail' : 'Show detail'}
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${detailOpen ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </button>
+          </PopoverTrigger>
         </div>
-      )}
+
+        <div className="capitalize">
+          <SubScoreBars subScores={subScores} />
+        </div>
+
+        <p className="text-[10px] text-[#94A3B8] mt-1.5 leading-snug">{riskSummaryLine}</p>
+        <p className="text-[9px] text-[#64748B] mt-0.5">{layerOneNote}</p>
+
+        {subScores && (
+          <PopoverContent
+            align="end"
+            side="bottom"
+            sideOffset={6}
+            className="w-[min(28rem,calc(100vw-1rem))] p-0 border border-white/[0.1] bg-[#0F172A] text-[#E8ECF4] shadow-xl z-[100]"
+          >
+            <div
+              className="p-4 space-y-4 max-h-[min(40vh,320px)] overflow-y-auto pr-1"
+              role="region"
+              aria-label="Risk sub-score breakdown"
+            >
+              <ThermalBlock data={subScores.thermal} />
+              <PowerBlock data={subScores.power} />
+              <VolatilityBlock data={subScores.volatility} />
+              <MemoryBlock data={subScores.memory} />
+            </div>
+          </PopoverContent>
+        )}
+      </Popover>
     </div>
   )
 }

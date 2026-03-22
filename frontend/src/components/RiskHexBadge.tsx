@@ -45,9 +45,13 @@ export function RiskHexBadge({
         ? '#00C9B0'
         : '#94A3B8'
 
-  const baseScoreFontSize = size === 'sm' ? 20 : size === 'md' ? 32 : 48
+  /** sm: ~text-2xl (24px) at 64×64 — user units = 24 * (100 / dim) */
+  const baseScoreFontSize =
+    size === 'sm' ? (24 * 100) / SIZE_MAP.sm : size === 'md' ? 32 : 48
   const scoreFontSize = score >= 10 ? baseScoreFontSize * 0.8 : baseScoreFontSize
   const labelFontSize = size === 'sm' ? 8 : size === 'md' ? 10 : 12
+  const scoreY = size === 'sm' ? 46 : 48
+  const labelY = size === 'sm' ? 70 : 68
 
   const breatheClass =
     severity === 'normal'
@@ -73,7 +77,7 @@ export function RiskHexBadge({
         />
         <text
           x="50"
-          y="48"
+          y={scoreY}
           textAnchor="middle"
           dominantBaseline="middle"
           fontWeight="bold"
@@ -85,7 +89,7 @@ export function RiskHexBadge({
         </text>
         <text
           x="50"
-          y="68"
+          y={labelY}
           textAnchor="middle"
           dominantBaseline="middle"
           fontWeight="600"

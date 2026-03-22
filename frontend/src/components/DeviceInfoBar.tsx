@@ -24,7 +24,7 @@ export function DeviceInfoBar({
   hexAriaLabel,
 }: DeviceInfoBarProps) {
   return (
-    <div className="flex flex-row items-center justify-between gap-2 min-w-0 max-h-[60px]">
+    <div className="flex flex-row items-center justify-between gap-2 min-w-0 max-h-[64px]">
       <p className="min-w-0 flex-1 text-[11px] sm:text-xs text-[#94A3B8] truncate leading-tight">
         <span className="font-semibold text-[#E8ECF4]">{hostname}</span>
         <span className="text-[#64748B]"> · </span>
