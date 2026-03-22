@@ -52,7 +52,7 @@ export function HexBadge({ score, severity }: HexBadgeProps) {
       <span
         className="text-[22px] font-bold"
         style={{
-          color: severity === 'critical' ? '#FFFFFF' : severity === 'offline' ? '#475569' : '#0A0C10',
+          color: severity === 'critical' ? '#FFFFFF' : severity === 'offline' ? '#E2E8F0' : '#0A0C10',
         }}
       >
         {score !== null ? score : '—'}

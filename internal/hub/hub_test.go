@@ -183,6 +183,8 @@ func TestSeverityFromFloat(t *testing.T) {
 		v    float64
 		want string
 	}{
+		{-1, "critical"},
+		{-0.5, "critical"},
 		{0, "normal"},
 		{0.5, "normal"},
 		{1, "active"},
