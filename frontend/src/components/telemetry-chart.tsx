@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { cn } from '@/lib/utils'
 import {
   Line,
   Area,
@@ -33,6 +34,12 @@ interface TelemetryChartProps {
   showHighTempBadge?: boolean
   eventFlash?: ChartEventFlash | null
   onEventFlashEnd?: () => void
+  /** Chart plot area height (Tailwind class). Default 200px for full-page charts. Ignored when fillChart is true. */
+  chartHeightClassName?: string
+  /** Smaller header + padding for dense dashboard grid. */
+  compactLayout?: boolean
+  /** Grow plot to fill remaining card height (dashboard grid with flex parent). */
+  fillChart?: boolean
 }
 
 function formatTimeLabel(ts: number): string {
@@ -53,6 +60,11 @@ function formatHeaderValue(v: number): string {
   return v.toFixed(1)
 }
 
+function formatTooltipValue(val: number): string {
+  if (!Number.isFinite(val)) return '—'
+  return val.toFixed(1)
+}
+
 export function TelemetryChart({
   title,
   data,
@@ -67,6 +79,9 @@ export function TelemetryChart({
   showHighTempBadge = false,
   eventFlash,
   onEventFlashEnd,
+  chartHeightClassName = 'h-[200px]',
+  compactLayout = false,
+  fillChart = false,
 }: TelemetryChartProps) {
   const rawId = useId().replace(/:/g, '')
   const strokeGradId = `tc-stroke-${rawId}`
@@ -96,17 +111,29 @@ export function TelemetryChart({
   const areaFill = reducedMotion ? color : `url(#${fillGradId})`
   const areaFillOpacity = reducedMotion ? 0.1 : 1
 
+  const headerTitleClass = compactLayout
+    ? 'text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]'
+    : 'text-sm font-semibold text-[#E8ECF4]'
+
+  const cardOuterClass = cn(
+    'rounded-xl border overflow-hidden',
+    compactLayout ? 'p-1.5' : 'p-4',
+    fillChart && compactLayout && 'flex flex-col h-full min-h-0'
+  )
+
   return (
     <div
-      className="rounded-xl border p-4"
+      className={cardOuterClass}
       style={{
         backgroundColor: '#0F172A',
         borderColor: 'rgba(148, 163, 184, 0.1)',
       }}
     >
-      <div className="flex items-center justify-between mb-3 gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-[#E8ECF4]">{title}</span>
+      <div
+        className={`flex items-center justify-between gap-2 shrink-0 ${compactLayout ? 'mb-0.5' : 'mb-3'}`}
+      >
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className={headerTitleClass}>{title}</span>
           {displayValue != null && (
             <span className="text-sm font-semibold" style={{ color: valueColor }}>
               {formatHeaderValue(displayValue)}
@@ -133,7 +160,7 @@ export function TelemetryChart({
                 color: '#F59E0B',
               }}
               onAnimationEnd={(e) => {
-                const name = (e as AnimationEvent).animationName
+                const name = e.animationName
                 if (name.includes('chart-event-label')) {
                   onEventFlashEnd?.()
                 }
@@ -144,7 +171,13 @@ export function TelemetryChart({
           )}
         </div>
       </div>
-      <div className="h-[200px] w-full">
+      <div
+        className={
+          fillChart
+            ? 'flex-1 min-h-0 w-full'
+            : `${chartHeightClassName} w-full`
+        }
+      >
         {chartData.length >= 2 ? (
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
@@ -195,7 +228,7 @@ export function TelemetryChart({
                 }}
                 labelStyle={{ color: '#94A3B8' }}
                 formatter={(val: number) => [
-                  `${Number.isFinite(val) ? Math.round(val) : '—'}${unit}`,
+                  `${formatTooltipValue(val)}${unit}`,
                 ]}
                 labelFormatter={(ts) =>
                   ts ? new Date(ts).toLocaleTimeString() : ''
