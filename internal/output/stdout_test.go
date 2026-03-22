@@ -99,7 +99,7 @@ func TestStdout_SeverityString(t *testing.T) {
 	var buf bytes.Buffer
 	std := NewStdout(&buf, "0.1.0-dev", nil)
 	readings := []normalizer.TelemetryPoint{
-		{Source: "gpu-0", Metrics: map[string]float64{"risk_severity": 2}},
+		{Source: "gpu-0", Metrics: map[string]float64{"risk_severity": 4}},
 		{Source: "gpu-1", Metrics: map[string]float64{"risk_severity": 1}},
 		{Source: "gpu-2", Metrics: map[string]float64{"risk_severity": 0}},
 	}
@@ -118,11 +118,11 @@ func TestStdout_SeverityString(t *testing.T) {
 	if out.Devices[2].RiskSeverity != "normal" {
 		t.Errorf("severity 0 = %q, want normal", out.Devices[2].RiskSeverity)
 	}
-	if out.Devices[1].RiskSeverity != "warning" {
-		t.Errorf("severity 1 = %q, want warning", out.Devices[1].RiskSeverity)
+	if out.Devices[1].RiskSeverity != "active" {
+		t.Errorf("severity 1 = %q, want active", out.Devices[1].RiskSeverity)
 	}
 	if out.Devices[0].RiskSeverity != "critical" {
-		t.Errorf("severity 2 = %q, want critical", out.Devices[0].RiskSeverity)
+		t.Errorf("severity 4 = %q, want critical", out.Devices[0].RiskSeverity)
 	}
 }
 

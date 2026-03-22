@@ -95,7 +95,7 @@ func (e *ScoreEngine) Score(batch []normalizer.TelemetryPoint) []RiskScoreOutput
 		if memTotal > 0 {
 			memoryUsedPct = memUsed / memTotal * 100
 		}
-		memory := ComputeMemory(memoryUsedPct)
+		memory := ComputeMemory(memoryUsedPct, state.Spec)
 		rLocal := ComputeComposite(thermal, power, volatility, memory)
 
 		// Bonus metrics

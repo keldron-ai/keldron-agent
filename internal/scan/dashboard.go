@@ -69,6 +69,8 @@ func ratingColor(rating string) string {
 	switch strings.ToLower(rating) {
 	case "healthy", "normal", "excellent", "stable":
 		return colorGreen
+	case "active":
+		return colorCyan
 	case "compressed", "slow", "elevated", "warning":
 		return colorYellow
 	case "critical", "poor", "unstable":
@@ -78,13 +80,19 @@ func ratingColor(rating string) string {
 	}
 }
 
-// riskColor returns ANSI color for risk score using API thresholds.
-func riskColor(score float64, warning, critical float64) string {
+// riskColor returns ANSI color for risk score using API band cut points (active, elevated, warning, critical).
+func riskColor(score float64, active, elevated, warning, critical float64) string {
 	if score >= critical {
 		return colorRed
 	}
 	if score >= warning {
 		return colorYellow
+	}
+	if score >= elevated {
+		return colorYellow
+	}
+	if score >= active {
+		return colorCyan
 	}
 	return colorGreen
 }
@@ -112,9 +120,11 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 	r := status.Risk
 
 	// Use risk response for sub-scores and thresholds if available
-	var warning, critical float64 = 65, 82
+	var active, elevated, warning, critical float64 = 30, 50, 70, 90
 	subScores := &api.SubScores{}
 	if risk != nil {
+		active = risk.Thresholds.Active
+		elevated = risk.Thresholds.Elevated
 		warning = risk.Thresholds.Warning
 		critical = risk.Thresholds.Critical
 		subScores = &risk.SubScores
@@ -183,7 +193,7 @@ func RenderDashboard(w io.Writer, status *api.StatusResponse, risk *api.RiskResp
 		// RISK ANALYSIS
 		riskHeader := "  RISK ANALYSIS" + strings.Repeat(" ", 26) + "Score  Wt"
 		fmt.Fprintln(w, boxLine(riskHeader))
-		sevColor := riskColor(r.CompositeScore, warning, critical)
+		sevColor := riskColor(r.CompositeScore, active, elevated, warning, critical)
 		sevDot := ratingColor(r.Severity)
 		compStr := fmt.Sprintf("%.2f", r.CompositeScore)
 		if r.CompositeScore >= 10 {

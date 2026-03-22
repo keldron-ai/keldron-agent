@@ -206,10 +206,12 @@ func runJSON(host string, apiPort, prometheusPort int, hubAddr string, opts Rend
 			healthy, warning, critical := 0, 0, 0
 			for _, d := range devices {
 				switch d.RiskSeverity {
-				case "warning":
-					warning++
 				case "critical":
 					critical++
+				case "warning", "elevated":
+					warning++
+				case "normal", "active":
+					healthy++
 				default:
 					healthy++
 				}

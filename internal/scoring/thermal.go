@@ -9,8 +9,8 @@ import (
 	"github.com/keldron-ai/keldron-agent/registry"
 )
 
-// ComputeThermal computes the thermal sub-score (0-100) with piecewise linear
-// temperature ratio, stepped RoC penalty, and Apple Silicon thermal_pressure floor.
+// ComputeThermal computes the thermal sub-score (0-100) with a quadratic ramp
+// above 70% of thermal limit, stepped RoC penalty, and Apple Silicon thermal_pressure floor.
 func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.GPUSpec, thermalPressureState string) (score float64, rocPenalty float64, warmingUp bool) {
 	// Apple Silicon thermal_pressure provides a floor, not an override.
 	// We compute both the Apple floor and the piecewise linear score,
@@ -40,10 +40,11 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 	tRatio := tCurrent / spec.ThermalLimitC
 
 	var tScore float64
-	if tRatio < 0.60 {
+	if tRatio < 0.70 {
 		tScore = 0
 	} else {
-		tScore = ((tRatio - 0.60) / 0.40) * 100
+		normalized := (tRatio - 0.70) / 0.30
+		tScore = normalized * normalized * 100
 	}
 
 	// Stepped RoC penalty
@@ -56,11 +57,11 @@ func ComputeThermal(tCurrent float64, thermalBuffer *RingBuffer, spec registry.G
 
 	var rocP float64
 	if roc > 3.0 {
-		rocP = 40 // emergency
+		rocP = 25 // emergency
 	} else if roc > 1.0 {
-		rocP = 20 // serious
+		rocP = 10 // rapid heating but expected under sudden load
 	} else if roc > 0.5 {
-		rocP = (roc - 0.5) * 20 // moderate: linear 0-10
+		rocP = (roc - 0.5) * 10 // moderate
 	}
 
 	finalScore := math.Min(100, math.Max(tScore+rocP, appleFloor))
