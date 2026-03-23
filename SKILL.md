@@ -76,7 +76,8 @@ go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
 ### Linux (with Docker)
 
 ```bash
-docker run -d --name keldron-agent -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
+docker rm -f keldron-agent 2>/dev/null || true
+docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
 ```
 
 ### Linux (with Go)
@@ -116,8 +117,8 @@ fi
 
 ```bash
 if curl -sf localhost:9100/healthz | jq -e '.status == "healthy"' &>/dev/null; then
-  echo "Keldron agent is already running."
-  # Skip to Step 4
+  echo "Keldron agent is already running. Skipping to Step 4."
+  exit 0
 fi
 ```
 
@@ -133,7 +134,8 @@ fi
 
 # Linux
 if [ "$OS" = "Linux" ]; then
-  docker run -d --name keldron-agent -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
+  docker rm -f keldron-agent 2>/dev/null || true
+  docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
   sleep 3
 fi
 
@@ -162,26 +164,33 @@ fi
 
 ### Step 5: Configure cloud (when user provides an API key starting with `kldn_`)
 
-Replace `USER_PROVIDED_KEY` with the key the user supplied (do not echo the full key back — see [Rules](#13-rules)).
+Set the key in a temporary environment variable — do not echo or paste the full key into commands or transcripts (see [Rules](#13-rules)).
 
 ```bash
+# Store the user-provided key in a variable (do not inline the raw key)
+export CLOUD_KEY="<paste key here or pass programmatically>"
+
 mkdir -p ~/.config/keldron
 
-# Add cloud config to agent YAML
+# Add or update cloud config in agent YAML
 if [ -f ~/.config/keldron/keldron-agent.yaml ]; then
   if ! grep -q 'cloud:' ~/.config/keldron/keldron-agent.yaml; then
     cat >> ~/.config/keldron/keldron-agent.yaml << EOF
 
 cloud:
   enabled: true
-  api_key: USER_PROVIDED_KEY
+  api_key: $CLOUD_KEY
 EOF
+  else
+    # cloud: section exists — update the api_key in place
+    sed -i.bak 's|^\([[:space:]]*api_key:\).*|\1 '"$CLOUD_KEY"'|' ~/.config/keldron/keldron-agent.yaml
+    rm -f ~/.config/keldron/keldron-agent.yaml.bak
   fi
 else
   cat > ~/.config/keldron/keldron-agent.yaml << EOF
 cloud:
   enabled: true
-  api_key: USER_PROVIDED_KEY
+  api_key: $CLOUD_KEY
 EOF
 fi
 
@@ -191,9 +200,9 @@ sleep 2
 agent --local &
 sleep 5
 
-# Verify cloud connection (optional)
+# Verify cloud connection (optional — uses env var, not raw key)
 curl -sf "https://api.keldron.ai/v1/fleet/overview" \
-  -H "X-API-Key: USER_PROVIDED_KEY" | jq '.total_devices'
+  -H "X-API-Key: $CLOUD_KEY" | jq '.total_devices'
 ```
 
 Tell the user: *Cloud connected. Your device is streaming to Keldron Cloud. Dashboard: https://app.keldron.ai*
@@ -486,11 +495,18 @@ Use **cloud** polling — not `localhost:9100` loops — for "watch my fleet" / 
 
 ### "Watch my fleet" / "Alert me if anything changes"
 
+Set `MAX_CHECKS` to limit the number of iterations (e.g., `MAX_CHECKS=60` for ~1 hour). Leave unset or `0` for unlimited.
+
 ```bash
 echo "Fleet monitoring active. Checking every 60 seconds via Keldron Cloud."
+echo "Press Ctrl+C to stop."
+
+trap 'echo ""; echo "Fleet monitoring stopped by user."; exit 0' INT
 
 PREV_WORST=""
 PREV_WORST_SCORE=0
+CHECK_COUNT=0
+MAX_CHECKS="${MAX_CHECKS:-0}"
 
 while true; do
   FLEET=$(curl -s "https://api.keldron.ai/v1/fleet/overview" \
@@ -498,6 +514,11 @@ while true; do
 
   if [ -z "$FLEET" ]; then
     sleep 60
+    CHECK_COUNT=$((CHECK_COUNT + 1))
+    if [ "$MAX_CHECKS" -gt 0 ] && [ "$CHECK_COUNT" -ge "$MAX_CHECKS" ]; then
+      echo "Reached $MAX_CHECKS checks. Fleet monitoring stopped by timeout."
+      break
+    fi
     continue
   fi
 
@@ -526,6 +547,13 @@ while true; do
 
   PREV_WORST="$WORST"
   PREV_WORST_SCORE=$WORST_SCORE
+  CHECK_COUNT=$((CHECK_COUNT + 1))
+
+  if [ "$MAX_CHECKS" -gt 0 ] && [ "$CHECK_COUNT" -ge "$MAX_CHECKS" ]; then
+    echo "Reached $MAX_CHECKS checks. Fleet monitoring stopped by timeout."
+    break
+  fi
+
   sleep 60
 done
 ```
