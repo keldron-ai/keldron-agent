@@ -182,9 +182,14 @@ cloud:
   api_key: $CLOUD_KEY
 EOF
   else
-    # cloud: section exists — update the api_key in place
-    sed -i.bak 's|^\([[:space:]]*api_key:\).*|\1 '"$CLOUD_KEY"'|' ~/.config/keldron/keldron-agent.yaml
-    rm -f ~/.config/keldron/keldron-agent.yaml.bak
+    # cloud: section exists — update api_key only under the cloud: block
+    awk -v key="$CLOUD_KEY" '
+      /^cloud:/ { in_cloud=1 }
+      in_cloud && /^[^ ]/ && !/^cloud:/ { in_cloud=0 }
+      in_cloud && /^[[:space:]]+api_key:/ { $0="  api_key: " key; in_cloud=0 }
+      { print }
+    ' ~/.config/keldron/keldron-agent.yaml > ~/.config/keldron/keldron-agent.yaml.tmp \
+      && mv ~/.config/keldron/keldron-agent.yaml.tmp ~/.config/keldron/keldron-agent.yaml
   fi
 else
   cat > ~/.config/keldron/keldron-agent.yaml << EOF
