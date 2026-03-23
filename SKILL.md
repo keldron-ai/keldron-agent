@@ -200,12 +200,16 @@ cloud:
   api_key: $CLOUD_KEY
 EOF
   else
-    # cloud: section exists — update api_key only under the cloud: block
+    # cloud: section exists — update or insert api_key under the cloud: block
     awk -v key="$CLOUD_KEY" '
-      /^cloud:/ { in_cloud=1 }
-      in_cloud && /^[^ ]/ && !/^cloud:/ { in_cloud=0 }
-      in_cloud && /^[[:space:]]+api_key:/ { $0="  api_key: " key; in_cloud=0 }
+      /^cloud:/ { in_cloud=1; found=0; print; next }
+      in_cloud && /^[^ ]/ {
+        if (!found) { print "  api_key: " key; found=1 }
+        in_cloud=0
+      }
+      in_cloud && /^[[:space:]]+api_key:/ { $0="  api_key: " key; found=1 }
       { print }
+      END { if (in_cloud && !found) print "  api_key: " key }
     ' ~/.config/keldron/keldron-agent.yaml > ~/.config/keldron/keldron-agent.yaml.tmp \
       && mv ~/.config/keldron/keldron-agent.yaml.tmp ~/.config/keldron/keldron-agent.yaml
   fi
@@ -520,7 +524,7 @@ Use **cloud** polling — not `localhost:9100` loops — for "watch my fleet" / 
 
 ### "Watch my fleet" / "Alert me if anything changes"
 
-Set `MAX_CHECKS` to limit the number of iterations (e.g., `MAX_CHECKS=60` for ~1 hour). Leave unset or `0` for unlimited.
+Set `MAX_CHECKS` to limit the total number of iterations, including failed API calls (e.g., `MAX_CHECKS=60` for ~1 hour). Leave unset or `0` for unlimited.
 
 ```bash
 echo "Fleet monitoring active. Checking every 60 seconds via Keldron Cloud."
@@ -534,10 +538,16 @@ CHECK_COUNT=0
 MAX_CHECKS="${MAX_CHECKS:-0}"
 
 while true; do
+  CHECK_COUNT=$((CHECK_COUNT + 1))
+
   FLEET=$(curl -s "https://api.keldron.ai/v1/fleet/overview" \
     -H "X-API-Key: $CLOUD_KEY" 2>/dev/null)
 
   if [ -z "$FLEET" ]; then
+    if [ "$MAX_CHECKS" -gt 0 ] && [ "$CHECK_COUNT" -ge "$MAX_CHECKS" ]; then
+      echo "Reached $MAX_CHECKS checks. Fleet monitoring stopped by timeout."
+      break
+    fi
     sleep 60
     continue
   fi
@@ -567,7 +577,6 @@ while true; do
 
   PREV_WORST="$WORST"
   PREV_WORST_SCORE=$WORST_SCORE
-  CHECK_COUNT=$((CHECK_COUNT + 1))
 
   if [ "$MAX_CHECKS" -gt 0 ] && [ "$CHECK_COUNT" -ge "$MAX_CHECKS" ]; then
     echo "Reached $MAX_CHECKS checks. Fleet monitoring stopped by timeout."
