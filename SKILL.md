@@ -46,7 +46,15 @@ LOCAL_AGENT=$(curl -sf localhost:9100/healthz 2>/dev/null | jq -r '.status' 2>/d
 # Check 2: Is cloud configured?
 CLOUD_KEY="${KELDRON_CLOUD_API_KEY:-}"
 if [ -z "$CLOUD_KEY" ]; then
-  CLOUD_KEY=$(grep -A1 'cloud:' ~/.config/keldron/keldron-agent.yaml 2>/dev/null | grep 'api_key:' | awk '{print $2}' 2>/dev/null)
+  if command -v yq &>/dev/null; then
+    CLOUD_KEY=$(yq '.cloud.api_key // ""' ~/.config/keldron/keldron-agent.yaml 2>/dev/null)
+  else
+    CLOUD_KEY=$(grep -A2 'cloud:' ~/.config/keldron/keldron-agent.yaml 2>/dev/null \
+      | grep 'api_key:' | awk '{print $2}' | tr -d '"'"'" | xargs 2>/dev/null)
+  fi
+fi
+if [ -z "$CLOUD_KEY" ]; then
+  echo "No cloud API key found. Set KELDRON_CLOUD_API_KEY or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
 fi
 
 # Check 3: Does cloud respond? (only if we have a key)
@@ -127,15 +135,25 @@ fi
 ```bash
 # macOS
 if [ "$OS" = "Darwin" ]; then
-  go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
+  if ! go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0; then
+    echo "Error: go install failed. Ensure Go is installed and in PATH."
+    exit 1
+  fi
   agent --local &
   sleep 3
 fi
 
 # Linux
 if [ "$OS" = "Linux" ]; then
+  if ! command -v docker &>/dev/null; then
+    echo "Error: Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/"
+    exit 1
+  fi
   docker rm -f keldron-agent 2>/dev/null || true
-  docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
+  if ! docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest; then
+    echo "Error: Failed to start keldron-agent container. Check Docker permissions and network."
+    exit 1
+  fi
   sleep 3
 fi
 
@@ -347,10 +365,12 @@ Parse `keldron_risk_composite` (0–100) and `keldron_risk_severity` (0=normal, 
 
 Assessment thresholds:
 
-- &lt;30 = "Looking good"
-- 30–60 = "Moderate — keep an eye on it"
-- 60–80 = "Warning — consider reducing load"
-- &gt;80 = "Critical — take action now"
+| Score | Assessment |
+|-------|------------|
+| <30 | Looking good |
+| 30–60 | Moderate — keep an eye on it |
+| 60–80 | Warning — consider reducing load |
+| >80 | Critical — take action now |
 
 ### "Give me a quick status"
 
@@ -519,11 +539,6 @@ while true; do
 
   if [ -z "$FLEET" ]; then
     sleep 60
-    CHECK_COUNT=$((CHECK_COUNT + 1))
-    if [ "$MAX_CHECKS" -gt 0 ] && [ "$CHECK_COUNT" -ge "$MAX_CHECKS" ]; then
-      echo "Reached $MAX_CHECKS checks. Fleet monitoring stopped by timeout."
-      break
-    fi
     continue
   fi
 
@@ -597,7 +612,7 @@ echo "Dashboard: https://app.keldron.ai"
 
 ### Changing config
 
-If the user needs to change settings (e.g. electricity rate), tell them: **Edit `~/.config/keldron/keldron-agent.yaml` — the agent picks up changes on restart.** Do not use `sed` one-liners in docs or automation.
+If the user needs to change settings (e.g. electricity rate), tell them: **Edit `~/.config/keldron/keldron-agent.yaml` — the agent picks up changes on restart.** Avoid complex sed one-liners for YAML edits; prefer manual edits, YAML-aware tools like `yq`, or scoped awk scripts.
 
 ### Multi-device / fleet
 
