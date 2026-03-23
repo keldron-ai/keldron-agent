@@ -50,7 +50,7 @@ if [ -z "$CLOUD_KEY" ]; then
     CLOUD_KEY=$(yq '.cloud.api_key // ""' ~/.config/keldron/keldron-agent.yaml 2>/dev/null)
   else
     CLOUD_KEY=$(grep -A2 'cloud:' ~/.config/keldron/keldron-agent.yaml 2>/dev/null \
-      | grep 'api_key:' | awk '{print $2}' | tr -d '"'"'" | xargs 2>/dev/null)
+      | grep 'api_key:' | awk '{print $2}' | tr -d "\"'" | xargs 2>/dev/null)
   fi
 fi
 if [ -z "$CLOUD_KEY" ]; then
@@ -558,13 +558,13 @@ while true; do
   WORST_SCORE=$(echo "$FLEET" | jq '.worst_score // 0 | floor')
 
   if [ "${CRITICAL:-0}" -gt 0 ]; then
-    DEVICE_INFO=$(echo "$FLEET" | jq -r '.devices[] | select(.severity_band == "critical") | "\(.hostname): score \(.composite_risk_score | floor), temp \(.temperature_primary | floor)°C"')
+    DEVICE_INFO=$(echo "$FLEET" | jq -r '.devices[] | select(.severity_band == "critical") | "\(.hostname): score \((.composite_risk_score // 0) | floor), temp \((.temperature_primary // 0) | floor)°C"')
     echo "CRITICAL: $DEVICE_INFO"
     break
   fi
 
   if [ "${WARNING:-0}" -gt 0 ]; then
-    DEVICE_INFO=$(echo "$FLEET" | jq -r '.devices[] | select(.severity_band == "warning") | "\(.hostname): score \(.composite_risk_score | floor), temp \(.temperature_primary | floor)°C"')
+    DEVICE_INFO=$(echo "$FLEET" | jq -r '.devices[] | select(.severity_band == "warning") | "\(.hostname): score \((.composite_risk_score // 0) | floor), temp \((.temperature_primary // 0) | floor)°C"')
     echo "WARNING: $DEVICE_INFO"
   fi
 
