@@ -33,11 +33,14 @@ import (
 	"github.com/keldron-ai/keldron-agent/internal/fake"
 	"github.com/keldron-ai/keldron-agent/internal/health"
 	"github.com/keldron-ai/keldron-agent/internal/hub"
+	"github.com/keldron-ai/keldron-agent/internal/login"
+	"github.com/keldron-ai/keldron-agent/internal/logout"
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 	"github.com/keldron-ai/keldron-agent/internal/output"
 	"github.com/keldron-ai/keldron-agent/internal/scan"
 	"github.com/keldron-ai/keldron-agent/internal/scoring"
 	"github.com/keldron-ai/keldron-agent/internal/sender"
+	"github.com/keldron-ai/keldron-agent/internal/whoami"
 )
 
 // Set at build time via -ldflags.
@@ -48,9 +51,18 @@ func main() {
 }
 
 func run() int {
-	// Scan subcommand: one-shot fleet query, does not start the agent
-	if len(os.Args) > 1 && os.Args[1] == "scan" {
-		return scan.Run(os.Args[2:])
+	// Subcommands: do not start the agent
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "scan":
+			return scan.Run(os.Args[2:])
+		case "login":
+			return login.Run(os.Args[2:])
+		case "logout":
+			return logout.Run(os.Args[2:])
+		case "whoami":
+			return whoami.Run(os.Args[2:])
+		}
 	}
 
 	configPath := flag.String("config", "./keldron-agent.yaml", "path to YAML config file")
@@ -58,6 +70,21 @@ func run() int {
 	localMode := flag.Bool("local", false, "run in local-only mode (no cloud streaming)")
 	quiet := flag.Bool("quiet", false, "disable stdout output (use when running in background with scan --watch)")
 	showHelp := flag.Bool("help", false, "show usage")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Usage: keldron-agent [command] [flags]
+
+Commands:
+  scan      One-shot device/fleet status query
+  login     Authenticate with Keldron Cloud
+  logout    Remove stored credentials
+  whoami    Show current account
+
+Flags:
+`)
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	if *showHelp {

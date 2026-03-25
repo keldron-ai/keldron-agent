@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/keldron-ai/keldron-agent/internal/credentials"
 )
 
 // Config is the top-level configuration for the collector agent (runtime representation).
@@ -421,6 +423,7 @@ func Load(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			// Use defaults, apply env overrides and auto-detect
 			ApplyEnvOverrides(load)
+			applyCredentialsFallback(load)
 			ApplyAutoDetection(load)
 			cfg := toConfig(load)
 			for _, hook := range getPostLoadHooks() {
@@ -441,6 +444,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	ApplyEnvOverrides(load)
+	applyCredentialsFallback(load)
 	ApplyAutoDetection(load)
 
 	cfg := toConfig(load)
@@ -564,6 +568,22 @@ func ToAdapterMap(a *AdaptersConfig, pollInterval time.Duration) map[string]Adap
 	}
 
 	return m
+}
+
+// applyCredentialsFallback fills cloud API key and optional endpoint from
+// ~/.keldron/credentials when YAML and env did not set an API key.
+func applyCredentialsFallback(load *configLoad) {
+	if load.Cloud.APIKey != "" {
+		return
+	}
+	creds, err := credentials.Load()
+	if err != nil || creds == nil {
+		return
+	}
+	load.Cloud.APIKey = creds.APIKey
+	if creds.Endpoint != "" && load.Cloud.Endpoint == "" {
+		load.Cloud.Endpoint = creds.Endpoint
+	}
 }
 
 // ApplyEnvOverrides applies KELDRON_* environment variables to configLoad.
