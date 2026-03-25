@@ -27,8 +27,9 @@ import (
 const defaultEndpoint = "https://api.keldron.ai"
 
 var (
-	errInvalidAPIKey      = errors.New("invalid API key")
-	errEndpointNeedsHTTPS = errors.New("endpoint must use HTTPS for non-local hosts")
+	errInvalidAPIKey         = errors.New("invalid API key")
+	errEndpointMissingScheme = errors.New("endpoint must include a scheme (e.g. https://)")
+	errEndpointNeedsHTTPS    = errors.New("endpoint must use HTTPS for non-local hosts")
 )
 
 // Run executes the login command. Returns exit code.
@@ -109,8 +110,13 @@ Flags:
 			return emailPasswordLogin(reader, client, *endpoint)
 		case "2":
 			fmt.Print("API key: ")
-			keyLine, _ := reader.ReadString('\n')
-			key := strings.TrimSpace(keyLine)
+			keyBytes, err := term.ReadPassword(int(syscall.Stdin))
+			fmt.Println()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading API key: %v\n", err)
+				return 1
+			}
+			key := strings.TrimSpace(string(keyBytes))
 			if key == "" {
 				fmt.Fprintln(os.Stderr, "API key cannot be empty")
 				return 1
@@ -127,6 +133,9 @@ func normalizeEndpoint(endpoint string) (base string, err error) {
 	parsed, err := url.Parse(base)
 	if err != nil {
 		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", errEndpointMissingScheme
 	}
 	host := parsed.Hostname()
 	isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
@@ -166,6 +175,10 @@ func validateAPIKey(client *http.Client, base, key string) error {
 func apiKeyLogin(client *http.Client, endpoint, key string) int {
 	base, err := normalizeEndpoint(endpoint)
 	if err != nil {
+		if errors.Is(err, errEndpointMissingScheme) {
+			fmt.Fprintln(os.Stderr, "Endpoint must include a scheme (e.g. https://api.keldron.ai).")
+			return 1
+		}
 		if errors.Is(err, errEndpointNeedsHTTPS) {
 			fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
 			return 1
@@ -229,6 +242,10 @@ func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint stri
 
 	base, err := normalizeEndpoint(endpoint)
 	if err != nil {
+		if errors.Is(err, errEndpointMissingScheme) {
+			fmt.Fprintln(os.Stderr, "Endpoint must include a scheme (e.g. https://api.keldron.ai).")
+			return 1
+		}
 		if errors.Is(err, errEndpointNeedsHTTPS) {
 			fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
 			return 1
