@@ -61,10 +61,10 @@ Flags:
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
+		signal.Stop(sigChan)
 		fmt.Println()
 		os.Exit(130)
 	}()
-	defer signal.Stop(sigChan)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 
@@ -76,7 +76,7 @@ Flags:
 	reader := bufio.NewReader(os.Stdin)
 
 	existing, _ := credentials.Load()
-	if existing != nil && (existing.APIKey != "" || existing.Email != "") {
+	if existing != nil {
 		if strings.TrimSpace(existing.Email) != "" {
 			fmt.Printf("Already logged in as %s\n", existing.Email)
 		} else {
