@@ -125,7 +125,7 @@ Create `keldron-agent.yaml`:
 ```yaml
 agent:
   device_name: "my-workstation"
-  poll_interval: "30s"
+  poll_interval: "2s"           # 2s–5m; use 10s–30s in production to reduce CPU/network load
   log_level: "info"
   electricity_rate: 0.12
 

@@ -26,10 +26,10 @@ adapters:
       max_retries: 0
   pdu:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
   temperature:
     enabled: false
-    poll_interval: "15s"
+    poll_interval: "2s"
   kubernetes:
     enabled: false
 
@@ -46,7 +46,7 @@ sender:
     key_file: ""
     ca_file: ""
   batch_size: 100
-  flush_interval: "5s"
+  flush_interval: "2s"
 
 buffer:
   ring_size: 10000

@@ -2,6 +2,7 @@
 
 agent:
   id: "agent-rack-01"            # Unique agent identifier
+  poll_interval: "2s"            # How often to poll adapters (2s–5m). Use 10s–30s in production to reduce CPU/network load.
   log_level: "info"              # debug | info | warn | error
   shutdown_timeout: "30s"        # Graceful shutdown deadline
 
@@ -9,7 +10,7 @@ agent:
 adapters:
   dcgm:
     enabled: false
-    poll_interval: "10s"
+    poll_interval: "2s"
     endpoint: "localhost:5555"
     use_stub: false                # Use synthetic GPU data (no NVIDIA libs needed)
     gpu_ids: [0]                   # GPU device indices to monitor
@@ -25,16 +26,16 @@ adapters:
       max_retries: 0              # 0 = infinite retries
   rocm:
     enabled: false
-    poll_interval: "10s"
+    poll_interval: "2s"
     rocm_smi_path: "/opt/rocm/bin/rocm-smi"
     collection_method: "cli"       # "cli" (exec rocm-smi) or "library" (future)
     gpu_indices: []               # Empty = all GPUs, or [0, 1, 2, 3]
   pdu:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
   snmp_pdu:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
     version: "v2c"               # "v2c" or "v3"
     community: "public"           # v2c
     username: ""                  # v3
@@ -58,7 +59,7 @@ adapters:
     timeout: "5s"
   temperature:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
     stale_threshold: 5
     sensors:
       - address: "192.168.1.200:161"
@@ -94,7 +95,7 @@ adapters:
     slurmrestd_url: "http://slurmctld:6820"
     api_version: "v0.0.40"
     auth_token: ""
-    poll_interval: "30s"
+    poll_interval: "2s"
     timeout: "10s"
     node_to_rack_map:
       gpu-node-01: "rack-A1"
@@ -128,7 +129,7 @@ sender:
     key_file: "/etc/keldron-agent/agent.key"
     ca_file: "/etc/keldron-agent/ca.crt"
   batch_size: 100
-  flush_interval: "5s"
+  flush_interval: "2s"
 
 # Buffer settings (S-005)
 buffer:

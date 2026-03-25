@@ -283,6 +283,13 @@ func TestValidate(t *testing.T) {
 			wantErr: "poll_interval",
 		},
 		{
+			name: "agent poll interval below 2s",
+			modify: func(c *Config) {
+				c.Agent.PollInterval = 1 * time.Second
+			},
+			wantErr: "poll_interval",
+		},
+		{
 			name: "empty sender target and cloud key when adapter enabled",
 			modify: func(c *Config) {
 				c.Sender.Target = ""
@@ -495,7 +502,7 @@ sender:
 
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for poll_interval < 5s, got nil")
+		t.Fatal("expected error for poll_interval < 2s, got nil")
 	}
 	if !strings.Contains(err.Error(), "poll_interval") {
 		t.Errorf("error %q does not mention poll_interval", err.Error())
@@ -742,7 +749,7 @@ func TestHubConfig_MDNSEnabled_YAMLRoundTrip(t *testing.T) {
 			yaml: `
 agent:
   device_name: test
-  poll_interval: 30s
+  poll_interval: 2s
   log_level: info
 adapters:
   apple_silicon:
@@ -764,7 +771,7 @@ hub:
 			yaml: `
 agent:
   device_name: test
-  poll_interval: 30s
+  poll_interval: 2s
   log_level: info
 adapters:
   apple_silicon:
@@ -787,7 +794,7 @@ hub:
 			yaml: `
 agent:
   device_name: test
-  poll_interval: 30s
+  poll_interval: 2s
   log_level: info
 adapters:
   apple_silicon:
@@ -820,7 +827,7 @@ func TestHubConfig_MDNSEnabled_EnvOverride(t *testing.T) {
 	yaml := `
 agent:
   device_name: test
-  poll_interval: 30s
+  poll_interval: 2s
   log_level: info
 adapters:
   apple_silicon:
@@ -853,7 +860,7 @@ func TestConfigAPIEnvOverrides(t *testing.T) {
 	yaml := `
 agent:
   device_name: test
-  poll_interval: 30s
+  poll_interval: 2s
   log_level: info
 adapters:
   apple_silicon:
