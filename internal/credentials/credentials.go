@@ -20,16 +20,11 @@ type Credentials struct {
 	Endpoint  string `json:"endpoint,omitempty"` // defaults to https://api.keldron.ai
 }
 
-// Validate checks that required fields are present and non-empty.
+// Validate checks that api_key is present. Email and account_id may be empty
+// when the user logged in by pasting an API key only.
 func (c *Credentials) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("credentials: api_key is required")
-	}
-	if c.Email == "" {
-		return errors.New("credentials: email is required")
-	}
-	if c.AccountID == "" {
-		return errors.New("credentials: account_id is required")
 	}
 	return nil
 }

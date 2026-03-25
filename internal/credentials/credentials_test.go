@@ -89,3 +89,25 @@ func TestSaveLoadDelete(t *testing.T) {
 		t.Fatalf("expected ErrNotExist, got %v", err)
 	}
 }
+
+func TestSaveLoadAPIKeyOnly(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	c := &Credentials{
+		APIKey:    "kldn_live_onlykey",
+		Email:     "",
+		AccountID: "",
+		Endpoint:  "https://api.keldron.ai",
+	}
+	if err := Save(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.APIKey != c.APIKey || got.Email != "" || got.AccountID != "" || got.Endpoint != c.Endpoint {
+		t.Fatalf("Load: %+v", got)
+	}
+}

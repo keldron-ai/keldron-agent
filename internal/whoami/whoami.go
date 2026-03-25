@@ -6,6 +6,7 @@ package whoami
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/keldron-ai/keldron-agent/internal/config"
 	"github.com/keldron-ai/keldron-agent/internal/credentials"
@@ -24,13 +25,20 @@ func Run(args []string) int {
 		return 0
 	}
 
-	fmt.Printf("Email:    %s\n", creds.Email)
-	fmt.Printf("Account:  %s\n", creds.AccountID)
+	if strings.TrimSpace(creds.Email) != "" {
+		fmt.Printf("Email:    %s\n", creds.Email)
+	}
+	if strings.TrimSpace(creds.AccountID) != "" {
+		fmt.Printf("Account:  %s\n", creds.AccountID)
+	}
 	fmt.Printf("API Key:  %s\n", config.MaskedCloudAPIKey(creds.APIKey))
 	endpoint := creds.Endpoint
 	if endpoint == "" {
 		endpoint = defaultEndpoint
 	}
 	fmt.Printf("Endpoint: %s\n", endpoint)
+	if strings.TrimSpace(creds.Email) == "" {
+		fmt.Println("(Logged in via API key — email not available)")
+	}
 	return 0
 }

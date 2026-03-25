@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/keldron-ai/keldron-agent/internal/credentials"
 )
@@ -36,14 +37,17 @@ func Run(args []string) int {
 		return 1
 	}
 
-	email := existing.Email
+	label := existing.Email
+	if strings.TrimSpace(label) == "" {
+		label = "API key"
+	}
 
 	if err := credentials.Delete(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to remove credentials: %v\n", err)
 		return 1
 	}
 
-	fmt.Printf("✓ Logged out (%s)\n", email)
+	fmt.Printf("✓ Logged out (%s)\n", label)
 	fmt.Println("  Credentials removed from ~/.keldron/credentials")
 	fmt.Println("  Agent may revert to local-only mode on next restart unless cloud.api_key or KELDRON_CLOUD_API_KEY is set.")
 	return 0
