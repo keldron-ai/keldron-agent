@@ -106,7 +106,11 @@ Flags:
 			fmt.Println("Already logged in (API key on file)")
 		}
 		fmt.Print("Log in as a different account? (y/N): ")
-		answer, _ := reader.ReadString('\n')
+		answer, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+			return 1
+		}
 		if strings.TrimSpace(strings.ToLower(answer)) != "y" {
 			return 0
 		}
@@ -250,7 +254,11 @@ func apiKeyLogin(client *http.Client, endpoint, key string) int {
 
 func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint string, sigReceived <-chan struct{}) int {
 	fmt.Print("Email: ")
-	email, _ := reader.ReadString('\n')
+	email, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+		return 1
+	}
 	email = strings.TrimSpace(email)
 	if email == "" {
 		fmt.Fprintln(os.Stderr, "Email cannot be empty")
