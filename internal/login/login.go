@@ -181,7 +181,7 @@ func apiKeyLogin(client *http.Client, endpoint, key string) int {
 		APIKey:    key,
 		Email:     "",
 		AccountID: "",
-		Endpoint:  endpoint,
+		Endpoint:  base,
 	}
 	if err := credentials.Save(creds); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save credentials: %v\n", err)
@@ -284,7 +284,7 @@ func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint stri
 		APIKey:    apiKey,
 		Email:     emailOut,
 		AccountID: strings.TrimSpace(result.AccountID),
-		Endpoint:  endpoint,
+		Endpoint:  base,
 	}
 	if err := credentials.Save(creds); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save credentials: %v\n", err)
