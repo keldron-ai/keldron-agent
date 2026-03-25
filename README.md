@@ -196,7 +196,7 @@ Adapters → Normalizer → Risk Engine → Prometheus /metrics
 
 ## Security
 
-The agent is **read-only** — it reads hardware sensors and computes scores. It never modifies your system or executes arbitrary commands. Local HTTP servers (dashboard, Prometheus) bind to `127.0.0.1` by default and are not exposed on public interfaces unless explicitly reconfigured.
+The agent is **read-only** — it reads hardware sensors and computes scores. It does not execute arbitrary commands or alter system state beyond writing its own credential file (`~/.keldron/credentials`, created with 0600 permissions). Local HTTP servers (web UI on port 9200, Prometheus metrics on port 9100, health endpoint on port 8081) bind to `127.0.0.1` by default and are not exposed on public interfaces unless explicitly reconfigured.
 
 - All HTTP servers bind to `127.0.0.1` (localhost) by default. Override via config for LAN access.
 - Cloud telemetry is transmitted over HTTPS with TLS 1.2+.
