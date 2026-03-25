@@ -38,7 +38,7 @@ Open an issue with the `enhancement` label. Describe the use case — what probl
    ```
 
 4. Commit using conventional commits:
-   ```
+   ```text
    feat(adapter): add Intel Arc GPU support
    fix(scoring): correct TDP lookup for RTX 5090
    docs: update configuration reference
@@ -72,7 +72,7 @@ make test
 
 ### Project Structure
 
-```
+```text
 cmd/agent/          Entry point — CLI dispatch and agent startup
 internal/
   adapters/         Hardware adapters (Apple Silicon, NVIDIA, Linux thermal)
@@ -100,7 +100,7 @@ frontend/           Embedded React dashboard (Vite + TypeScript)
 
 ### Branch Naming
 
-```
+```text
 feat/short-description    — new features
 fix/short-description     — bug fixes
 docs/short-description    — documentation only
@@ -110,7 +110,7 @@ docs/short-description    — documentation only
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 feat(adapter): add Raspberry Pi thermal adapter
 fix(scoring): handle NaN in volatility sub-score
 docs: add Linux quick-start to README

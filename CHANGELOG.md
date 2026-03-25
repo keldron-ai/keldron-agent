@@ -6,7 +6,7 @@ First public release of the Keldron Agent — vendor-neutral hardware monitoring
 
 ### Agent
 
-- **Apple Silicon adapter** — native IOKit bindings for M1–M4 Macs. GPU/SoC temperature, power draw, utilization, Neural Engine utilization, memory pressure, and thermal state. No sudo required.
+- **Apple Silicon adapter** — native IOKit bindings for M1–M5 Macs. GPU/SoC temperature, power draw, utilization, Neural Engine utilization, memory pressure, and thermal state. No sudo required.
 - **NVIDIA consumer adapter** — NVML-based monitoring for RTX 3090/4090/5090 and other consumer GPUs. Temperature, power, utilization, throttle state, clock speed.
 - **NVIDIA datacenter adapter** — DCGM-based monitoring for H100, B200, and other datacenter GPUs.
 - **AMD adapter** — ROCm SMI-based monitoring for MI300X, RX 7900 XTX, and other AMD GPUs.
@@ -23,7 +23,7 @@ First public release of the Keldron Agent — vendor-neutral hardware monitoring
 ### Security
 
 - All HTTP servers bind to `127.0.0.1` by default (configurable for LAN access).
-- Cloud telemetry over HTTPS with TLS 1.2+.
+- Cloud telemetry over TLS 1.2+ (HTTPS and gRPC).
 - Credentials stored with 0600 file permissions.
-- Agent is strictly read-only — no system modifications, no inbound connections.
+- Agent is strictly read-only — no system modifications, no unsolicited external connections. Local HTTP servers bind to `127.0.0.1` by default.
 - Pre-launch security audit passed (SEC-001).

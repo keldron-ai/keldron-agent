@@ -196,7 +196,7 @@ Adapters → Normalizer → Risk Engine → Prometheus /metrics
 
 ## Security
 
-The agent is **read-only** — it reads hardware sensors and computes scores. It never modifies your system, executes arbitrary commands, or opens inbound network connections.
+The agent is **read-only** — it reads hardware sensors and computes scores. It never modifies your system or executes arbitrary commands. Local HTTP servers (dashboard, Prometheus) bind to `127.0.0.1` by default and are not exposed on public interfaces unless explicitly reconfigured.
 
 - All HTTP servers bind to `127.0.0.1` (localhost) by default. Override via config for LAN access.
 - Cloud telemetry is transmitted over HTTPS with TLS 1.2+.
