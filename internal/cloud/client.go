@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const defaultMaxBuffer = 1000
@@ -27,10 +28,21 @@ const defaultMaxBuffer = 1000
 const maxLogRespBody = 512
 
 func truncateForLog(s string) string {
+	const suffix = "…(truncated)"
+	suffixLen := len(suffix)
 	if len(s) <= maxLogRespBody {
 		return s
 	}
-	return s[:maxLogRespBody] + "…(truncated)"
+	if maxLogRespBody <= suffixLen {
+		return s[:maxLogRespBody]
+	}
+	// Slice to fit within maxLogRespBody including the suffix,
+	// then walk back to avoid splitting a multi-byte UTF-8 rune.
+	truncated := s[:maxLogRespBody-suffixLen]
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + suffix
 }
 
 // Client streams telemetry to the Keldron Cloud API via HTTPS/JSON.
