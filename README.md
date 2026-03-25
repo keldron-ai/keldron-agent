@@ -125,7 +125,7 @@ Create `keldron-agent.yaml`:
 ```yaml
 agent:
   device_name: "my-workstation"
-  poll_interval: "30s"
+  poll_interval: "2s"
   log_level: "info"
   electricity_rate: 0.12
 

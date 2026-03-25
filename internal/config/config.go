@@ -301,7 +301,7 @@ func Defaults() *Config {
 		Agent: AgentConfig{
 			ID:              "agent-default",
 			DeviceName:      "",
-			PollInterval:    30 * time.Second,
+			PollInterval:    2 * time.Second,
 			LogLevel:        "info",
 			ElectricityRate: 0.12,
 			ShutdownTimeout: 30 * time.Second,
@@ -330,7 +330,7 @@ func Defaults() *Config {
 		Sender: SenderConfig{
 			Target:        "localhost:50051",
 			BatchSize:     100,
-			FlushInterval: 5 * time.Second,
+			FlushInterval: 2 * time.Second,
 		},
 		Buffer: BufferConfig{
 			RingSize:   10000,
@@ -348,7 +348,7 @@ func Defaults() *Config {
 func defaultConfigLoad() *configLoad {
 	return &configLoad{
 		Agent: AgentConfig{
-			PollInterval:    30 * time.Second,
+			PollInterval:    2 * time.Second,
 			LogLevel:        "info",
 			ElectricityRate: 0.12,
 			ShutdownTimeout: 30 * time.Second,
@@ -377,7 +377,7 @@ func defaultConfigLoad() *configLoad {
 		Sender: SenderConfig{
 			Target:        "localhost:50051",
 			BatchSize:     100,
-			FlushInterval: 5 * time.Second,
+			FlushInterval: 2 * time.Second,
 		},
 		Buffer: BufferConfig{
 			RingSize:   10000,
@@ -512,7 +512,7 @@ func toConfig(load *configLoad) *Config {
 func ToAdapterMap(a *AdaptersConfig, pollInterval time.Duration) map[string]AdapterConfig {
 	m := make(map[string]AdapterConfig)
 	if pollInterval <= 0 {
-		pollInterval = 30 * time.Second
+		pollInterval = 2 * time.Second
 	}
 
 	add := func(name string, enabled bool, raw yaml.Node) {
@@ -776,11 +776,11 @@ func Validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("agent.log_level must be one of: debug, info, warn, error (got %q)", cfg.Agent.LogLevel)
 	}
-	// Agent-level poll interval is bounded to 5s–5m to prevent excessive or
+	// Agent-level poll interval is bounded to 2s–5m to prevent excessive or
 	// stale polling. Per-adapter intervals only enforce a ≥1s floor because
 	// individual adapters may legitimately poll faster than the agent cycle.
-	if cfg.Agent.PollInterval < 5*time.Second || cfg.Agent.PollInterval > 5*time.Minute {
-		return fmt.Errorf("agent.poll_interval must be between 5s and 5m (got %v)", cfg.Agent.PollInterval)
+	if cfg.Agent.PollInterval < 2*time.Second || cfg.Agent.PollInterval > 5*time.Minute {
+		return fmt.Errorf("agent.poll_interval must be between 2s and 5m (got %v)", cfg.Agent.PollInterval)
 	}
 	if cfg.Agent.ShutdownTimeout <= 0 {
 		return fmt.Errorf("agent.shutdown_timeout must be positive")

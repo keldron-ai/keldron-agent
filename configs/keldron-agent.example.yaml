@@ -12,7 +12,7 @@
 agent:
   # device_name: ""              # Human-readable name (default: hostname)
   # id: ""                       # Unique agent ID (default: device_name or hostname)
-  poll_interval: "30s"           # How often to poll adapters (5s–5m)
+  poll_interval: "2s"            # How often to poll adapters (2s–5m)
   log_level: "info"              # debug | info | warn | error
   electricity_rate: 0.12         # $/kWh for power cost estimates
   shutdown_timeout: "30s"        # Graceful shutdown deadline
@@ -33,14 +33,14 @@ adapters:
   # --- Scenario 2: Linux + NVIDIA — enable only nvidia_consumer ---
   nvidia_consumer:
     enabled: false               # Auto: true when nvidia-smi in PATH (linux/windows only)
-    poll_interval: "10s"        # NVIDIA GPUs update fast
+    poll_interval: "2s"         # NVIDIA GPUs update fast
     nvidia_smi_path: ""         # Empty = search PATH
     gpu_indices: []             # Empty = all GPUs
 
   # --- Scenario 3: Linux + AMD — enable only rocm ---
   rocm:
     enabled: false               # Set true when rocm-smi in PATH; auto-detect available (env: KELDRON_ADAPTERS_ROCM_ENABLED)
-    poll_interval: "10s"
+    poll_interval: "2s"
     rocm_smi_path: "/opt/rocm/bin/rocm-smi"
     collection_method: "cli"
     gpu_indices: []              # Empty = all GPUs
@@ -48,7 +48,7 @@ adapters:
   # --- DCGM (datacenter NVIDIA; use_stub works without NVIDIA libs) ---
   dcgm:
     enabled: true                # use_stub: true for testing without NVIDIA
-    poll_interval: "10s"
+    poll_interval: "2s"
     endpoint: "localhost:5555"
     use_stub: true               # true = synthetic data, no NVIDIA libs needed
     gpu_ids: [0]
@@ -71,7 +71,7 @@ adapters:
   # --- SNMP PDU (disabled by default) ---
   snmp_pdu:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
     version: "v2c"
     community: "public"
     targets:
@@ -83,7 +83,7 @@ adapters:
   # --- Temperature sensors (disabled by default) ---
   temperature:
     enabled: false
-    poll_interval: "30s"
+    poll_interval: "2s"
     sensors: []
 
   # --- Kubernetes (auto when in-cluster) ---
@@ -103,7 +103,7 @@ adapters:
     slurmrestd_url: "http://slurmctld:6820"
     api_version: "v0.0.40"
     auth_token: ""
-    poll_interval: "30s"
+    poll_interval: "2s"
     timeout: "10s"
     node_to_rack_map: {}
 
@@ -148,7 +148,7 @@ sender:
     key_file: ""
     ca_file: ""
   batch_size: 100
-  flush_interval: "5s"
+  flush_interval: "2s"
 
 # --- Buffer (ring + WAL) ---
 buffer:
