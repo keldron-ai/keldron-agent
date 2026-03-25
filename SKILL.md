@@ -11,7 +11,6 @@ metadata:
         - curl
         - jq
       anyBins:
-        - go
         - docker
     primaryEnv: "KELDRON_CLOUD_API_KEY"
 ---
@@ -63,7 +62,7 @@ if [ -z "$CLOUD_KEY" ]; then
 fi
 CLOUD_ENDPOINT="${CLOUD_ENDPOINT:-https://api.keldron.ai}"
 if [ -z "$CLOUD_KEY" ]; then
-  echo "No cloud API key found. Run keldron-agent login, set KELDRON_API_KEY or KELDRON_CLOUD_API_KEY, or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
+  echo "No cloud API key found. Run keldron-agent login (or set KELDRON_API_KEY for non-interactive login), set KELDRON_CLOUD_API_KEY to run the agent with streaming, or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
 fi
 
 # Check 3: Does cloud respond? (only if we have a key)
@@ -84,29 +83,45 @@ fi
 
 ## 2. Installation
 
+Prefer a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) binary (`keldron-agent`). Building from source requires Go and Node.js (`make build` from a clone). `go install github.com/keldron-ai/keldron-agent/cmd/agent@latest` installs a binary named `agent` without the full Vite dashboard from the public module — use releases or `make build` for the full UI.
+
 ### Mac (Apple Silicon)
 
 ```bash
-go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-darwin-arm64 -o /usr/local/bin/keldron-agent
+chmod +x /usr/local/bin/keldron-agent
 ```
 
-### Linux (with Docker)
+### Linux (AMD64)
+
+```bash
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-amd64 -o /usr/local/bin/keldron-agent
+chmod +x /usr/local/bin/keldron-agent
+```
+
+### Linux (ARM64)
+
+```bash
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-arm64 -o /usr/local/bin/keldron-agent
+chmod +x /usr/local/bin/keldron-agent
+```
+
+### Linux (Docker)
 
 ```bash
 docker rm -f keldron-agent 2>/dev/null || true
-docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest
-```
-
-### Linux (with Go)
-
-```bash
-go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0
+docker run -d --name keldron-agent --restart unless-stopped \
+  -p 9100:9100 -p 9200:9200 -p 8081:8081 \
+  -e KELDRON_OUTPUT_PROMETHEUS_HOST=0.0.0.0 \
+  -e KELDRON_API_HOST=0.0.0.0 \
+  -e KELDRON_HEALTH_BIND=0.0.0.0:8081 \
+  ghcr.io/keldron-ai/keldron-agent:latest
 ```
 
 ### Verify installation
 
 ```bash
-agent --version
+keldron-agent --version
 ```
 
 ---
@@ -141,32 +156,48 @@ fi
 
 ### Step 3: Install agent
 
+Download the release binary for the OS/arch, install to a directory on `PATH`, then start in local mode. Example:
+
 ```bash
-# macOS
+ARCH=$(uname -m)
+INSTALL_DIR="${HOME}/.local/bin"
+mkdir -p "$INSTALL_DIR"
+
 if [ "$OS" = "Darwin" ]; then
-  if ! go install github.com/keldron-ai/keldron-agent/cmd/agent@v1.0.0; then
-    echo "Error: go install failed. Ensure Go is installed and in PATH."
-    exit 1
-  fi
-  agent --local &
+  BINARY="keldron-agent-darwin-arm64"
+elif [ "$ARCH" = "x86_64" ]; then
+  BINARY="keldron-agent-linux-amd64"
+else
+  BINARY="keldron-agent-linux-arm64"
+fi
+
+if [ "$OS" = "Darwin" ]; then
+  curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/keldron-agent"
+  chmod +x "${INSTALL_DIR}/keldron-agent"
+  "${INSTALL_DIR}/keldron-agent" --local &
   sleep 3
 fi
 
-# Linux
 if [ "$OS" = "Linux" ]; then
-  if ! command -v docker &>/dev/null; then
-    echo "Error: Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/"
-    exit 1
-  fi
-  docker rm -f keldron-agent 2>/dev/null || true
-  if ! docker run -d --name keldron-agent --restart unless-stopped -p 9100:9100 ghcr.io/keldron-ai/keldron-agent:latest; then
-    echo "Error: Failed to start keldron-agent container. Check Docker permissions and network."
-    exit 1
+  if command -v docker &>/dev/null; then
+    docker rm -f keldron-agent 2>/dev/null || true
+    if ! docker run -d --name keldron-agent --restart unless-stopped \
+      -p 9100:9100 -p 9200:9200 -p 8081:8081 \
+      -e KELDRON_OUTPUT_PROMETHEUS_HOST=0.0.0.0 \
+      -e KELDRON_API_HOST=0.0.0.0 \
+      -e KELDRON_HEALTH_BIND=0.0.0.0:8081 \
+      ghcr.io/keldron-ai/keldron-agent:latest; then
+      echo "Error: Failed to start keldron-agent container. Check Docker permissions and network."
+      exit 1
+    fi
+  else
+    curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/keldron-agent"
+    chmod +x "${INSTALL_DIR}/keldron-agent"
+    "${INSTALL_DIR}/keldron-agent" --local &
   fi
   sleep 3
 fi
 
-# Verify
 curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'
 ```
 
@@ -174,7 +205,7 @@ Report initial readings (temperature, utilization, risk score) from [Quick statu
 
 ### Step 4: Offer cloud connection
 
-Guide the user conversationally (binary may be `agent` if installed via `go install …/cmd/agent`):
+Guide the user conversationally:
 
 1. **Account:** Ask: *Do you have a Keldron Cloud account? You can sign up free at https://app.keldron.ai*
 2. **If yes:** *Run `keldron-agent login` — you can use email/password or paste your API key (option 2 in the menu).*
@@ -243,7 +274,7 @@ fi
 # Restart agent
 pkill -f keldron-agent || pkill -f "agent.*--local"
 sleep 2
-agent --local &
+keldron-agent --local &
 sleep 5
 
 # Verify cloud connection (optional — uses env var, not raw key)
@@ -257,7 +288,7 @@ Tell the user: *Cloud connected. Your device is streaming to Keldron Cloud. Dash
 
 ## 4. Cloud connection
 
-- **CLI (primary):** `keldron-agent login` — stores credentials under `~/.keldron/credentials` (use `agent` instead of `keldron-agent` if that is how the binary was installed). For non-interactive use: set `KELDRON_API_KEY` or pipe via stdin.
+- **CLI (primary):** `keldron-agent login` — stores credentials under `~/.keldron/credentials`. For non-interactive use: set `KELDRON_API_KEY` or pipe via stdin.
 - **Environment variable (alternative):** `KELDRON_CLOUD_API_KEY`.
 - **Config file (alternative):** `~/.config/keldron/keldron-agent.yaml` under `cloud.api_key` (see [Step 5 optional](#step-5-optional-env-or-yaml-without-cli-login) for automation-only edits).
 - **HTTP header** for API calls: `X-API-Key: <key>`.
@@ -281,7 +312,7 @@ Never store or paste a full API key into this skill file. When confirming config
 Start the agent in local mode:
 
 ```bash
-agent --local
+keldron-agent --local
 ```
 
 The agent auto-detects hardware. Basic use needs no config.
@@ -310,6 +341,7 @@ curl -s localhost:9100/metrics | grep keldron_
 |------|------|-------------|
 | 9100 | `/metrics` | Prometheus metrics (all `keldron_*` gauges) |
 | 9100 | `/healthz` | Liveness check (JSON) |
+| 9200 | `/` | Local web dashboard (embedded UI) |
 | 9100 | `/api/v1/status` | Agent version, device name, active adapters |
 
 ### Cloud API reference
@@ -364,6 +396,7 @@ When the user asks for a **dashboard**, **link** these URLs. Do not render ASCII
 | `keldron_risk_thermal` | Thermal risk score |
 | `keldron_risk_power` | Power risk score |
 | `keldron_risk_volatility` | Volatility risk score |
+| `keldron_risk_memory` | Memory-related risk score |
 | `keldron_power_cost_monthly` | Estimated power cost per month ($) |
 | `keldron_power_cost_daily` | Estimated power cost per day ($) |
 | `keldron_power_cost_hourly` | Estimated power cost per hour ($) |
@@ -391,7 +424,7 @@ Extract the `device_model` label from the metric line. Report as: *Your {device_
 ### "Is my GPU at risk?"
 
 ```bash
-curl -s localhost:9100/metrics | grep -E 'keldron_risk_(composite|severity|thermal|power|volatility)' | grep -v '^#'
+curl -s localhost:9100/metrics | grep -E 'keldron_risk_(composite|severity|thermal|power|volatility|memory)' | grep -v '^#'
 ```
 
 Parse `keldron_risk_composite` (0–100) and `keldron_risk_severity` (0=normal, 1=warning, 2=critical). Report composite, severity, and which sub-score is highest.
@@ -669,7 +702,7 @@ Confirm: *Agent stopped. GPU monitoring is off.*
 ```bash
 pkill -f keldron-agent || pkill -f "agent.*--local"
 sleep 2
-agent --local &
+keldron-agent --local &
 sleep 3
 curl -s localhost:9100/healthz
 ```

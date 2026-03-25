@@ -264,10 +264,10 @@ WARMING=$(echo "$METRICS_RAW" | grep 'keldron_risk_warming_up{' | awk '{print $2
 [ -n "$WARMING" ]
 check "keldron_risk_warming_up present" $?
 
-# Fleet penalty
-FLEET_PEN=$(echo "$METRICS_RAW" | grep 'keldron_risk_fleet_penalty{' | awk '{print $2}' | head -1)
-[ -n "$FLEET_PEN" ]
-check "keldron_risk_fleet_penalty present" $?
+# Memory risk
+RISK_MEM=$(echo "$METRICS_RAW" | grep 'keldron_risk_memory{' | awk '{print $2}' | head -1)
+[ -n "$RISK_MEM" ]
+check "keldron_risk_memory present" $?
 
 echo ""
 echo "  ${CYAN}── Bonus Metrics ──${NC}"

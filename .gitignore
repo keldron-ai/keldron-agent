@@ -27,7 +27,8 @@ id_ed25519
 id_ecdsa
 .DS_Store
 coverage.out
-internal/api/static/
+internal/api/static/*
+!internal/api/static/index.html
 *.tsbuildinfo
 .gomodcache/
 .gocachebuild/
