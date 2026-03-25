@@ -7,6 +7,11 @@ keldron-agent.dev.yaml
 /mock-server
 *.exe
 .env
+.env.local
+.env.production
+.env.development
+*.pem
+*.key
 .DS_Store
 coverage.out
 internal/api/static/

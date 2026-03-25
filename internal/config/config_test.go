@@ -173,8 +173,8 @@ sender:
 	if cfg.Buffer.RingSize != 10000 {
 		t.Errorf("buffer.ring_size default = %d, want %d", cfg.Buffer.RingSize, 10000)
 	}
-	if cfg.Health.Bind != ":8081" {
-		t.Errorf("health.bind default = %q, want %q", cfg.Health.Bind, ":8081")
+	if cfg.Health.Bind != "127.0.0.1:8081" {
+		t.Errorf("health.bind default = %q, want %q", cfg.Health.Bind, "127.0.0.1:8081")
 	}
 }
 

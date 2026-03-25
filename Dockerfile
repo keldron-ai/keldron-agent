@@ -1,5 +1,5 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Build stage (match go.mod toolchain for reproducible builds)
+FROM golang:1.26-alpine AS builder
 ARG TARGETARCH=amd64
 WORKDIR /build
 COPY go.mod go.sum ./

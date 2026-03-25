@@ -22,6 +22,17 @@ import (
 
 const defaultMaxBuffer = 1000
 
+// maxLogRespBody is the maximum number of bytes of an HTTP response body to include in logs
+// (avoids leaking large or sensitive server error payloads).
+const maxLogRespBody = 512
+
+func truncateForLog(s string) string {
+	if len(s) <= maxLogRespBody {
+		return s
+	}
+	return s[:maxLogRespBody] + "…(truncated)"
+}
+
 // Client streams telemetry to the Keldron Cloud API via HTTPS/JSON.
 type Client struct {
 	endpoint   string
@@ -162,14 +173,14 @@ func (c *Client) Send(ctx context.Context, samples []Sample) error {
 			c.bufferMu.Unlock()
 			c.logger.Warn("cloud ingest transient error (buffered for retry)",
 				"status", resp.StatusCode,
-				"body", string(respBody),
+				"body_snippet", truncateForLog(string(respBody)),
 				"batch_id", batchID,
 				"agent_id", c.agentID,
 			)
 		} else {
 			c.logger.Error("cloud ingest permanent error (samples dropped)",
 				"status", resp.StatusCode,
-				"body", string(respBody),
+				"body_snippet", truncateForLog(string(respBody)),
 				"batch_id", batchID,
 				"samples", len(pending),
 				"agent_id", c.agentID,

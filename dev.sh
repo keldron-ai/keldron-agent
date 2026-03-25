@@ -209,7 +209,7 @@ cloud:
 
 health:
   enabled: true
-  bind: ":8081"
+  bind: "127.0.0.1:8081"
 EOF
 fi
 

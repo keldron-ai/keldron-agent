@@ -24,7 +24,7 @@ import (
 func TestOutputBridge_FlushesToPrometheus(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	prom := output.NewPrometheusWithRegistry(0, "test", "test-device", reg, logger)
+	prom := output.NewPrometheusWithRegistry("127.0.0.1", 0, "test", "test-device", reg, logger)
 	outputs := []output.Output{prom}
 
 	// Simulate normalizer output channel.
@@ -127,7 +127,7 @@ func TestOutputBridge_FlushesToPrometheus(t *testing.T) {
 func TestFullPipeline_AdapterToPrometheus(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	prom := output.NewPrometheusWithRegistry(0, "test", "test-device", reg, logger)
+	prom := output.NewPrometheusWithRegistry("127.0.0.1", 0, "test", "test-device", reg, logger)
 	outputs := []output.Output{prom}
 
 	// Simulate adapter channel.
