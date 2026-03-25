@@ -5,6 +5,7 @@
 package logout
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -13,10 +14,28 @@ import (
 
 // Run executes the logout command. Returns exit code.
 func Run(args []string) int {
-	_ = args
+	fs := flag.NewFlagSet("logout", flag.ContinueOnError)
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 1
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "logout: unexpected argument: %s\n", fs.Arg(0))
+		return 1
+	}
 
 	existing, err := credentials.Load()
-	if err != nil || existing == nil {
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("Not logged in.")
+			return 0
+		}
+		fmt.Fprintf(os.Stderr, "Failed to read credentials: %v\n", err)
+		return 1
+	}
+	if existing == nil {
 		fmt.Println("Not logged in.")
 		return 0
 	}
@@ -30,6 +49,6 @@ func Run(args []string) int {
 
 	fmt.Printf("✓ Logged out (%s)\n", email)
 	fmt.Println("  Credentials removed from ~/.keldron/credentials")
-	fmt.Println("  Agent will revert to local-only mode on next restart.")
+	fmt.Println("  Agent may revert to local-only mode on next restart unless cloud.api_key or KELDRON_CLOUD_API_KEY is set.")
 	return 0
 }

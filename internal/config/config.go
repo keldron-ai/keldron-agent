@@ -584,6 +584,10 @@ func applyCredentialsFallback(load *configLoad) {
 	if creds.Endpoint != "" && load.Cloud.Endpoint == "" {
 		load.Cloud.Endpoint = creds.Endpoint
 	}
+	// When the API key comes from stored credentials (login) rather than
+	// YAML/env, clear the default Sender.Target so the agent uses HTTPS
+	// cloud streaming instead of the gRPC sender/buffer path.
+	load.Sender.Target = ""
 }
 
 // ApplyEnvOverrides applies KELDRON_* environment variables to configLoad.

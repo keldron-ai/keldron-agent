@@ -46,6 +46,26 @@ func TestSaveLoadDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Verify directory permissions are 0700.
+	dirPath := filepath.Join(tmp, ".keldron")
+	dirInfo, err := os.Stat(dirPath)
+	if err != nil {
+		t.Fatalf("stat dir: %v", err)
+	}
+	if perm := dirInfo.Mode().Perm(); perm != 0o700 {
+		t.Fatalf("directory permissions = %o, want 0700", perm)
+	}
+
+	// Verify file permissions are 0600.
+	filePath := filepath.Join(dirPath, "credentials")
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("stat file: %v", err)
+	}
+	if perm := fileInfo.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("file permissions = %o, want 0600", perm)
+	}
+
 	got, err := Load()
 	if err != nil {
 		t.Fatal(err)

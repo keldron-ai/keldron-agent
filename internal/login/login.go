@@ -11,9 +11,11 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/keldron-ai/keldron-agent/internal/credentials"
 	"golang.org/x/term"
@@ -72,7 +74,20 @@ func Run(args []string) int {
 	}
 
 	base := strings.TrimRight(*endpoint, "/")
-	resp, err := http.Post(
+	parsed, err := url.Parse(base)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid endpoint URL: %v\n", err)
+		return 1
+	}
+	host := parsed.Hostname()
+	isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
+	if parsed.Scheme != "https" && !isLocal {
+		fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
+		return 1
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(
 		base+"/v1/auth/login",
 		"application/json",
 		bytes.NewReader(body),
@@ -134,10 +149,6 @@ func Run(args []string) int {
 	fmt.Println()
 	fmt.Println("Your agent will now stream telemetry to Keldron Cloud.")
 	fmt.Println("Restart the agent to begin streaming, or run:")
-	masked := apiKey
-	if len(apiKey) > 8 {
-		masked = apiKey[:4] + strings.Repeat("*", len(apiKey)-8) + apiKey[len(apiKey)-4:]
-	}
-	fmt.Printf("  KELDRON_CLOUD_API_KEY=%s keldron-agent\n", masked)
+	fmt.Println("  KELDRON_CLOUD_API_KEY=<your-api-key> keldron-agent")
 	return 0
 }

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -62,6 +63,13 @@ func run() int {
 			return logout.Run(os.Args[2:])
 		case "whoami":
 			return whoami.Run(os.Args[2:])
+		default:
+			// Only treat non-flag arguments as unknown subcommands.
+			if !strings.HasPrefix(os.Args[1], "-") {
+				fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n", os.Args[1])
+				fmt.Fprintln(os.Stderr, "Run 'keldron-agent --help' for usage.")
+				return 2
+			}
 		}
 	}
 
