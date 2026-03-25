@@ -19,7 +19,8 @@ One binary. Every GPU. Real risk scores — not just dashboards.
 ### Mac (Apple Silicon)
 
 ```bash
-# brew install keldron-ai/tap/keldron-agent  # future — for now use go install
+# Coming soon: brew install keldron-ai/tap/keldron-agent
+# For now, build from source:
 go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
 agent --local
 # → Prometheus metrics at http://localhost:9100/metrics
@@ -28,7 +29,8 @@ agent --local
 ### Linux
 
 ```bash
-# curl -sfL https://get.keldron.ai | sh  # future — for now use go install
+# Coming soon: curl -sfL https://get.keldron.ai | sh
+# For now, build from source:
 go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
 agent --local
 
@@ -192,17 +194,27 @@ Adapters → Normalizer → Risk Engine → Prometheus /metrics
  ROCm, hwmon)                          Keldron Cloud (optional)
 ```
 
+## Security
+
+The agent is **read-only** — it reads hardware sensors and computes scores. It never modifies your system, executes arbitrary commands, or opens inbound network connections.
+
+- All HTTP servers bind to `127.0.0.1` (localhost) by default. Override via config for LAN access.
+- Cloud telemetry is transmitted over HTTPS with TLS 1.2+.
+- Credentials are stored with restricted file permissions (0600).
+- The agent contains no tracking, analytics, or telemetry about your usage — only hardware sensor data.
+
+To report a security issue, email [ransom@keldron.ai](mailto:ransom@keldron.ai).
+
 ## Grafana Dashboard
 
-Import our example dashboard:
-
-*(Screenshot placeholder — dashboard JSON in [configs/](configs/) coming soon)*
+Keldron exposes Prometheus metrics at `/metrics` — import them into any Grafana instance. Example dashboard JSON coming in v0.2.0.
 
 ## Upgrade Path
 
-Need fleet dashboards, predictive intelligence, and compliance reporting?
+Want fleet dashboards, 180-day history, and device health analytics?
 
-→ [keldron.ai](https://keldron.ai) *(coming soon)*
+→ Sign up free at [app.keldron.ai](https://app.keldron.ai)
+→ Learn more at [keldron.ai](https://keldron.ai)
 
 ## Contributing
 
