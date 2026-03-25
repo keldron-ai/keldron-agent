@@ -8,11 +8,14 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -23,32 +26,239 @@ import (
 
 const defaultEndpoint = "https://api.keldron.ai"
 
+var (
+	errInvalidAPIKey         = errors.New("invalid API key")
+	errEndpointMissingScheme = errors.New("endpoint must include a scheme (e.g. https://)")
+	errEndpointNeedsHTTPS    = errors.New("endpoint must use HTTPS for non-local hosts")
+)
+
 // Run executes the login command. Returns exit code.
 func Run(args []string) int {
 	fs := flag.NewFlagSet("login", flag.ContinueOnError)
 	endpoint := fs.String("endpoint", defaultEndpoint, "Keldron API endpoint")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Usage: keldron-agent login [flags]
+
+Authenticate with Keldron Cloud. Log in with email/password or paste
+your API key from app.keldron.ai.
+
+Non-interactive: set KELDRON_API_KEY or pipe the key via stdin.
+
+Flags:
+`)
+		fs.PrintDefaults()
+	}
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
 		return 1
 	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "login: unexpected argument: %s\n", fs.Arg(0))
+		return 1
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Non-interactive: environment variable.
+	if key := strings.TrimSpace(os.Getenv("KELDRON_API_KEY")); key != "" {
+		return apiKeyLogin(client, *endpoint, key)
+	}
+
+	// Non-interactive: piped stdin.
+	if !term.IsTerminal(int(syscall.Stdin)) {
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			key := strings.TrimSpace(scanner.Text())
+			if key != "" {
+				return apiKeyLogin(client, *endpoint, key)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "No API key provided on stdin")
+		return 1
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	sigReceived := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-sigChan:
+			signal.Stop(sigChan)
+			fmt.Println()
+			close(sigReceived)
+		case <-done:
+			return
+		}
+	}()
+	defer signal.Stop(sigChan)
+	defer close(done)
 
 	reader := bufio.NewReader(os.Stdin)
 
-	// Check if already logged in
 	existing, _ := credentials.Load()
-	if existing != nil && (existing.APIKey != "" || existing.Email != "") {
-		fmt.Printf("Already logged in as %s\n", existing.Email)
+	if existing != nil {
+		if strings.TrimSpace(existing.Email) != "" {
+			fmt.Printf("Already logged in as %s\n", existing.Email)
+		} else {
+			fmt.Println("Already logged in (API key on file)")
+		}
 		fmt.Print("Log in as a different account? (y/N): ")
-		answer, _ := reader.ReadString('\n')
+		answer, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+			return 1
+		}
 		if strings.TrimSpace(strings.ToLower(answer)) != "y" {
 			return 0
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("How would you like to log in?")
+	fmt.Println("  1. Email and password")
+	fmt.Println("  2. Paste API key (from app.keldron.ai)")
+	fmt.Println()
+	for {
+		fmt.Print("Choice (1/2): ")
+		choice, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+			return 1
+		}
+		choice = strings.TrimSpace(choice)
+		switch choice {
+		case "1":
+			return emailPasswordLogin(reader, client, *endpoint, sigReceived)
+		case "2":
+			fmt.Print("API key: ")
+			keyBytes, err := term.ReadPassword(int(syscall.Stdin))
+			fmt.Println()
+			if err != nil {
+				if interrupted(sigReceived) {
+					return 130
+				}
+				fmt.Fprintf(os.Stderr, "Error reading API key: %v\n", err)
+				return 1
+			}
+			if interrupted(sigReceived) {
+				return 130
+			}
+			key := strings.TrimSpace(string(keyBytes))
+			if key == "" {
+				fmt.Fprintln(os.Stderr, "API key cannot be empty")
+				return 1
+			}
+			return apiKeyLogin(client, *endpoint, key)
+		default:
+			fmt.Fprintln(os.Stderr, "Please enter 1 or 2.")
+		}
+	}
+}
+
+func interrupted(sigReceived <-chan struct{}) bool {
+	select {
+	case <-sigReceived:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeEndpoint(endpoint string) (base string, err error) {
+	base = strings.TrimRight(endpoint, "/")
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", errEndpointMissingScheme
+	}
+	host := parsed.Hostname()
+	isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
+	if parsed.Scheme != "https" && !(isLocal && parsed.Scheme == "http") {
+		return "", errEndpointNeedsHTTPS
+	}
+	return base, nil
+}
+
+func validateAPIKey(client *http.Client, base, key string) error {
+	req, err := http.NewRequest(http.MethodGet, base+"/v1/fleet/overview", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-API-Key", key)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("Connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return errInvalidAPIKey
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	msg := strings.TrimSpace(string(body))
+	if msg != "" {
+		return fmt.Errorf("API key check failed (HTTP %d): %s", resp.StatusCode, msg)
+	}
+	return fmt.Errorf("API key check failed (HTTP %d)", resp.StatusCode)
+}
+
+func apiKeyLogin(client *http.Client, endpoint, key string) int {
+	base, err := normalizeEndpoint(endpoint)
+	if err != nil {
+		if errors.Is(err, errEndpointMissingScheme) {
+			fmt.Fprintln(os.Stderr, "Endpoint must include a scheme (e.g. https://api.keldron.ai).")
+			return 1
+		}
+		if errors.Is(err, errEndpointNeedsHTTPS) {
+			fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Invalid endpoint URL: %v\n", err)
+		return 1
+	}
+
+	if err := validateAPIKey(client, base, key); err != nil {
+		if errors.Is(err, errInvalidAPIKey) {
+			fmt.Fprintln(os.Stderr, "✗ Invalid API key. Check your key at app.keldron.ai and try again.")
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
+
+	creds := &credentials.Credentials{
+		APIKey:    key,
+		Email:     "",
+		AccountID: "",
+		Endpoint:  base,
+	}
+	if err := credentials.Save(creds); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to save credentials: %v\n", err)
+		return 1
+	}
+
+	fmt.Println("✓ API key verified and saved to ~/.keldron/credentials")
+	fmt.Println("  Your agent will now stream telemetry to Keldron Cloud.")
+	fmt.Println("  Restart the agent to begin streaming.")
+	return 0
+}
+
+func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint string, sigReceived <-chan struct{}) int {
 	fmt.Print("Email: ")
-	email, _ := reader.ReadString('\n')
+	email, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+		return 1
+	}
 	email = strings.TrimSpace(email)
 	if email == "" {
 		fmt.Fprintln(os.Stderr, "Email cannot be empty")
@@ -59,8 +269,14 @@ func Run(args []string) int {
 	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 	fmt.Println()
 	if err != nil {
+		if interrupted(sigReceived) {
+			return 130
+		}
 		fmt.Fprintf(os.Stderr, "Error reading password: %v\n", err)
 		return 1
+	}
+	if interrupted(sigReceived) {
+		return 130
 	}
 	password := string(passwordBytes)
 
@@ -73,20 +289,20 @@ func Run(args []string) int {
 		return 1
 	}
 
-	base := strings.TrimRight(*endpoint, "/")
-	parsed, err := url.Parse(base)
+	base, err := normalizeEndpoint(endpoint)
 	if err != nil {
+		if errors.Is(err, errEndpointMissingScheme) {
+			fmt.Fprintln(os.Stderr, "Endpoint must include a scheme (e.g. https://api.keldron.ai).")
+			return 1
+		}
+		if errors.Is(err, errEndpointNeedsHTTPS) {
+			fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
+			return 1
+		}
 		fmt.Fprintf(os.Stderr, "Invalid endpoint URL: %v\n", err)
 		return 1
 	}
-	host := parsed.Hostname()
-	isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
-	if parsed.Scheme != "https" && !isLocal {
-		fmt.Fprintln(os.Stderr, "Endpoint must use HTTPS for non-local hosts.")
-		return 1
-	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Post(
 		base+"/v1/auth/login",
 		"application/json",
@@ -140,7 +356,7 @@ func Run(args []string) int {
 		APIKey:    apiKey,
 		Email:     emailOut,
 		AccountID: strings.TrimSpace(result.AccountID),
-		Endpoint:  *endpoint,
+		Endpoint:  base,
 	}
 	if err := credentials.Save(creds); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save credentials: %v\n", err)

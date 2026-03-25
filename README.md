@@ -52,6 +52,50 @@ curl localhost:9100/metrics | grep keldron_gpu_temperature
 # keldron_gpu_temperature_celsius{device_model="M4-Pro",device_vendor="apple",...} 52.3
 ```
 
+### Connect to Keldron Cloud
+
+Stream telemetry to the cloud for 180-day history, fleet analytics, and device health tracking.
+
+The examples below use `keldron-agent` (the name from `make` / `go build -o keldron-agent ./cmd/agent`). If you installed with `go install ... cmd/agent@latest`, the binary is named `agent` — use `agent login`, `agent whoami`, etc.
+
+**Option 1: Interactive login**
+
+```bash
+keldron-agent login
+```
+
+**Option 2: Paste your API key from app.keldron.ai**
+
+```bash
+keldron-agent login --api-key kldn_live_your_key_here
+```
+
+**Option 3: Environment variable**
+
+```bash
+export KELDRON_CLOUD_API_KEY=kldn_live_your_key_here
+keldron-agent
+```
+
+Check your connection:
+
+```bash
+keldron-agent whoami
+```
+
+Sign up for free at [app.keldron.ai](https://app.keldron.ai).
+
+### CLI reference
+
+| Command | Purpose |
+|--------|---------|
+| `login` | Authenticate with Keldron Cloud |
+| `logout` | Remove stored credentials |
+| `whoami` | Show current Cloud connection (masked API key and endpoint) |
+| `scan` | One-shot device/fleet status query |
+
+Run `keldron-agent --help` and `keldron-agent <command> -h` for flags.
+
 ## What You Get
 
 Example Prometheus output (real data from Apple Silicon):
@@ -140,7 +184,7 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 ```text
 Adapters → Normalizer → Risk Engine → Prometheus /metrics
 (IOKit, NVML,                          Stdout JSON
- ROCm, hwmon)                          (future: Cloud API)
+ ROCm, hwmon)                          Keldron Cloud (optional)
 ```
 
 ## Grafana Dashboard
@@ -148,20 +192,6 @@ Adapters → Normalizer → Risk Engine → Prometheus /metrics
 Import our example dashboard:
 
 *(Screenshot placeholder — dashboard JSON in [configs/](configs/) coming soon)*
-
-## Fleet Monitoring *(planned)*
-
-Hub mode is not yet implemented. The following config block shows the planned
-interface for inter-machine aggregation:
-
-```yaml
-# planned — not yet functional
-hub:
-  enabled: true
-  static_peers: ["192.168.1.10:9100", "192.168.1.11:9100"]
-```
-
-Coming soon: **keldron-hub** for fleet-wide aggregation.
 
 ## Upgrade Path
 
