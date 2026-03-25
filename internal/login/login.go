@@ -134,6 +134,10 @@ func Run(args []string) int {
 	fmt.Println()
 	fmt.Println("Your agent will now stream telemetry to Keldron Cloud.")
 	fmt.Println("Restart the agent to begin streaming, or run:")
-	fmt.Printf("  KELDRON_CLOUD_API_KEY=%s keldron-agent\n", apiKey)
+	masked := apiKey
+	if len(apiKey) > 8 {
+		masked = apiKey[:4] + strings.Repeat("*", len(apiKey)-8) + apiKey[len(apiKey)-4:]
+	}
+	fmt.Printf("  KELDRON_CLOUD_API_KEY=%s keldron-agent\n", masked)
 	return 0
 }
