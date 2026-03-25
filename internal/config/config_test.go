@@ -80,6 +80,7 @@ health:
 }
 
 func TestLoad_MissingFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// OSS-004: Missing file uses defaults with auto-detection (no error).
 	cfg, err := Load("/nonexistent/config.yaml")
 	if err != nil {
