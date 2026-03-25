@@ -131,7 +131,7 @@ func Run(args []string) int {
 		return 1
 	}
 
-	emailOut := result.Email
+	emailOut := strings.TrimSpace(result.Email)
 	if emailOut == "" {
 		emailOut = email
 	}
