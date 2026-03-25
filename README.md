@@ -184,7 +184,7 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 ```text
 Adapters → Normalizer → Risk Engine → Prometheus /metrics
 (IOKit, NVML,                          Stdout JSON
- ROCm, hwmon)                          (future: Cloud API)
+ ROCm, hwmon)                          Keldron Cloud (optional)
 ```
 
 ## Grafana Dashboard
@@ -192,20 +192,6 @@ Adapters → Normalizer → Risk Engine → Prometheus /metrics
 Import our example dashboard:
 
 *(Screenshot placeholder — dashboard JSON in [configs/](configs/) coming soon)*
-
-## Fleet Monitoring *(planned)*
-
-Hub mode is not yet implemented. The following config block shows the planned
-interface for inter-machine aggregation:
-
-```yaml
-# planned — not yet functional
-hub:
-  enabled: true
-  static_peers: ["192.168.1.10:9100", "192.168.1.11:9100"]
-```
-
-Coming soon: **keldron-hub** for fleet-wide aggregation.
 
 ## Upgrade Path
 
