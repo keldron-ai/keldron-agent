@@ -12,7 +12,7 @@
 agent:
   # device_name: ""              # Human-readable name (default: hostname)
   # id: ""                       # Unique agent ID (default: device_name or hostname)
-  poll_interval: "2s"            # How often to poll adapters (2s–5m)
+  poll_interval: "2s"            # How often to poll adapters (2s–5m). Use 10s–30s in production to reduce CPU/network load.
   log_level: "info"              # debug | info | warn | error
   electricity_rate: 0.12         # $/kWh for power cost estimates
   shutdown_timeout: "30s"        # Graceful shutdown deadline

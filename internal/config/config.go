@@ -301,7 +301,7 @@ func Defaults() *Config {
 		Agent: AgentConfig{
 			ID:              "agent-default",
 			DeviceName:      "",
-			PollInterval:    2 * time.Second,
+			PollInterval:    2 * time.Second, // Minimum allowed; use 10s–30s for production or resource-constrained environments.
 			LogLevel:        "info",
 			ElectricityRate: 0.12,
 			ShutdownTimeout: 30 * time.Second,
@@ -348,7 +348,7 @@ func Defaults() *Config {
 func defaultConfigLoad() *configLoad {
 	return &configLoad{
 		Agent: AgentConfig{
-			PollInterval:    2 * time.Second,
+			PollInterval:    2 * time.Second, // Minimum allowed; use 10s–30s for production.
 			LogLevel:        "info",
 			ElectricityRate: 0.12,
 			ShutdownTimeout: 30 * time.Second,

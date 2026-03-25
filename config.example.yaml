@@ -2,7 +2,7 @@
 
 agent:
   id: "agent-rack-01"            # Unique agent identifier
-  poll_interval: "2s"            # How often to poll adapters (2s–5m)
+  poll_interval: "2s"            # How often to poll adapters (2s–5m). Use 10s–30s in production to reduce CPU/network load.
   log_level: "info"              # debug | info | warn | error
   shutdown_timeout: "30s"        # Graceful shutdown deadline
 
