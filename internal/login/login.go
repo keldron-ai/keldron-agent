@@ -139,7 +139,7 @@ func Run(args []string) int {
 	creds := &credentials.Credentials{
 		APIKey:    apiKey,
 		Email:     emailOut,
-		AccountID: result.AccountID,
+		AccountID: strings.TrimSpace(result.AccountID),
 		Endpoint:  *endpoint,
 	}
 	if err := credentials.Save(creds); err != nil {
