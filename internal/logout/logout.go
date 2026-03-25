@@ -35,10 +35,6 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Failed to read credentials: %v\n", err)
 		return 1
 	}
-	if existing == nil {
-		fmt.Println("Not logged in.")
-		return 0
-	}
 
 	email := existing.Email
 

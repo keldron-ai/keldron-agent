@@ -126,6 +126,10 @@ func Run(args []string) int {
 		fmt.Fprintln(os.Stderr, "Login response did not include an API key or token.")
 		return 1
 	}
+	if strings.TrimSpace(result.AccountID) == "" {
+		fmt.Fprintln(os.Stderr, "Login response did not include an account ID.")
+		return 1
+	}
 
 	emailOut := result.Email
 	if emailOut == "" {
