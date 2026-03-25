@@ -119,7 +119,11 @@ Flags:
 	fmt.Println()
 	for {
 		fmt.Print("Choice (1/2): ")
-		choice, _ := reader.ReadString('\n')
+		choice, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nFailed to read input: %v\n", err)
+			return 1
+		}
 		choice = strings.TrimSpace(choice)
 		switch choice {
 		case "1":
@@ -170,7 +174,7 @@ func normalizeEndpoint(endpoint string) (base string, err error) {
 	}
 	host := parsed.Hostname()
 	isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
-	if parsed.Scheme != "https" && !isLocal {
+	if parsed.Scheme != "https" && !(isLocal && parsed.Scheme == "http") {
 		return "", errEndpointNeedsHTTPS
 	}
 	return base, nil
