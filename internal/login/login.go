@@ -59,12 +59,18 @@ Flags:
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	done := make(chan struct{})
 	go func() {
-		<-sigChan
-		signal.Stop(sigChan)
-		fmt.Println()
-		os.Exit(130)
+		select {
+		case <-sigChan:
+			signal.Stop(sigChan)
+			fmt.Println()
+			os.Exit(130)
+		case <-done:
+			return
+		}
 	}()
+	defer close(done)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 

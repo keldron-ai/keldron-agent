@@ -25,8 +25,9 @@ func Run(args []string) int {
 		return 0
 	}
 
-	if strings.TrimSpace(creds.Email) != "" {
-		fmt.Printf("Email:    %s\n", creds.Email)
+	trimmedEmail := strings.TrimSpace(creds.Email)
+	if trimmedEmail != "" {
+		fmt.Printf("Email:    %s\n", trimmedEmail)
 	}
 	if strings.TrimSpace(creds.AccountID) != "" {
 		fmt.Printf("Account:  %s\n", creds.AccountID)
@@ -37,7 +38,7 @@ func Run(args []string) int {
 		endpoint = defaultEndpoint
 	}
 	fmt.Printf("Endpoint: %s\n", endpoint)
-	if strings.TrimSpace(creds.Email) == "" {
+	if trimmedEmail == "" {
 		fmt.Println("(Logged in via API key — email not available)")
 	}
 	return 0
