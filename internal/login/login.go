@@ -36,12 +36,13 @@ var (
 func Run(args []string) int {
 	fs := flag.NewFlagSet("login", flag.ContinueOnError)
 	endpoint := fs.String("endpoint", defaultEndpoint, "Keldron API endpoint")
-	apiKeyFlag := fs.String("api-key", "", "API key (skips interactive prompts)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: keldron-agent login [flags]
 
 Authenticate with Keldron Cloud. Log in with email/password or paste
 your API key from app.keldron.ai.
+
+Non-interactive: set KELDRON_API_KEY or pipe the key via stdin.
 
 Flags:
 `)
@@ -58,27 +59,42 @@ Flags:
 		return 1
 	}
 
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Non-interactive: environment variable.
+	if key := strings.TrimSpace(os.Getenv("KELDRON_API_KEY")); key != "" {
+		return apiKeyLogin(client, *endpoint, key)
+	}
+
+	// Non-interactive: piped stdin.
+	if !term.IsTerminal(int(syscall.Stdin)) {
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			key := strings.TrimSpace(scanner.Text())
+			if key != "" {
+				return apiKeyLogin(client, *endpoint, key)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "No API key provided on stdin")
+		return 1
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	sigReceived := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		select {
 		case <-sigChan:
 			signal.Stop(sigChan)
 			fmt.Println()
-			os.Exit(130)
+			close(sigReceived)
 		case <-done:
 			return
 		}
 	}()
+	defer signal.Stop(sigChan)
 	defer close(done)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	keyFromFlag := strings.TrimSpace(*apiKeyFlag)
-	if keyFromFlag != "" {
-		return apiKeyLogin(client, *endpoint, keyFromFlag)
-	}
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -107,14 +123,20 @@ Flags:
 		choice = strings.TrimSpace(choice)
 		switch choice {
 		case "1":
-			return emailPasswordLogin(reader, client, *endpoint)
+			return emailPasswordLogin(reader, client, *endpoint, sigReceived)
 		case "2":
 			fmt.Print("API key: ")
 			keyBytes, err := term.ReadPassword(int(syscall.Stdin))
 			fmt.Println()
 			if err != nil {
+				if interrupted(sigReceived) {
+					return 130
+				}
 				fmt.Fprintf(os.Stderr, "Error reading API key: %v\n", err)
 				return 1
+			}
+			if interrupted(sigReceived) {
+				return 130
 			}
 			key := strings.TrimSpace(string(keyBytes))
 			if key == "" {
@@ -125,6 +147,15 @@ Flags:
 		default:
 			fmt.Fprintln(os.Stderr, "Please enter 1 or 2.")
 		}
+	}
+}
+
+func interrupted(sigReceived <-chan struct{}) bool {
+	select {
+	case <-sigReceived:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -213,7 +244,7 @@ func apiKeyLogin(client *http.Client, endpoint, key string) int {
 	return 0
 }
 
-func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint string) int {
+func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint string, sigReceived <-chan struct{}) int {
 	fmt.Print("Email: ")
 	email, _ := reader.ReadString('\n')
 	email = strings.TrimSpace(email)
@@ -226,8 +257,14 @@ func emailPasswordLogin(reader *bufio.Reader, client *http.Client, endpoint stri
 	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 	fmt.Println()
 	if err != nil {
+		if interrupted(sigReceived) {
+			return 130
+		}
 		fmt.Fprintf(os.Stderr, "Error reading password: %v\n", err)
 		return 1
+	}
+	if interrupted(sigReceived) {
+		return 130
 	}
 	password := string(passwordBytes)
 
