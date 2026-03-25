@@ -43,8 +43,11 @@ Field names **differ by endpoint** — see [Cloud API field names](#cloud-api-fi
 # Check 1: Is the local agent running?
 LOCAL_AGENT=$(curl -sf localhost:9100/healthz 2>/dev/null | jq -r '.status' 2>/dev/null)
 
-# Check 2: Is cloud configured?
+# Check 2: Is cloud configured? (env → ~/.keldron/credentials from login → YAML)
 CLOUD_KEY="${KELDRON_CLOUD_API_KEY:-}"
+if [ -z "$CLOUD_KEY" ] && [ -f ~/.keldron/credentials ] && command -v jq &>/dev/null; then
+  CLOUD_KEY=$(jq -r '.api_key // ""' ~/.keldron/credentials 2>/dev/null)
+fi
 if [ -z "$CLOUD_KEY" ]; then
   if command -v yq &>/dev/null; then
     CLOUD_KEY=$(yq '.cloud.api_key // ""' ~/.config/keldron/keldron-agent.yaml 2>/dev/null)
@@ -54,7 +57,7 @@ if [ -z "$CLOUD_KEY" ]; then
   fi
 fi
 if [ -z "$CLOUD_KEY" ]; then
-  echo "No cloud API key found. Set KELDRON_CLOUD_API_KEY or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
+  echo "No cloud API key found. Run keldron-agent login (or keldron-agent login --api-key …), or set KELDRON_CLOUD_API_KEY, or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
 fi
 
 # Check 3: Does cloud respond? (only if we have a key)
@@ -165,6 +168,16 @@ Report initial readings (temperature, utilization, risk score) from [Quick statu
 
 ### Step 4: Offer cloud connection
 
+Guide the user conversationally (binary may be `agent` if installed via `go install …/cmd/agent`):
+
+1. **Account:** Ask: *Do you have a Keldron Cloud account? You can sign up free at https://app.keldron.ai*
+2. **If yes:** *Run `keldron-agent login` — you can use email/password or paste your API key (option 2 in the menu).*
+3. **If no:** *Sign up at https://app.keldron.ai (GitHub login available), then run `keldron-agent login`.*
+4. **Verify:** *Run `keldron-agent whoami` to confirm you're connected.*
+5. **Restart** the agent so it picks up credentials and begins streaming.
+
+If they are not yet interested, summarize value:
+
 ```bash
 if [ -n "$CLOUD_KEY" ]; then
   echo "Cloud already connected."
@@ -175,14 +188,14 @@ else
   echo "  • Device health tracking"
   echo "  • Proactive fleet alerts"
   echo "  • Dashboard at app.keldron.ai"
-  echo ""
-  echo "Sign up at https://app.keldron.ai, grab your API key, and tell me the key."
 fi
 ```
 
-### Step 5: Configure cloud (when user provides an API key starting with `kldn_`)
+### Step 5 optional: env or YAML without CLI login
 
-Set the key in a temporary environment variable — do not echo or paste the full key into commands or transcripts (see [Rules](#13-rules)).
+**Prefer [Step 4](#step-4-offer-cloud-connection) (`keldron-agent login` or `keldron-agent login --api-key …`) for normal setup.** Use this path when the user cannot run the interactive CLI (CI, containers without TTY) or explicitly wants config-file or env-only configuration.
+
+When setting a key starting with `kldn_`, use a temporary environment variable — do not echo or paste the full key into commands or transcripts (see [Rules](#13-rules)).
 
 ```bash
 # Store the user-provided key in a variable (do not inline the raw key)
@@ -238,12 +251,22 @@ Tell the user: *Cloud connected. Your device is streaming to Keldron Cloud. Dash
 
 ## 4. Cloud connection
 
-- **Environment variable:** `KELDRON_CLOUD_API_KEY` (preferred).
-- **Config file:** `~/.config/keldron/keldron-agent.yaml` under `cloud.api_key` (see Step 5 above).
+- **CLI (primary):** `keldron-agent login` or `keldron-agent login --api-key <key>` — stores credentials under `~/.keldron/credentials` (use `agent` instead of `keldron-agent` if that is how the binary was installed).
+- **Environment variable (alternative):** `KELDRON_CLOUD_API_KEY`.
+- **Config file (alternative):** `~/.config/keldron/keldron-agent.yaml` under `cloud.api_key` (see [Step 5 optional](#step-5-optional-env-or-yaml-without-cli-login) for automation-only edits).
 - **HTTP header** for API calls: `X-API-Key: <key>`.
 - **Base URL:** `https://api.keldron.ai`
 
 Never store or paste a full API key into this skill file. When confirming configuration, show at most the first 8 characters, e.g. `kldn_liv…`.
+
+### Interaction patterns (cloud)
+
+| User says | Skill response |
+|-----------|------------------|
+| "connect to cloud" / "set up cloud" | Guide through `keldron-agent login` (email/password or paste API key); sign up at app.keldron.ai if needed. |
+| "am I connected to cloud?" | Have them run `keldron-agent whoami` (or use [Check 2](#mode-detection-run-at-the-start-of-an-interaction) for `CLOUD_KEY`). |
+| "log out of cloud" / "disconnect" | Run `keldron-agent logout`; note the agent falls back to local-only unless `KELDRON_CLOUD_API_KEY` or YAML still sets a key. |
+| "how do I get my API key?" | Sign in at app.keldron.ai — your API key is shown in the app. Or run `keldron-agent login` to authenticate without manually copying into YAML. |
 
 ---
 
@@ -659,7 +682,7 @@ Report the `healthz` response to confirm it is up.
 ## 13. Rules
 
 - **Always check agent health first.** Before any local query, verify: `curl -sf localhost:9100/healthz | jq -e '.status == "healthy"'`. Non-zero exit = agent down. Offer to start it or guide setup.
-- **Auto-detect mode.** Check for cloud API key (`KELDRON_CLOUD_API_KEY` or `~/.config/keldron/keldron-agent.yaml`) before interactions. Use cloud for fleet, history, analytics; local for realtime single-device.
+- **Auto-detect mode.** Check for cloud API key: `KELDRON_CLOUD_API_KEY`, then `~/.keldron/credentials` (from `keldron-agent login`), then `cloud.api_key` in `~/.config/keldron/keldron-agent.yaml`. Optionally confirm with `keldron-agent whoami`. Use cloud for fleet, history, analytics; local for realtime single-device.
 - **Guide setup, don't just explain.** When the agent or cloud is not configured, walk through steps and run commands.
 - **If metrics return 0 for temperature, the agent may still be warming up.** Wait 30 seconds and retry once.
 - **Always include severity assessment.** Report severity (normal/warning/critical) alongside numeric scores where applicable.
