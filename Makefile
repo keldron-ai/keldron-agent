@@ -33,5 +33,7 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 9100:9100 -p 8081:8081 \
+	  -e KELDRON_OUTPUT_PROMETHEUS_HOST=0.0.0.0 \
+	  -e KELDRON_HEALTH_BIND=0.0.0.0:8081 \
 	  -v $(PWD)/configs/keldron-agent.example.yaml:/etc/keldron/keldron-agent.yaml:ro \
 	  keldron-agent:$(VERSION)

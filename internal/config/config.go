@@ -194,10 +194,11 @@ func (s *SlurmConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // OutputConfig holds output mode settings.
 type OutputConfig struct {
-	Stdout         bool `yaml:"stdout"`
-	Prometheus     bool `yaml:"prometheus"`
-	PrometheusPort int  `yaml:"prometheus_port"`
-	MDNSAdvertise  bool `yaml:"mdns_advertise"`
+	Stdout         bool   `yaml:"stdout"`
+	Prometheus     bool   `yaml:"prometheus"`
+	PrometheusPort int    `yaml:"prometheus_port"`
+	PrometheusHost string `yaml:"prometheus_host"` // bind address; default 127.0.0.1 (localhost-only)
+	MDNSAdvertise  bool   `yaml:"mdns_advertise"`
 }
 
 // HubConfig holds hub aggregator settings.
@@ -205,6 +206,7 @@ type HubConfig struct {
 	Enabled        bool          `yaml:"enabled"`
 	mdnsEnabled    *bool         // set by UnmarshalYAML; nil = default true when Enabled
 	StaticPeers    []string      `yaml:"static_peers"`
+	ListenHost     string        `yaml:"listen_host"` // bind address; default 127.0.0.1 (localhost-only)
 	ListenPort     int           `yaml:"listen_port"`
 	ScrapeInterval time.Duration `yaml:"scrape_interval"`
 }
@@ -312,6 +314,7 @@ func Defaults() *Config {
 			Stdout:         false,
 			Prometheus:     true,
 			PrometheusPort: 9100,
+			PrometheusHost: "127.0.0.1",
 			MDNSAdvertise:  true,
 		},
 		API: APIConfig{
@@ -323,6 +326,7 @@ func Defaults() *Config {
 		Hub: HubConfig{
 			Enabled:        false,
 			StaticPeers:    nil,
+			ListenHost:     "127.0.0.1",
 			ListenPort:     9200,
 			ScrapeInterval: 30 * time.Second,
 		},
@@ -339,7 +343,7 @@ func Defaults() *Config {
 		},
 		Health: HealthConfig{
 			Enabled: true,
-			Bind:    ":8081",
+			Bind:    "127.0.0.1:8081",
 		},
 	}
 }
@@ -356,6 +360,7 @@ func defaultConfigLoad() *configLoad {
 		Output: OutputConfig{
 			Prometheus:     true,
 			PrometheusPort: 9100,
+			PrometheusHost: "127.0.0.1",
 			MDNSAdvertise:  true,
 		},
 		API: APIConfig{
@@ -365,6 +370,7 @@ func defaultConfigLoad() *configLoad {
 			HistoryPoints: 720,
 		},
 		Hub: HubConfig{
+			ListenHost:     "127.0.0.1",
 			ListenPort:     9200,
 			ScrapeInterval: 30 * time.Second,
 		},
@@ -386,7 +392,7 @@ func defaultConfigLoad() *configLoad {
 		},
 		Health: HealthConfig{
 			Enabled: true,
-			Bind:    ":8081",
+			Bind:    "127.0.0.1:8081",
 		},
 	}
 }
@@ -488,6 +494,15 @@ func toConfig(load *configLoad) *Config {
 	}
 	if cfg.API.Host == "" {
 		cfg.API.Host = "127.0.0.1"
+	}
+	if cfg.Output.PrometheusHost == "" {
+		cfg.Output.PrometheusHost = "127.0.0.1"
+	}
+	if cfg.Hub.ListenHost == "" {
+		cfg.Hub.ListenHost = "127.0.0.1"
+	}
+	if cfg.Health.Bind == "" {
+		cfg.Health.Bind = "127.0.0.1:8081"
 	}
 	if cfg.API.HistoryPoints <= 0 {
 		cfg.API.HistoryPoints = 720
@@ -671,6 +686,9 @@ func ApplyEnvOverrides(load *configLoad) {
 			load.Output.PrometheusPort = p
 		}
 	}
+	if v := os.Getenv("KELDRON_OUTPUT_PROMETHEUS_HOST"); v != "" {
+		load.Output.PrometheusHost = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("KELDRON_OUTPUT_MDNS_ADVERTISE"); v != "" {
 		load.Output.MDNSAdvertise = parseBool(v)
 	}
@@ -692,6 +710,9 @@ func ApplyEnvOverrides(load *configLoad) {
 			load.Hub.ListenPort = p
 		}
 	}
+	if v := os.Getenv("KELDRON_HUB_HOST"); v != "" {
+		load.Hub.ListenHost = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("KELDRON_HUB_SCRAPE_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			load.Hub.ScrapeInterval = d
@@ -702,6 +723,12 @@ func ApplyEnvOverrides(load *configLoad) {
 	}
 	if v := os.Getenv("KELDRON_CLOUD_ENDPOINT"); v != "" {
 		load.Cloud.Endpoint = v
+	}
+	if v := os.Getenv("KELDRON_HEALTH_ENABLED"); v != "" {
+		load.Health.Enabled = parseBool(v)
+	}
+	if v := os.Getenv("KELDRON_HEALTH_BIND"); v != "" {
+		load.Health.Bind = strings.TrimSpace(v)
 	}
 }
 
@@ -805,9 +832,15 @@ func Validate(cfg *Config) error {
 	if cfg.Output.Prometheus && (cfg.Output.PrometheusPort < 1 || cfg.Output.PrometheusPort > 65535) {
 		return fmt.Errorf("output.prometheus_port must be between 1 and 65535 (got %d)", cfg.Output.PrometheusPort)
 	}
+	if cfg.Output.Prometheus && strings.TrimSpace(cfg.Output.PrometheusHost) == "" {
+		return fmt.Errorf("output.prometheus_host must be non-empty when output.prometheus is true")
+	}
 
 	if cfg.Hub.Enabled && cfg.Hub.ListenPort <= 0 {
 		return fmt.Errorf("hub.listen_port must be > 0 when hub.enabled is true")
+	}
+	if cfg.Hub.Enabled && strings.TrimSpace(cfg.Hub.ListenHost) == "" {
+		return fmt.Errorf("hub.listen_host must be non-empty when hub.enabled is true")
 	}
 	if cfg.Hub.Enabled && cfg.Hub.ScrapeInterval <= 0 {
 		return fmt.Errorf("hub.scrape_interval must be > 0 when hub.enabled is true")

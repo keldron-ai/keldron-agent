@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,6 +38,7 @@ const (
 // Prometheus implements Output by exposing a Prometheus /metrics endpoint
 // and updating gauges from TelemetryPoints.
 type Prometheus struct {
+	bindHost              string
 	port                  int
 	version               string
 	deviceName            string
@@ -87,15 +89,18 @@ type Prometheus struct {
 	agentInfo *prometheus.GaugeVec
 }
 
-// NewPrometheus creates a Prometheus output that serves /metrics on the given port.
-func NewPrometheus(port int, version, deviceName string, logger *slog.Logger) *Prometheus {
-	return NewPrometheusWithRegistry(port, version, deviceName, prometheus.DefaultRegisterer, logger)
+// NewPrometheus creates a Prometheus output that serves /metrics on bindHost:port (default bind is localhost-only).
+func NewPrometheus(bindHost string, port int, version, deviceName string, logger *slog.Logger) *Prometheus {
+	return NewPrometheusWithRegistry(bindHost, port, version, deviceName, prometheus.DefaultRegisterer, logger)
 }
 
 // NewPrometheusWithRegistry creates a Prometheus output with a custom registry (for testing).
-func NewPrometheusWithRegistry(port int, version, deviceName string, reg prometheus.Registerer, logger *slog.Logger) *Prometheus {
+func NewPrometheusWithRegistry(bindHost string, port int, version, deviceName string, reg prometheus.Registerer, logger *slog.Logger) *Prometheus {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if bindHost == "" {
+		bindHost = "127.0.0.1"
 	}
 
 	// Determine the matching gatherer for the registerer.
@@ -107,6 +112,7 @@ func NewPrometheusWithRegistry(port int, version, deviceName string, reg prometh
 	}
 
 	p := &Prometheus{
+		bindHost:              bindHost,
 		port:                  port,
 		version:               version,
 		deviceName:            deviceName,
@@ -280,7 +286,7 @@ func (p *Prometheus) Handler() http.Handler {
 
 // Start starts the HTTP server. Blocks until ctx is cancelled.
 func (p *Prometheus) Start(ctx context.Context) error {
-	addr := ":" + strconv.Itoa(p.port)
+	addr := net.JoinHostPort(p.bindHost, strconv.Itoa(p.port))
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      p.Handler(),

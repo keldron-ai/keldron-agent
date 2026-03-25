@@ -140,4 +140,4 @@ buffer:
 # Health endpoint (S-007)
 health:
   enabled: true
-  bind: ":8081"
+  bind: "127.0.0.1:8081"         # Default localhost only; use 0.0.0.0:8081 for remote probes

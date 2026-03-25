@@ -6,7 +6,25 @@ keldron-agent.dev.yaml
 /agent
 /mock-server
 *.exe
-.env
+# Environment files
+.env*
+*.env
+.env.*.local
+
+# Certificates, keys, and keystores
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.pfx
+*.p12
+*.jks
+*.keystore
+id_rsa
+id_dsa
+id_ed25519
+id_ecdsa
 .DS_Store
 coverage.out
 internal/api/static/

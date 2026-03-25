@@ -1,6 +1,10 @@
 services:
   keldron-agent:
     build: .
+    environment:
+      # Defaults are localhost-only; published ports require listening on all interfaces inside the container.
+      KELDRON_OUTPUT_PROMETHEUS_HOST: "0.0.0.0"
+      KELDRON_HEALTH_BIND: "0.0.0.0:8081"
     ports:
       - "9100:9100"
       - "8081:8081"

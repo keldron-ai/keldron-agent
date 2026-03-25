@@ -78,6 +78,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
+  // Theme CSS variables only (chart config); not arbitrary HTML — XSS-safe.
   return (
     <style
       dangerouslySetInnerHTML={{

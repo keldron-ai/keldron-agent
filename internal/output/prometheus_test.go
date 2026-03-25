@@ -19,7 +19,7 @@ import (
 
 func TestPrometheus_UpdateAndScrape(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "test-device", reg, nil)
+	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "test-device", reg, nil)
 
 	// Update with mock readings
 	readings := []normalizer.TelemetryPoint{
@@ -79,7 +79,7 @@ func TestPrometheus_UpdateAndScrape(t *testing.T) {
 
 func TestPrometheus_Healthz(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry(0, "0.1.0-dev", "test", reg, nil)
+	p := NewPrometheusWithRegistry("127.0.0.1", 0, "0.1.0-dev", "test", reg, nil)
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -95,7 +95,7 @@ func TestPrometheus_Healthz(t *testing.T) {
 
 func TestPrometheus_UpdateWithEmptyReadings(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "test", reg, nil)
+	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "test", reg, nil)
 
 	if err := p.Update(nil, nil); err != nil {
 		t.Errorf("Update(nil) = %v", err)
@@ -107,7 +107,7 @@ func TestPrometheus_UpdateWithEmptyReadings(t *testing.T) {
 
 func TestPrometheus_Status(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "my-device", reg, nil)
+	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "my-device", reg, nil)
 	p.SetActiveAdapters([]string{"dcgm", "fake"})
 
 	req := httptest.NewRequest("GET", "/api/v1/status", nil)
@@ -131,7 +131,7 @@ func TestPrometheus_Status(t *testing.T) {
 
 func TestPrometheus_AppleSiliconReading(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry(9100, "0.1.0-dev", "test-device", reg, nil)
+	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "test-device", reg, nil)
 
 	// Simulate exactly what the Apple Silicon adapter produces after normalization.
 	readings := []normalizer.TelemetryPoint{

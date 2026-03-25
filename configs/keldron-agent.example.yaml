@@ -112,6 +112,7 @@ output:
   stdout: false                  # Print JSON lines to stdout
   prometheus: true               # Expose /metrics endpoint
   prometheus_port: 9100          # Prometheus scrape port
+  # prometheus_host: "127.0.0.1" # Bind address — default localhost only; use 0.0.0.0 for LAN scrape (env: KELDRON_OUTPUT_PROMETHEUS_HOST)
   mdns_advertise: true           # Advertise via mDNS for zero-config discovery (set false to disable)
 
 # --- Dashboard API (OSS-028) ---
@@ -126,6 +127,7 @@ hub:
   enabled: false
   mdns_enabled: true             # Auto-discover peers via mDNS (default: true when hub enabled)
   static_peers: []               # e.g. ["192.168.1.10:9100", "192.168.1.11:9100"]
+  # listen_host: "127.0.0.1"     # Bind address — default localhost only; use 0.0.0.0 for LAN (env: KELDRON_HUB_HOST)
   listen_port: 9200              # Hub API port
   scrape_interval: "30s"         # How often to scrape peer /metrics
 
@@ -159,4 +161,4 @@ buffer:
 # --- Health endpoint ---
 health:
   enabled: true
-  bind: ":8081"
+  bind: "127.0.0.1:8081"         # Default localhost only; use 0.0.0.0:8081 for remote probes (env: KELDRON_HEALTH_BIND)

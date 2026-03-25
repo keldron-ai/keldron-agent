@@ -6,6 +6,7 @@ package hub
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -163,7 +164,11 @@ func (h *Hub) Start(ctx context.Context) error {
 	mux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	mux.Handle("/", h.api.Handler())
 
-	addr := ":" + strconv.Itoa(h.config.ListenPort)
+	host := h.config.ListenHost
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(h.config.ListenPort))
 	h.httpServer = &http.Server{
 		Addr:         addr,
 		Handler:      mux,

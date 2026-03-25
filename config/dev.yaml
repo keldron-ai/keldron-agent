@@ -57,4 +57,4 @@ buffer:
 
 health:
   enabled: true
-  bind: ":8081"
+  bind: "0.0.0.0:8081" # Docker: must listen on all interfaces for published port mapping
