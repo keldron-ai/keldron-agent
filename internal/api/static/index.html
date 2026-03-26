@@ -4,10 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Keldron</title>
-    <script type="module" crossorigin src="/assets/index-CRPWdIbx.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CEo1r5co.css">
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 600px; margin: 4rem auto; padding: 0 1rem; color: #333; }
+      h1 { margin-bottom: 0.5rem; }
+      code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; }
+      pre { background: #f0f0f0; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <h1>Dashboard not built</h1>
+    <p>The Keldron frontend has not been compiled yet. Build it with:</p>
+    <pre><code>make frontend-build</code></pre>
+    <p>Or build manually:</p>
+    <pre><code>cd frontend &amp;&amp; npm install &amp;&amp; npm run build</code></pre>
+    <p>After building, restart the agent to serve the dashboard.</p>
   </body>
 </html>
