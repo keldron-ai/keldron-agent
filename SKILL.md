@@ -270,7 +270,7 @@ EOF
 fi
 
 # Restart agent
-pkill -f keldron-agent
+pkill -f './keldron-agent'
 sleep 2
 ./keldron-agent --local &
 sleep 5
