@@ -9,6 +9,8 @@ One binary. Every GPU. Real risk scores — not just dashboards.
 - **NVIDIA datacenter** (H100/B200) — DCGM
 - **AMD** (MI300X, RX 7900 XTX) — ROCm SMI
 - **Any Linux machine** — hwmon/thermal sysfs
+ 
+![PNG image](https://github.com/user-attachments/assets/f9dc4123-709a-4d28-aab3-496a37119a6c)
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?color=00C9B0)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keldron-ai/keldron-agent?style=flat-square)](https://goreportcard.com/report/github.com/keldron-ai/keldron-agent)
