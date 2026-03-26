@@ -62,7 +62,7 @@ if [ -z "$CLOUD_KEY" ]; then
 fi
 CLOUD_ENDPOINT="${CLOUD_ENDPOINT:-https://api.keldron.ai}"
 if [ -z "$CLOUD_KEY" ]; then
-  echo "No cloud API key found. Run keldron-agent login (or set KELDRON_API_KEY for non-interactive login), set KELDRON_CLOUD_API_KEY to run the agent with streaming, or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
+  echo "No cloud API key found. Run keldron-agent login, set KELDRON_CLOUD_API_KEY (non-interactive login or streaming), or add cloud.api_key to ~/.config/keldron/keldron-agent.yaml. Sign up at https://app.keldron.ai"
 fi
 
 # Check 3: Does cloud respond? (only if we have a key)
@@ -83,27 +83,27 @@ fi
 
 ## 2. Installation
 
-Prefer a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) binary (`keldron-agent`). Building from source requires Go and Node.js (`make build` from a clone). `go install github.com/keldron-ai/keldron-agent/cmd/agent@latest` installs a binary named `agent` without the full Vite dashboard from the public module — use releases or `make build` for the full UI.
+Prefer a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) binary (`keldron-agent`). To build from source, clone the repo and run `make build` (requires Go and Node.js for the full dashboard).
 
 ### Mac (Apple Silicon)
 
 ```bash
-curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-darwin-arm64 -o /usr/local/bin/keldron-agent
-chmod +x /usr/local/bin/keldron-agent
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-darwin-arm64 -o keldron-agent
+chmod +x keldron-agent
 ```
 
 ### Linux (AMD64)
 
 ```bash
-curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-amd64 -o /usr/local/bin/keldron-agent
-chmod +x /usr/local/bin/keldron-agent
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-amd64 -o keldron-agent
+chmod +x keldron-agent
 ```
 
 ### Linux (ARM64)
 
 ```bash
-curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-arm64 -o /usr/local/bin/keldron-agent
-chmod +x /usr/local/bin/keldron-agent
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-arm64 -o keldron-agent
+chmod +x keldron-agent
 ```
 
 ### Linux (Docker)
@@ -121,7 +121,7 @@ docker run -d --name keldron-agent --restart unless-stopped \
 ### Verify installation
 
 ```bash
-keldron-agent --version
+./keldron-agent --version
 ```
 
 ---
@@ -156,12 +156,10 @@ fi
 
 ### Step 3: Install agent
 
-Download the release binary for the OS/arch, install to a directory on `PATH`, then start in local mode. Example:
+Download the release binary for the OS/arch into the current directory, then start in local mode. Example:
 
 ```bash
 ARCH=$(uname -m)
-INSTALL_DIR="${HOME}/.local/bin"
-mkdir -p "$INSTALL_DIR"
 
 if [ "$OS" = "Darwin" ]; then
   BINARY="keldron-agent-darwin-arm64"
@@ -172,9 +170,9 @@ else
 fi
 
 if [ "$OS" = "Darwin" ]; then
-  curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/keldron-agent"
-  chmod +x "${INSTALL_DIR}/keldron-agent"
-  "${INSTALL_DIR}/keldron-agent" --local &
+  curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o keldron-agent
+  chmod +x keldron-agent
+  ./keldron-agent --local &
   sleep 3
 fi
 
@@ -191,9 +189,9 @@ if [ "$OS" = "Linux" ]; then
       exit 1
     fi
   else
-    curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/keldron-agent"
-    chmod +x "${INSTALL_DIR}/keldron-agent"
-    "${INSTALL_DIR}/keldron-agent" --local &
+    curl -sfL "https://github.com/keldron-ai/keldron-agent/releases/latest/download/${BINARY}" -o keldron-agent
+    chmod +x keldron-agent
+    ./keldron-agent --local &
   fi
   sleep 3
 fi
@@ -230,7 +228,7 @@ fi
 
 ### Step 5 optional: env or YAML without CLI login
 
-**Prefer [Step 4](#step-4-offer-cloud-connection) (`keldron-agent login`) for normal setup.** Use this path when the user cannot run the interactive CLI (CI, containers without TTY) or explicitly wants config-file or env-only configuration. For non-interactive login, set `KELDRON_API_KEY` or pipe the key via stdin: `echo "$KEY" | keldron-agent login`.
+**Prefer [Step 4](#step-4-offer-cloud-connection) (`keldron-agent login`) for normal setup.** Use this path when the user cannot run the interactive CLI (CI, containers without TTY) or explicitly wants config-file or env-only configuration. For non-interactive login, set `KELDRON_CLOUD_API_KEY` or pipe the key via stdin: `echo "$KEY" | keldron-agent login`.
 
 When setting a key starting with `kldn_`, use a temporary environment variable — do not echo or paste the full key into commands or transcripts (see [Rules](#13-rules)).
 
@@ -272,9 +270,9 @@ EOF
 fi
 
 # Restart agent
-pkill -f keldron-agent || pkill -f "agent.*--local"
+pkill -f keldron-agent
 sleep 2
-keldron-agent --local &
+./keldron-agent --local &
 sleep 5
 
 # Verify cloud connection (optional — uses env var, not raw key)
@@ -288,8 +286,8 @@ Tell the user: *Cloud connected. Your device is streaming to Keldron Cloud. Dash
 
 ## 4. Cloud connection
 
-- **CLI (primary):** `keldron-agent login` — stores credentials under `~/.keldron/credentials`. For non-interactive use: set `KELDRON_API_KEY` or pipe via stdin.
-- **Environment variable (alternative):** `KELDRON_CLOUD_API_KEY`.
+- **CLI (primary):** `keldron-agent login` — stores credentials under `~/.keldron/credentials`. For non-interactive use: set `KELDRON_CLOUD_API_KEY` or pipe via stdin.
+- **Environment variable:** `KELDRON_CLOUD_API_KEY` is also read when running the agent for cloud streaming (in addition to non-interactive login).
 - **Config file (alternative):** `~/.config/keldron/keldron-agent.yaml` under `cloud.api_key` (see [Step 5 optional](#step-5-optional-env-or-yaml-without-cli-login) for automation-only edits).
 - **HTTP header** for API calls: `X-API-Key: <key>`.
 - **Base URL:** `https://api.keldron.ai`
@@ -692,7 +690,7 @@ All devices that stream to the same cloud account appear in the fleet automatica
 ### Stop monitoring
 
 ```bash
-pkill -f keldron-agent || pkill -f "agent.*--local"
+pkill -f keldron-agent
 ```
 
 Confirm: *Agent stopped. GPU monitoring is off.*
@@ -700,7 +698,7 @@ Confirm: *Agent stopped. GPU monitoring is off.*
 ### Restart the agent
 
 ```bash
-pkill -f keldron-agent || pkill -f "agent.*--local"
+pkill -f keldron-agent
 sleep 2
 keldron-agent --local &
 sleep 3

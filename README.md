@@ -36,7 +36,7 @@ make build
 ./keldron-agent --local
 ```
 
-`go install github.com/keldron-ai/keldron-agent/cmd/agent@latest` produces a binary named `agent` and does **not** ship the built Vite dashboard from the public module (only the minimal embedded placeholder). Use a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) or `make build` from a clone for the full UI.
+For production use, prefer a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) binary. `make build` from a clone produces the full dashboard.
 
 ### Linux
 
@@ -93,7 +93,7 @@ curl localhost:9100/metrics | grep keldron_gpu_temperature
 
 Stream telemetry to the cloud for 180-day history, fleet analytics, and device health tracking.
 
-Examples use the `keldron-agent` binary (from releases or `make build`). If you used `go install …/cmd/agent`, the binary is named `agent` — same subcommands (`agent login`, etc.).
+Use the `keldron-agent` binary from [releases](https://github.com/keldron-ai/keldron-agent/releases) or `make build`.
 
 **Option 1: Interactive login**
 
@@ -103,10 +103,8 @@ keldron-agent login
 
 **Option 2: Non-interactive login with an API key**
 
-Set the key for the login command (not `KELDRON_CLOUD_API_KEY`):
-
 ```bash
-export KELDRON_API_KEY=kldn_live_your_key_here
+export KELDRON_CLOUD_API_KEY=kldn_live_your_key_here
 keldron-agent login
 ```
 
