@@ -19,34 +19,64 @@ One binary. Every GPU. Real risk scores — not just dashboards.
 ### Mac (Apple Silicon)
 
 ```bash
-# Coming soon: brew install keldron-ai/tap/keldron-agent
-# For now, build from source:
-go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
-agent --local
+# Download the latest release
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-darwin-arm64 -o keldron-agent
+chmod +x keldron-agent
+./keldron-agent --local
+# → Dashboard at http://localhost:9200
 # → Prometheus metrics at http://localhost:9100/metrics
 ```
+
+Or build from source (needs Node.js / npm or pnpm for the full dashboard):
+
+```bash
+git clone https://github.com/keldron-ai/keldron-agent.git
+cd keldron-agent
+make build
+./keldron-agent --local
+```
+
+`go install github.com/keldron-ai/keldron-agent/cmd/agent@latest` produces a binary named `agent` and does **not** ship the built Vite dashboard from the public module (only the minimal embedded placeholder). Use a [GitHub release](https://github.com/keldron-ai/keldron-agent/releases) or `make build` from a clone for the full UI.
 
 ### Linux
 
 ```bash
-# Coming soon: curl -sfL https://get.keldron.ai | sh
-# For now, build from source:
-go install github.com/keldron-ai/keldron-agent/cmd/agent@latest
-agent --local
+# AMD64
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-amd64 -o keldron-agent
+chmod +x keldron-agent
+./keldron-agent --local
 
-# or build and run with Docker
+# Or ARM64 (e.g. Graviton)
+curl -sfL https://github.com/keldron-ai/keldron-agent/releases/latest/download/keldron-agent-linux-arm64 -o keldron-agent
+chmod +x keldron-agent
+./keldron-agent --local
+```
+
+Or with Docker (build the image locally, or use the registry image when published):
+
+```bash
 make docker-build
 make docker-run
+```
 
-# or run a pre-built image (when published)
-docker run -p 9100:9100 -p 8081:8081 \
+Pre-built image (when available on GHCR):
+
+```bash
+docker run --rm \
+  -p 9100:9100 -p 9200:9200 -p 8081:8081 \
   -e KELDRON_OUTPUT_PROMETHEUS_HOST=0.0.0.0 \
+  -e KELDRON_API_HOST=0.0.0.0 \
   -e KELDRON_HEALTH_BIND=0.0.0.0:8081 \
   ghcr.io/keldron-ai/keldron-agent:latest
+```
 
-# with a config file
-docker run -p 9100:9100 -p 8081:8081 \
+With a config file:
+
+```bash
+docker run --rm \
+  -p 9100:9100 -p 9200:9200 -p 8081:8081 \
   -e KELDRON_OUTPUT_PROMETHEUS_HOST=0.0.0.0 \
+  -e KELDRON_API_HOST=0.0.0.0 \
   -e KELDRON_HEALTH_BIND=0.0.0.0:8081 \
   -v $(pwd)/configs/keldron-agent.example.yaml:/etc/keldron/keldron-agent.yaml:ro \
   ghcr.io/keldron-ai/keldron-agent:latest
@@ -63,7 +93,7 @@ curl localhost:9100/metrics | grep keldron_gpu_temperature
 
 Stream telemetry to the cloud for 180-day history, fleet analytics, and device health tracking.
 
-The examples below use `keldron-agent` (the name from `make` / `go build -o keldron-agent ./cmd/agent`). If you installed with `go install ... cmd/agent@latest`, the binary is named `agent` — use `agent login`, `agent whoami`, etc.
+Examples use the `keldron-agent` binary (from releases or `make build`). If you used `go install …/cmd/agent`, the binary is named `agent` — same subcommands (`agent login`, etc.).
 
 **Option 1: Interactive login**
 
@@ -71,13 +101,18 @@ The examples below use `keldron-agent` (the name from `make` / `go build -o keld
 keldron-agent login
 ```
 
-**Option 2: Paste your API key from app.keldron.ai**
+**Option 2: Non-interactive login with an API key**
+
+Set the key for the login command (not `KELDRON_CLOUD_API_KEY`):
 
 ```bash
-keldron-agent login --api-key kldn_live_your_key_here
+export KELDRON_API_KEY=kldn_live_your_key_here
+keldron-agent login
 ```
 
-**Option 3: Environment variable**
+Or pipe the key: `printf '%s' 'kldn_live_your_key_here' | keldron-agent login`
+
+**Option 3: Run the agent with cloud streaming (no `login` step)**
 
 ```bash
 export KELDRON_CLOUD_API_KEY=kldn_live_your_key_here
@@ -175,7 +210,7 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 | `keldron_risk_thermal` | gauge | Thermal risk score |
 | `keldron_risk_power` | gauge | Power risk score |
 | `keldron_risk_volatility` | gauge | Volatility risk score |
-| `keldron_risk_fleet_penalty` | gauge | Fleet penalty risk score |
+| `keldron_risk_memory` | gauge | Memory-related risk score |
 | `keldron_risk_severity` | gauge | 0=normal, 1=warning, 2=critical |
 | `keldron_risk_warming_up` | gauge | 1 if device warming up, 0 otherwise |
 | `keldron_gpu_memory_pressure_ratio` | gauge | GPU memory used/total ratio |
@@ -191,8 +226,11 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 ```text
 Adapters → Normalizer → Risk Engine → Prometheus /metrics
 (IOKit, NVML,                          Stdout JSON
- ROCm, hwmon)                          Keldron Cloud (optional)
+ ROCm, hwmon)                          Local dashboard :9200 (embedded UI)
+                                       Keldron Cloud (optional)
 ```
+
+The web UI is embedded at build time from `frontend/` into `internal/api/static/` (`make build` or the Dockerfile). The committed `internal/api/static/index.html` is only a fallback so bare `go build` succeeds without Node.js.
 
 ## Security
 
