@@ -16,7 +16,7 @@ Device Health Dashboard:
 Fleet View for Mobile:
 
 <img width="316" height="577" alt="Screenshot 2026-03-26 at 3 59 48 PM" src="https://github.com/user-attachments/assets/f157f74e-5edd-4235-874e-eaaa4d396c3a" /> <img width="304" height="574" alt="Screenshot 2026-03-26 at 4 05 13 PM" src="https://github.com/user-attachments/assets/bf49ad78-2231-4d99-9650-27712d210182" />
-
+The left image shows a computer at an idle and the right image shows a computer running an inference job with ollama 
 
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?color=00C9B0)](https://opensource.org/licenses/Apache-2.0)
