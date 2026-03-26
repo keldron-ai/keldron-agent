@@ -42,7 +42,7 @@ func Run(args []string) int {
 Authenticate with Keldron Cloud. Log in with email/password or paste
 your API key from app.keldron.ai.
 
-Non-interactive: set KELDRON_API_KEY or pipe the key via stdin.
+Non-interactive: set KELDRON_CLOUD_API_KEY or pipe the key via stdin.
 
 Flags:
 `)
@@ -62,7 +62,11 @@ Flags:
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	// Non-interactive: environment variable.
+	if key := strings.TrimSpace(os.Getenv("KELDRON_CLOUD_API_KEY")); key != "" {
+		return apiKeyLogin(client, *endpoint, key)
+	}
 	if key := strings.TrimSpace(os.Getenv("KELDRON_API_KEY")); key != "" {
+		fmt.Fprintln(os.Stderr, "WARNING: KELDRON_API_KEY is deprecated; please use KELDRON_CLOUD_API_KEY")
 		return apiKeyLogin(client, *endpoint, key)
 	}
 
