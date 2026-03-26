@@ -310,7 +310,7 @@ Never store or paste a full API key into this skill file. When confirming config
 Start the agent in local mode:
 
 ```bash
-keldron-agent --local
+./keldron-agent --local
 ```
 
 The agent auto-detects hardware. Basic use needs no config.
@@ -690,7 +690,7 @@ All devices that stream to the same cloud account appear in the fleet automatica
 ### Stop monitoring
 
 ```bash
-pkill -f keldron-agent
+pkill -f './keldron-agent'
 ```
 
 Confirm: *Agent stopped. GPU monitoring is off.*
@@ -698,9 +698,9 @@ Confirm: *Agent stopped. GPU monitoring is off.*
 ### Restart the agent
 
 ```bash
-pkill -f keldron-agent
+pkill -f './keldron-agent'
 sleep 2
-keldron-agent --local &
+./keldron-agent --local &
 sleep 3
 curl -s localhost:9100/healthz
 ```

@@ -65,6 +65,10 @@ Flags:
 	if key := strings.TrimSpace(os.Getenv("KELDRON_CLOUD_API_KEY")); key != "" {
 		return apiKeyLogin(client, *endpoint, key)
 	}
+	if key := strings.TrimSpace(os.Getenv("KELDRON_API_KEY")); key != "" {
+		fmt.Fprintln(os.Stderr, "WARNING: KELDRON_API_KEY is deprecated; please use KELDRON_CLOUD_API_KEY")
+		return apiKeyLogin(client, *endpoint, key)
+	}
 
 	// Non-interactive: piped stdin.
 	if !term.IsTerminal(int(syscall.Stdin)) {
