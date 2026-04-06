@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -102,6 +103,39 @@ func TestPrometheus_UpdateWithEmptyReadings(t *testing.T) {
 	}
 	if err := p.Update([]normalizer.TelemetryPoint{}, nil); err != nil {
 		t.Errorf("Update([]) = %v", err)
+	}
+}
+
+func TestPrometheus_DeviceNameNotEmptyWhenUnset(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "", reg, nil)
+	if err := p.Update(nil, nil); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	srv := httptest.NewServer(p.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	metrics := string(b)
+	if strings.Contains(metrics, `device_name=""`) {
+		t.Errorf("keldron_agent_info must not use empty device_name; sample:\n%s", metrics)
+	}
+	want, err := os.Hostname()
+	if err != nil || strings.TrimSpace(want) == "" {
+		if !strings.Contains(metrics, `device_name="unknown"`) {
+			t.Errorf("expected device_name=unknown when hostname unavailable; got:\n%s", metrics)
+		}
+	} else if !strings.Contains(metrics, `device_name="`+want+`"`) {
+		t.Errorf("expected device_name label %q in keldron_agent_info", want)
 	}
 }
 
