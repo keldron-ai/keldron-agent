@@ -89,6 +89,17 @@ const unavailableMessages: Record<MetricKey, string> = {
   stability: "No data yet",
 }
 
+const VALID_RATINGS = new Set<string>([
+  "normal", "excellent", "stable", "compressed", "slow",
+  "elevated", "critical", "poor", "unstable", "good", "fair",
+])
+
+function toRating(val: string | null | undefined): Rating | undefined {
+  if (val == null) return undefined
+  const lower = val.toLowerCase()
+  return VALID_RATINGS.has(lower) ? (lower as Rating) : undefined
+}
+
 function getRatingColor(rating: Rating): string {
   switch (rating) {
     case "normal":
@@ -325,7 +336,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
       value: `${tdr.avg_temp_c.toFixed(0)}°C – ${tdr.max_temp_c.toFixed(0)}°C`,
       idleTemp: tdr.avg_temp_c,
       peakTemp: tdr.max_temp_c,
-      rating: (tdr?.rating?.toLowerCase() as Rating) ?? undefined,
+      rating: toRating(tdr?.rating) ?? undefined,
       warmingUp: wu || tdr.warming_up === true,
     }
   } else {
@@ -339,7 +350,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
         type: "recovery",
         available: true,
         value: `Active — ${tre.active_spike_seconds}s`,
-        rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+        rating: toRating(tre?.rating) ?? undefined,
         warmingUp: wu || tre.warming_up === true,
       }
     } else if (tre.no_spikes) {
@@ -347,7 +358,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
         type: "recovery",
         available: true,
         value: tre.note?.trim() || "No spikes detected",
-        rating: (tre?.rating?.toLowerCase() as Rating) ?? "good",
+        rating: toRating(tre?.rating) ?? "good",
         warmingUp: wu || tre.warming_up === true,
       }
     } else if (tre.last_recovery_seconds != null) {
@@ -355,7 +366,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
         type: "recovery",
         available: true,
         value: `~${tre.last_recovery_seconds}s`,
-        rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+        rating: toRating(tre?.rating) ?? undefined,
         warmingUp: wu || tre.warming_up === true,
       }
     } else {
@@ -377,7 +388,7 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
     available: !!(stab?.available && stab.std_dev_celsius != null),
     value:
       stab?.std_dev_celsius != null ? `±${stab.std_dev_celsius.toFixed(1)}°C` : undefined,
-    rating: (stab?.rating?.toLowerCase() as Rating) ?? undefined,
+    rating: toRating(stab?.rating) ?? undefined,
     warmingUp: wu || stab?.warming_up === true,
   }
 

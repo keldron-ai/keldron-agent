@@ -56,10 +56,14 @@ func initRegistry() {
 	}
 }
 
+// DefaultThermalLimitC is the fallback thermal limit used when no model-specific
+// limit is found in the registry.
+const DefaultThermalLimitC = 83
+
 // Lookup returns the spec for a GPU model. If not found, returns a fallback spec
 // using default thermal/TDP limits (83°C, 350W).
 func Lookup(model string) GPUSpec {
-	return LookupWithFallback(model, 83, 350)
+	return LookupWithFallback(model, DefaultThermalLimitC, 350)
 }
 
 // LookupWithFallback returns the spec for a GPU model. If not found, builds a fallback

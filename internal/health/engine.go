@@ -68,17 +68,18 @@ func (e *Engine) Update(batch []normalizer.TelemetryPoint) map[string]*DeviceHea
 			m = make(map[string]float64)
 		}
 
-		tempC := getMetricFloat(m, "temperature_c", "temperature_junction_c", "temperature_edge")
+		tempC, tempOK := getMetricFloatOK(m, "temperature_c", "temperature_junction_c", "temperature_edge")
 		utilPct := getMetricFloat(m, "gpu_utilization_pct")
 		powerW := getMetricFloat(m, "power_usage_w")
 
 		at := pt.Timestamp
 
 		state.series.append(healthSample{
-			at:      at,
-			tempC:   tempC,
-			utilPct: utilPct,
-			powerW:  powerW,
+			at:           at,
+			tempC:        tempC,
+			tempCPresent: tempOK,
+			utilPct:      utilPct,
+			powerW:       powerW,
 		})
 
 		rt := recoveryTargetC(effectiveThrottleLimit(state.thermalLimitC))
@@ -94,7 +95,13 @@ func (e *Engine) Update(batch []normalizer.TelemetryPoint) map[string]*DeviceHea
 
 func (e *Engine) getOrCreateState(deviceID string, pt normalizer.TelemetryPoint) *deviceState {
 	if s, ok := e.devices[deviceID]; ok {
-		s.thermalLimitC = lookupThermalLimit(pt)
+		// Only overwrite thermalLimitC when the new lookup returns a
+		// model-derived (non-default) value, so later points without
+		// model tags don't clobber a previously resolved limit.
+		newLimit := lookupThermalLimit(pt)
+		if newLimit != registry.DefaultThermalLimitC {
+			s.thermalLimitC = newLimit
+		}
 		return s
 	}
 	s := &deviceState{
@@ -158,4 +165,13 @@ func getMetricFloat(m map[string]float64, keys ...string) float64 {
 		}
 	}
 	return 0
+}
+
+func getMetricFloatOK(m map[string]float64, keys ...string) (float64, bool) {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			return v, true
+		}
+	}
+	return 0, false
 }

@@ -12,8 +12,8 @@ import (
 func TestComputeHeadroom_NoSustainedLoad(t *testing.T) {
 	t0 := time.Now()
 	samples := []healthSample{
-		{at: t0, tempC: 18, utilPct: 0, powerW: 2},
-		{at: t0.Add(time.Second), tempC: 19, utilPct: 0, powerW: 2},
+		{at: t0, tempC: 18, tempCPresent: true, utilPct: 0, powerW: 2},
+		{at: t0.Add(time.Second), tempC: 19, tempCPresent: true, utilPct: 0, powerW: 2},
 	}
 	r := computeHeadroom(samples, 100, false)
 	if r == nil || !r.Available || !r.NoSustainedLoad {
@@ -24,7 +24,7 @@ func TestComputeHeadroom_NoSustainedLoad(t *testing.T) {
 func TestComputeHeadroom_HeadroomRating(t *testing.T) {
 	t0 := time.Now()
 	samples := []healthSample{
-		{at: t0, tempC: 40, utilPct: 10, powerW: 5},
+		{at: t0, tempC: 40, tempCPresent: true, utilPct: 10, powerW: 5},
 	}
 	r := computeHeadroom(samples, 100, false)
 	if r == nil || !r.Available || r.NoSustainedLoad {
@@ -42,10 +42,10 @@ func TestScanRecoveries_SingleSpike(t *testing.T) {
 	t0 := time.Now()
 	rt := 60.0
 	samples := []healthSample{
-		{at: t0, tempC: 50, utilPct: 0, powerW: 2},
-		{at: t0.Add(10 * time.Second), tempC: 80, utilPct: 90, powerW: 40},
-		{at: t0.Add(40 * time.Second), tempC: 82, utilPct: 90, powerW: 40},
-		{at: t0.Add(100 * time.Second), tempC: 55, utilPct: 10, powerW: 5},
+		{at: t0, tempC: 50, tempCPresent: true, utilPct: 0, powerW: 2},
+		{at: t0.Add(10 * time.Second), tempC: 80, tempCPresent: true, utilPct: 90, powerW: 40},
+		{at: t0.Add(40 * time.Second), tempC: 82, tempCPresent: true, utilPct: 90, powerW: 40},
+		{at: t0.Add(100 * time.Second), tempC: 55, tempCPresent: true, utilPct: 10, powerW: 5},
 	}
 	sec, _, _, had := scanRecoveries(samples, rt)
 	if !had {
@@ -86,8 +86,8 @@ func TestRecoveryRating_Bands(t *testing.T) {
 func TestComputePerfPerWatt_MeanRatio(t *testing.T) {
 	t0 := time.Now()
 	samples := []healthSample{
-		{at: t0, tempC: 50, utilPct: 50, powerW: 10},
-		{at: t0.Add(time.Second), tempC: 51, utilPct: 30, powerW: 10},
+		{at: t0, tempC: 50, tempCPresent: true, utilPct: 50, powerW: 10},
+		{at: t0.Add(time.Second), tempC: 51, tempCPresent: true, utilPct: 30, powerW: 10},
 	}
 	r := computePerfPerWatt(samples)
 	if r == nil || !r.Available {

@@ -323,7 +323,7 @@ func renderHealthSection(w io.Writer, h *health.DeviceHealthSnapshot, powerW flo
 	if h != nil && h.ThermalStability != nil && h.ThermalStability.Available {
 		stab := h.ThermalStability
 		ratingCol := ratingColor(stab.Rating)
-		line("📊 Stability", fmt.Sprintf("±%.1f°C", stab.StabilityCelsius), ratingCol+"● "+stab.Rating+colorReset)
+		line("📊 Stability", fmt.Sprintf("±%.1f°C", stab.StdDevCelsius), ratingCol+"● "+stab.Rating+colorReset)
 		if h.WarmingUp {
 			line("   ", "", "(warming up)")
 		}

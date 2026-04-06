@@ -19,10 +19,11 @@ const (
 
 // healthSample is one telemetry point in the rolling health window.
 type healthSample struct {
-	at      time.Time
-	tempC   float64
-	utilPct float64
-	powerW  float64
+	at           time.Time
+	tempC        float64
+	tempCPresent bool
+	utilPct      float64
+	powerW       float64
 }
 
 // rollingSeries holds time-ordered samples for a device (last ~30 minutes).
@@ -75,6 +76,9 @@ func (r *rollingSeries) capLocked() {
 func (r *rollingSeries) snapshot() []healthSample {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	now := time.Now()
+	r.pruneLocked(now)
+	r.capLocked()
 	out := make([]healthSample, len(r.samples))
 	copy(out, r.samples)
 	return out
@@ -96,13 +100,16 @@ func (r *rollingSeries) updateSpikeSegmentStart(recoveryTarget float64) {
 		return
 	}
 	last := r.samples[len(r.samples)-1]
+	if !last.tempCPresent {
+		return
+	}
 	if last.tempC > recoveryTarget {
 		if len(r.samples) == 1 {
 			r.spikeSegmentStart = last.at
 			return
 		}
 		prev := r.samples[len(r.samples)-2]
-		if prev.tempC <= recoveryTarget {
+		if !prev.tempCPresent || prev.tempC < recoveryTarget {
 			r.spikeSegmentStart = last.at
 		}
 	} else {
@@ -155,7 +162,7 @@ func computeHeadroom(samples []healthSample, throttleLimit float64, warmingUp bo
 
 	var warmed []float64
 	for _, s := range samples {
-		if s.tempC >= baselineTempC {
+		if s.tempCPresent && s.tempC >= baselineTempC {
 			warmed = append(warmed, s.tempC)
 		}
 	}
@@ -216,7 +223,7 @@ func scanRecoveries(samples []healthSample, recoveryTarget float64) (lastRecover
 	i := 0
 	n := len(samples)
 	for i < n {
-		for i < n && samples[i].tempC <= recoveryTarget {
+		for i < n && samples[i].tempC < recoveryTarget {
 			i++
 		}
 		if i >= n {
@@ -262,11 +269,11 @@ func findSpikeSegmentStart(samples []healthSample, recoveryTarget float64) time.
 		return time.Time{}
 	}
 	last := samples[len(samples)-1]
-	if last.tempC <= recoveryTarget {
+	if last.tempC < recoveryTarget {
 		return time.Time{}
 	}
 	for i := len(samples) - 2; i >= 0; i-- {
-		if samples[i].tempC <= recoveryTarget {
+		if samples[i].tempC < recoveryTarget {
 			return samples[i+1].at
 		}
 	}
@@ -359,16 +366,25 @@ func computeStability(samples []healthSample, warmingUp bool) *ThermalStabilityR
 			WarmingUp: warmingUp,
 		}
 	}
-	temps := make([]float64, len(samples))
-	for i, s := range samples {
-		temps[i] = s.tempC
+	temps := make([]float64, 0, len(samples))
+	for _, s := range samples {
+		if s.tempCPresent {
+			temps = append(temps, s.tempC)
+		}
+	}
+	if len(temps) == 0 {
+		return &ThermalStabilityResult{
+			Available: false,
+			Note:      "No temperature data in window",
+			WarmingUp: warmingUp,
+		}
 	}
 	sd := stdDevSample(temps)
 	return &ThermalStabilityResult{
-		Available:        true,
-		StabilityCelsius: sd,
-		Rating:           stabilityRating(sd),
-		WarmingUp:        warmingUp,
+		Available:     true,
+		StdDevCelsius: sd,
+		Rating:        stabilityRating(sd),
+		WarmingUp:     warmingUp,
 	}
 }
 
@@ -420,7 +436,8 @@ func computePerfPerWatt(samples []healthSample) *PerfPerWattResult {
 	if n == 0 {
 		return &PerfPerWattResult{
 			Available: false,
-			Unit:      "pct_util_per_watt",
+			Unit:      "%/W",
+			UnitID:    "pct_util_per_watt",
 			Note:      "(power < 1W)",
 		}
 	}
@@ -429,14 +446,16 @@ func computePerfPerWatt(samples []healthSample) *PerfPerWattResult {
 	if meanP < 1.0 {
 		return &PerfPerWattResult{
 			Available: false,
-			Unit:      "pct_util_per_watt",
+			Unit:      "%/W",
+			UnitID:    "pct_util_per_watt",
 			Note:      "(power < 1W)",
 		}
 	}
 	return &PerfPerWattResult{
 		Available: true,
 		Value:     meanU / meanP,
-		Unit:      "pct_util_per_watt",
+		Unit:      "%/W",
+		UnitID:    "pct_util_per_watt",
 	}
 }
 

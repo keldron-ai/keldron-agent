@@ -4,8 +4,6 @@
 package health
 
 import (
-	"strconv"
-
 	"github.com/keldron-ai/keldron-agent/internal/normalizer"
 )
 
@@ -16,13 +14,6 @@ func deviceModelFromPoint(pt normalizer.TelemetryPoint) string {
 		for _, k := range []string{"device_model", "gpu_model", "gpu_name", "model"} {
 			if v, ok := pt.Tags[k]; ok && v != "" {
 				return v
-			}
-		}
-	}
-	if pt.Metrics != nil {
-		for _, k := range []string{"gpu_name", "model", "device_model"} {
-			if v, ok := pt.Metrics[k]; ok {
-				return strconv.FormatFloat(v, 'f', -1, 64)
 			}
 		}
 	}

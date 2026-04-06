@@ -24,13 +24,13 @@ type TREResult struct {
 	Available       bool    `json:"available"`
 	NoSpikes        bool    `json:"no_spikes,omitempty"`
 	SpikeActive     bool    `json:"spike_active,omitempty"`
+	WarmingUp       bool    `json:"warming_up,omitempty"`
 	ActiveSpikeSec  int     `json:"active_spike_seconds,omitempty"`
 	LastRecoverySec int     `json:"last_recovery_seconds,omitempty"`
 	LastPeakTempC   float64 `json:"last_peak_temp_c,omitempty"`
 	RecoveryTargetC float64 `json:"recovery_target_c,omitempty"`
 	Rating          string  `json:"rating"`
 	Note            string  `json:"note,omitempty"`
-	WarmingUp       bool    `json:"warming_up,omitempty"`
 }
 
 // PerfPerWattResult is mean utilization over mean power in the health window.
@@ -38,16 +38,17 @@ type PerfPerWattResult struct {
 	Available bool    `json:"available"`
 	Value     float64 `json:"value"`
 	Unit      string  `json:"unit"`
+	UnitID    string  `json:"unit_id,omitempty"`
 	Note      string  `json:"note,omitempty"`
 }
 
 // ThermalStabilityResult is standard deviation of temperature over the health window.
 type ThermalStabilityResult struct {
-	Available        bool    `json:"available"`
-	WarmingUp        bool    `json:"warming_up,omitempty"`
-	StabilityCelsius float64 `json:"std_dev_celsius,omitempty"`
-	Rating           string  `json:"rating,omitempty"`
-	Note             string  `json:"note,omitempty"`
+	Available     bool    `json:"available"`
+	WarmingUp     bool    `json:"warming_up,omitempty"`
+	StdDevCelsius float64 `json:"std_dev_celsius,omitempty"`
+	Rating        string  `json:"rating,omitempty"`
+	Note          string  `json:"note,omitempty"`
 }
 
 // DeviceHealthSnapshot is the full health snapshot for one device (status API).
@@ -61,10 +62,11 @@ type DeviceHealthSnapshot struct {
 
 // HealthSummary is the lightweight health summary for WebSocket stream.
 type HealthSummary struct {
-	HeadroomUsedPct  *float64 `json:"headroom_used_pct,omitempty"`
-	TDRRating        string   `json:"tdr_rating,omitempty"`
-	StabilityCelsius *float64 `json:"stability_celsius,omitempty"`
-	PerfPerWatt      *float64 `json:"perf_per_watt,omitempty"`
+	WarmingUp       *bool    `json:"warming_up,omitempty"`
+	HeadroomUsedPct *float64 `json:"headroom_used_pct,omitempty"`
+	TDRRating       string   `json:"tdr_rating,omitempty"`
+	StdDevCelsius   *float64 `json:"stability_celsius,omitempty"`
+	PerfPerWatt     *float64 `json:"perf_per_watt,omitempty"`
 }
 
 // Clone returns a deep copy of the snapshot.
@@ -98,14 +100,16 @@ func (s *DeviceHealthSnapshot) ToHealthSummary() *HealthSummary {
 		return nil
 	}
 	summary := &HealthSummary{}
+	wu := s.WarmingUp
+	summary.WarmingUp = &wu
 	if s.ThermalDynamicRange != nil && s.ThermalDynamicRange.Available && !s.ThermalDynamicRange.NoSustainedLoad {
 		h := s.ThermalDynamicRange.HeadroomUsedPct
 		summary.HeadroomUsedPct = &h
 		summary.TDRRating = s.ThermalDynamicRange.Rating
 	}
 	if s.ThermalStability != nil && s.ThermalStability.Available {
-		sd := s.ThermalStability.StabilityCelsius
-		summary.StabilityCelsius = &sd
+		sd := s.ThermalStability.StdDevCelsius
+		summary.StdDevCelsius = &sd
 	}
 	if s.PerfPerWatt != nil && s.PerfPerWatt.Available {
 		summary.PerfPerWatt = &s.PerfPerWatt.Value
