@@ -220,11 +220,14 @@ Strings in `Metrics` become `Tags` in `TelemetryPoint`: `gpu_model`, `device_mod
 
 ## 8. Scoring / Risk
 
-There is no dedicated scoring/risk package. Risk metrics in Prometheus/stdout are **placeholders** (OSS-003) and are always set to `0`:
+Risk scoring is implemented in **`internal/scoring`** (thermal, power, volatility, memory, composite). The output bridge passes computed scores into the Prometheus exporter’s `Update` method, which publishes these gauges with live values:
 
-- `keldron_risk_composite`, `risk_thermal`, `risk_power`, `risk_volatility`, `risk_fleet_penalty`, `risk_severity`, `risk_warming_up`
+- `keldron_risk_composite` (labels: `device_id`, `behavior_class`)
+- `keldron_risk_thermal`, `keldron_risk_power`, `keldron_risk_volatility`, `keldron_risk_memory` (label: `device_id`)
+- `keldron_risk_severity` — `0`–`4` (`0`=normal through `4`=critical; label: `device_id`)
+- `keldron_risk_warming_up` — `1` while the device is warming up, else `0`
 
-They are registered but not populated by any logic yet.
+Stdout JSON in local mode includes the same scores when enabled.
 
 ---
 
@@ -327,7 +330,7 @@ No `CONTRIBUTING.md` or explicit git workflow docs exist. Use standard practices
 
 ## What Not to Touch (without team alignment)
 
-- **Risk placeholders:** Reserved for OSS-003; don’t add logic without alignment
+- **Risk scoring / Prometheus metrics:** Changing exported `keldron_*` names or label sets can break dashboards and integrations—coordinate before changing contracts
 - **Normalizer validation:** Changes affect all adapters
 - **Prometheus metric names/labels:** May be consumed by external systems
 - **Adapter contract:** Keep `Adapter` interface and `RawReading` shape stable for compatibility

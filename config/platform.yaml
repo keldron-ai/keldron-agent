@@ -1,6 +1,6 @@
 # Keldron Agent - Platform Target
 # Same as dev.yaml but sends to platform instead of mock-grpc-server.
-# Used with: docker compose -f docker-compose.dev.yml --profile grafana up
+# Local Grafana + Prometheus: see examples/docker-compose.grafana.yml
 
 agent:
   id: "agent-rack-01"
