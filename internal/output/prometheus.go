@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,7 +69,7 @@ type Prometheus struct {
 	systemSwapTotalBytes prometheus.Gauge
 	deviceUptimeSeconds  *prometheus.GaugeVec
 
-	// Risk scores (placeholder for OSS-003)
+	// Risk scores (from internal/scoring, exported as keldron_risk_*)
 	riskComposite  *prometheus.GaugeVec
 	riskThermal    *prometheus.GaugeVec
 	riskPower      *prometheus.GaugeVec
@@ -101,6 +102,17 @@ func NewPrometheusWithRegistry(bindHost string, port int, version, deviceName st
 	}
 	if bindHost == "" {
 		bindHost = "127.0.0.1"
+	}
+
+	deviceName = strings.TrimSpace(deviceName)
+	if deviceName == "" {
+		h, err := os.Hostname()
+		h = strings.TrimSpace(h)
+		if err != nil || h == "" {
+			deviceName = "unknown"
+		} else {
+			deviceName = h
+		}
 	}
 
 	// Determine the matching gatherer for the registerer.
