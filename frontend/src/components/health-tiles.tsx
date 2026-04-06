@@ -3,7 +3,18 @@ import { HelpCircle, Zap } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 const { useId } = React
 
-type Rating = "normal" | "excellent" | "stable" | "compressed" | "slow" | "elevated" | "critical" | "poor" | "unstable"
+type Rating =
+  | "normal"
+  | "excellent"
+  | "stable"
+  | "compressed"
+  | "slow"
+  | "elevated"
+  | "critical"
+  | "poor"
+  | "unstable"
+  | "good"
+  | "fair"
 
 interface HealthTileData {
   type: "thermal" | "recovery" | "efficiency" | "stability"
@@ -12,21 +23,30 @@ interface HealthTileData {
   peakTemp?: number
   rating?: Rating
   available: boolean
+  warmingUp?: boolean
 }
 
 interface StatusHealth {
+  warming_up?: boolean
   thermal_dynamic_range?: {
     available: boolean
-    tdr_celsius: number | null
-    idle_temp_c: number | null
-    peak_temp_c: number | null
+    no_sustained_load?: boolean
+    warming_up?: boolean
+    avg_temp_c?: number | null
+    max_temp_c?: number | null
+    headroom_used_pct?: number | null
     rating: string | null
+    note?: string | null
   }
   thermal_recovery?: {
     available: boolean
-    last_recovery_seconds: number | null
+    no_spikes?: boolean
+    spike_active?: boolean
+    active_spike_seconds?: number | null
+    last_recovery_seconds?: number | null
     rating: string | null
-    recovery_count: number
+    note?: string | null
+    warming_up?: boolean
   }
   perf_per_watt?: {
     available: boolean
@@ -35,9 +55,9 @@ interface StatusHealth {
   }
   thermal_stability?: {
     available: boolean
-    std_dev_celsius: number | null
+    std_dev_celsius?: number | null
     rating: string | null
-    under_sustained_load: boolean
+    warming_up?: boolean
   }
 }
 
@@ -49,24 +69,24 @@ interface HealthTilesProps {
 type MetricKey = "thermal" | "recovery" | "efficiency" | "stability"
 
 const tooltips: Record<MetricKey, string> = {
-  thermal: "Gap between idle and peak temperature. Wider is healthier.",
-  recovery: "Time to cool down after a heavy workload ends.",
-  efficiency: "GPU utilization per watt of power consumed.",
-  stability: "Temperature consistency under sustained load. Lower is better.",
+  thermal: "How close to the thermal ceiling — lower is better.",
+  recovery: "How quickly temperature drops below the mid-envelope threshold after a spike.",
+  efficiency: "GPU utilization per watt of power consumed (30-minute window).",
+  stability: "Temperature variability over the last 30 minutes. Lower is better.",
 }
 
 const labels: Record<MetricKey, string> = {
   thermal: "Thermal Range",
-  recovery: "Recovery",
+  recovery: "Thermal Recovery",
   efficiency: "Efficiency",
   stability: "Stability",
 }
 
 const unavailableMessages: Record<MetricKey, string> = {
-  thermal: "Establishing baseline",
-  recovery: "No recovery data yet",
+  thermal: "Establishing…",
+  recovery: "No data yet",
   efficiency: "(power < 1W)",
-  stability: "(no sustained load)",
+  stability: "No data yet",
 }
 
 function getRatingColor(rating: Rating): string {
@@ -74,10 +94,12 @@ function getRatingColor(rating: Rating): string {
     case "normal":
     case "excellent":
     case "stable":
+    case "good":
       return "#22C55E"
     case "compressed":
     case "slow":
     case "elevated":
+    case "fair":
       return "#F59E0B"
     case "critical":
     case "poor":
@@ -140,7 +162,8 @@ function RecoveryCurveGraphic({ available }: { available: boolean }) {
 
 // Compact stability wave
 function StabilityWaveGraphic({ available, rating }: { available: boolean; rating?: Rating }) {
-  const isStable = rating === "stable" || rating === "normal" || rating === "excellent"
+  const isStable =
+    rating === "stable" || rating === "normal" || rating === "excellent" || rating === "good"
   const amplitude = isStable ? 2 : 5
   
   const points = []
@@ -221,7 +244,11 @@ function HealthTile({ metric }: { metric: HealthTileData }) {
           <ThermalRangeGraphic
             idleTemp={metric.idleTemp}
             peakTemp={metric.peakTemp}
-            available={metric.available}
+            available={
+              metric.idleTemp != null &&
+              metric.peakTemp != null &&
+              metric.value !== "No sustained load"
+            }
           />
         )}
         {metric.type === "recovery" && <RecoveryCurveGraphic available={metric.available} />}
@@ -251,6 +278,9 @@ function HealthTile({ metric }: { metric: HealthTileData }) {
             </span>
           </>
         )}
+        {metric.available && metric.warmingUp && (
+          <span className="text-[9px] text-[#64748B] italic">Warming up…</span>
+        )}
         {!metric.available && (
           <span className="text-[9px] text-[#64748B] italic">{unavailableMessages[metric.type]}</span>
         )}
@@ -273,52 +303,89 @@ function mapHealthToMetrics(health: StatusHealth | null | undefined): HealthTile
       { type: "stability", available: false },
     ]
   }
+  const wu = health.warming_up === true
   const tdr = health.thermal_dynamic_range
   const tre = health.thermal_recovery
   const ppw = health.perf_per_watt
   const stab = health.thermal_stability
 
-  const thermal: HealthTileData = {
-    type: "thermal",
-    available: !!(tdr?.available && tdr.tdr_celsius != null),
-    value: tdr?.tdr_celsius != null ? `${tdr.tdr_celsius.toFixed(0)}°C` : undefined,
-    idleTemp: tdr?.idle_temp_c ?? undefined,
-    peakTemp: tdr?.peak_temp_c ?? undefined,
-    rating: (tdr?.rating?.toLowerCase() as Rating) ?? undefined,
+  let thermal: HealthTileData
+  if (tdr?.available && tdr.no_sustained_load) {
+    thermal = {
+      type: "thermal",
+      available: true,
+      value: "No sustained load",
+      rating: "good",
+      warmingUp: wu || tdr.warming_up === true,
+    }
+  } else if (tdr?.available && tdr.avg_temp_c != null && tdr.max_temp_c != null) {
+    thermal = {
+      type: "thermal",
+      available: true,
+      value: `${tdr.avg_temp_c.toFixed(0)}°C – ${tdr.max_temp_c.toFixed(0)}°C`,
+      idleTemp: tdr.avg_temp_c,
+      peakTemp: tdr.max_temp_c,
+      rating: (tdr?.rating?.toLowerCase() as Rating) ?? undefined,
+      warmingUp: wu || tdr.warming_up === true,
+    }
+  } else {
+    thermal = { type: "thermal", available: false, warmingUp: wu }
   }
 
-  const hasRecoveryData = tre && (tre.recovery_count > 0 || tre.last_recovery_seconds != null)
-  const recovery: HealthTileData = {
-    type: "recovery",
-    available: !!(hasRecoveryData && tre.last_recovery_seconds != null),
-    value: tre?.last_recovery_seconds != null ? `~${tre.last_recovery_seconds}s` : undefined,
-    rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+  let recovery: HealthTileData
+  if (tre?.available) {
+    if (tre.spike_active && tre.active_spike_seconds != null) {
+      recovery = {
+        type: "recovery",
+        available: true,
+        value: `Active — ${tre.active_spike_seconds}s`,
+        rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+        warmingUp: wu || tre.warming_up === true,
+      }
+    } else if (tre.no_spikes) {
+      recovery = {
+        type: "recovery",
+        available: true,
+        value: tre.note?.trim() || "No spikes detected",
+        rating: (tre?.rating?.toLowerCase() as Rating) ?? "good",
+        warmingUp: wu || tre.warming_up === true,
+      }
+    } else if (tre.last_recovery_seconds != null) {
+      recovery = {
+        type: "recovery",
+        available: true,
+        value: `~${tre.last_recovery_seconds}s`,
+        rating: (tre?.rating?.toLowerCase() as Rating) ?? undefined,
+        warmingUp: wu || tre.warming_up === true,
+      }
+    } else {
+      recovery = { type: "recovery", available: false, warmingUp: wu || tre.warming_up === true }
+    }
+  } else {
+    recovery = { type: "recovery", available: false, warmingUp: wu }
   }
 
   const efficiency: HealthTileData = {
     type: "efficiency",
     available: !!(ppw?.available && ppw.value != null),
     value: ppw?.value != null ? `${ppw.value.toFixed(1)} %/W` : undefined,
+    warmingUp: wu,
   }
 
   const stability: HealthTileData = {
     type: "stability",
-    available: !!(stab?.under_sustained_load && stab.std_dev_celsius != null),
-    value: stab?.std_dev_celsius != null ? `±${stab.std_dev_celsius.toFixed(1)}°C` : undefined,
+    available: !!(stab?.available && stab.std_dev_celsius != null),
+    value:
+      stab?.std_dev_celsius != null ? `±${stab.std_dev_celsius.toFixed(1)}°C` : undefined,
     rating: (stab?.rating?.toLowerCase() as Rating) ?? undefined,
+    warmingUp: wu || stab?.warming_up === true,
   }
 
-  const metrics: HealthTileData[] = [thermal, recovery, efficiency, stability]
-  return metrics
+  return [thermal, recovery, efficiency, stability]
 }
 
 export function HealthTiles({ metrics: metricsProp, health }: HealthTilesProps) {
   const metrics = metricsProp ?? mapHealthToMetrics(health)
-  const hasRecoveryData =
-    metricsProp !== undefined
-      ? metrics.some((m) => m.type === "recovery")
-      : health?.thermal_recovery != null
-  const displayMetrics = hasRecoveryData ? metrics : metrics.filter((m) => m.type !== "recovery")
 
   return (
     <div className="border-t border-[rgba(148,163,184,0.1)] pt-3 mt-4">
@@ -330,7 +397,7 @@ export function HealthTiles({ metrics: metricsProp, health }: HealthTilesProps) 
       </h4>
 
       <div className="grid grid-cols-4 gap-4">
-        {displayMetrics.map((metric) => (
+        {metrics.map((metric) => (
           <div key={metric.type} className="rounded-lg border border-white/[0.06] p-3 bg-white/[0.02]">
             <HealthTile metric={metric} />
           </div>
