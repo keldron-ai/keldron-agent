@@ -67,11 +67,11 @@ func boxLine(content string) string {
 // ratingColor returns ANSI color for health/risk rating.
 func ratingColor(rating string) string {
 	switch strings.ToLower(rating) {
-	case "healthy", "normal", "excellent", "stable":
+	case "healthy", "normal", "excellent", "stable", "good":
 		return colorGreen
 	case "active":
 		return colorCyan
-	case "compressed", "slow", "elevated", "warning":
+	case "compressed", "slow", "elevated", "warning", "fair":
 		return colorYellow
 	case "critical", "poor", "unstable":
 		return colorRed
@@ -274,24 +274,37 @@ func renderHealthSection(w io.Writer, h *health.DeviceHealthSnapshot, powerW flo
 		fmt.Fprintln(w, boxLine(content))
 	}
 
-	// TDR
+	// Thermal Range (headroom compression)
 	if h != nil && h.ThermalDynamicRange != nil && h.ThermalDynamicRange.Available {
 		tdr := h.ThermalDynamicRange
-		ratingCol := ratingColor(tdr.Rating)
-		line("🌡️ Thermal Range", fmt.Sprintf("%.1f°C", tdr.TDRCelsius), ratingCol+"● "+tdr.Rating+colorReset)
-		detail := fmt.Sprintf("%.0f°C idle → %.0f°C peak", tdr.IdleTempC, tdr.PeakTempC)
-		line("   ", detail, "")
+		if tdr.NoSustainedLoad {
+			line("🌡️ Thermal Range", "—", "No sustained load")
+		} else {
+			ratingCol := ratingColor(tdr.Rating)
+			line("🌡️ Thermal Range", fmt.Sprintf("%.0f°C – %.0f°C", tdr.AvgTempC, tdr.MaxTempC), ratingCol+"● "+tdr.Rating+colorReset)
+			detail := fmt.Sprintf("headroom %.0f%% of envelope", tdr.HeadroomUsedPct)
+			line("   ", detail, "")
+			if h.WarmingUp {
+				line("   ", "", "(warming up)")
+			}
+		}
 	} else {
 		line("🌡️ Thermal Range", "—", "Establishing baseline")
 	}
 
-	// TRE
-	if h != nil && h.ThermalRecovery != nil && h.ThermalRecovery.Available && h.ThermalRecovery.RecoveryCount > 0 {
+	// Thermal Recovery
+	if h != nil && h.ThermalRecovery != nil && h.ThermalRecovery.Available {
 		tre := h.ThermalRecovery
 		ratingCol := ratingColor(tre.Rating)
-		line("⏱️ Recovery", fmt.Sprintf("~%ds", tre.LastRecoverySec), ratingCol+"● "+tre.Rating+colorReset)
+		if tre.SpikeActive {
+			line("⏱️ Thermal Recovery", fmt.Sprintf("Active — %ds", tre.ActiveSpikeSec), ratingCol+"● "+tre.Rating+colorReset)
+		} else if tre.NoSpikes {
+			line("⏱️ Thermal Recovery", "—", tre.Note)
+		} else {
+			line("⏱️ Thermal Recovery", fmt.Sprintf("~%ds", tre.LastRecoverySec), ratingCol+"● "+tre.Rating+colorReset)
+		}
 	} else {
-		line("⏱️ Recovery", "—", "(no recovery events)")
+		line("⏱️ Thermal Recovery", "—", "(no data)")
 	}
 
 	// PPW
@@ -307,12 +320,15 @@ func renderHealthSection(w io.Writer, h *health.DeviceHealthSnapshot, powerW flo
 	}
 
 	// Stability
-	if h != nil && h.ThermalStability != nil && h.ThermalStability.Available && h.ThermalStability.UnderSustainedLoad {
+	if h != nil && h.ThermalStability != nil && h.ThermalStability.Available {
 		stab := h.ThermalStability
 		ratingCol := ratingColor(stab.Rating)
 		line("📊 Stability", fmt.Sprintf("±%.1f°C", stab.StabilityCelsius), ratingCol+"● "+stab.Rating+colorReset)
+		if h.WarmingUp {
+			line("   ", "", "(warming up)")
+		}
 	} else {
-		line("📊 Stability", "—", "(no sustained load)")
+		line("📊 Stability", "—", "(no data)")
 	}
 }
 
