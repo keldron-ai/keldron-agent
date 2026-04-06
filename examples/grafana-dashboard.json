@@ -722,7 +722,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "5s",
+  "refresh": "15s",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
@@ -738,7 +738,7 @@
   "timepicker": {},
   "timezone": "",
   "title": "Keldron Agent",
-  "uid": "keldron-agent-local",
+  "uid": null,
   "version": 1,
   "weekStart": ""
 }

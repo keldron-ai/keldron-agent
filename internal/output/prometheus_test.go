@@ -130,12 +130,35 @@ func TestPrometheus_DeviceNameNotEmptyWhenUnset(t *testing.T) {
 		t.Errorf("keldron_agent_info must not use empty device_name; sample:\n%s", metrics)
 	}
 	want, err := os.Hostname()
-	if err != nil || strings.TrimSpace(want) == "" {
+	want = strings.TrimSpace(want)
+	if err != nil || want == "" {
 		if !strings.Contains(metrics, `device_name="unknown"`) {
 			t.Errorf("expected device_name=unknown when hostname unavailable; got:\n%s", metrics)
 		}
 	} else if !strings.Contains(metrics, `device_name="`+want+`"`) {
 		t.Errorf("expected device_name label %q in keldron_agent_info", want)
+	}
+
+	// Also verify the /api/v1/status endpoint uses the same fallback.
+	resp2, err := http.Get(srv.URL + "/api/v1/status")
+	if err != nil {
+		t.Fatalf("GET /api/v1/status: %v", err)
+	}
+	defer resp2.Body.Close()
+	var status map[string]interface{}
+	if err := json.NewDecoder(resp2.Body).Decode(&status); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	dn, _ := status["device_name"].(string)
+	if dn == "" {
+		t.Errorf("status device_name must not be empty")
+	}
+	if err != nil || want == "" {
+		if dn != "unknown" {
+			t.Errorf("status device_name = %q, want \"unknown\" when hostname unavailable", dn)
+		}
+	} else if dn != want {
+		t.Errorf("status device_name = %q, want %q", dn, want)
 	}
 }
 

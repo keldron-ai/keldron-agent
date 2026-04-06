@@ -330,7 +330,6 @@ No `CONTRIBUTING.md` or explicit git workflow docs exist. Use standard practices
 
 ## What Not to Touch (without team alignment)
 
-- **Risk scoring / Prometheus metrics:** Changing exported `keldron_*` names or label sets can break dashboards and integrations—coordinate before changing contracts
+- **Prometheus metrics (`keldron_*` names and label sets):** Changing exported metric names or labels can break Grafana dashboards, alerting rules, and external consumers—coordinate before changing contracts
 - **Normalizer validation:** Changes affect all adapters
-- **Prometheus metric names/labels:** May be consumed by external systems
 - **Adapter contract:** Keep `Adapter` interface and `RawReading` shape stable for compatibility

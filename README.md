@@ -258,8 +258,8 @@ A pre-built Grafana dashboard and Prometheus config live in [`examples/`](exampl
 Quick start:
 
 1. Start the agent: `./keldron-agent --local`
-2. Start Prometheus + Grafana: `cd examples && docker compose -f docker-compose.grafana.yml up`
-3. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin / keldron)
+2. Start Prometheus + Grafana: `cd examples && docker compose -f docker-compose.grafana.yml up -d`
+3. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin / password set via `GF_ADMIN_PASSWORD` env var)
 4. Add a Prometheus data source: **URL** `http://prometheus:9090`
 5. Import [`examples/grafana-dashboard.json`](examples/grafana-dashboard.json) (**Dashboards → Import**)
 

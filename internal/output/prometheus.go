@@ -107,7 +107,8 @@ func NewPrometheusWithRegistry(bindHost string, port int, version, deviceName st
 	deviceName = strings.TrimSpace(deviceName)
 	if deviceName == "" {
 		h, err := os.Hostname()
-		if err != nil || strings.TrimSpace(h) == "" {
+		h = strings.TrimSpace(h)
+		if err != nil || h == "" {
 			deviceName = "unknown"
 		} else {
 			deviceName = h

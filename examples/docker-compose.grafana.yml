@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1@sha256:5c5e42cd4b3a86246990a15e43f79a9a3b73c4e3b1a103e697387edf30477392
     volumes:
       - ./prometheus.docker.yml:/etc/prometheus/prometheus.yml
     ports:
@@ -11,8 +9,8 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.2@sha256:7e8b5460afdab2e6f4c0c5e498b1e49d28537e2960bba1e7e33b95c2a3a6e546
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=keldron
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
