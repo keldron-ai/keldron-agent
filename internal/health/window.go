@@ -323,7 +323,7 @@ func computeThermalRecovery(samples []healthSample, throttleLimit float64, spike
 	lastRecSec, lastPeakC, _, hadSpike := scanRecoveries(samples, rt)
 
 	last, ok := lastSampleFromSlice(samples)
-	lastAbove := ok && last.tempC > rt
+	lastAbove := ok && last.tempCPresent && last.tempC > rt
 
 	var segStart time.Time
 	if lastAbove {
