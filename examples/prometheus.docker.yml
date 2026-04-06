@@ -1,0 +1,9 @@
+# Prometheus config for examples/docker-compose.grafana.yml — scrape the agent on the Docker host.
+
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'keldron-agent'
+    static_configs:
+      - targets: ['host.docker.internal:9100']
