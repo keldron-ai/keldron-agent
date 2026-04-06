@@ -161,9 +161,20 @@ func computeHeadroom(samples []healthSample, throttleLimit float64, warmingUp bo
 	}
 
 	var warmed []float64
+	anyTempPresent := false
 	for _, s := range samples {
-		if s.tempCPresent && s.tempC >= baselineTempC {
-			warmed = append(warmed, s.tempC)
+		if s.tempCPresent {
+			anyTempPresent = true
+			if s.tempC >= baselineTempC {
+				warmed = append(warmed, s.tempC)
+			}
+		}
+	}
+	if !anyTempPresent {
+		return &TDRResult{
+			Available: false,
+			Note:      "No temperature data in window",
+			WarmingUp: warmingUp,
 		}
 	}
 	if len(warmed) == 0 {
@@ -223,8 +234,8 @@ func scanRecoveries(samples []healthSample, recoveryTarget float64) (lastRecover
 	i := 0
 	n := len(samples)
 	for i < n {
-		// Skip samples below recovery target or without temperature.
-		for i < n && (!samples[i].tempCPresent || samples[i].tempC < recoveryTarget) {
+		// Skip samples at or below recovery target, or without temperature.
+		for i < n && (!samples[i].tempCPresent || samples[i].tempC <= recoveryTarget) {
 			i++
 		}
 		if i >= n {
@@ -233,12 +244,20 @@ func scanRecoveries(samples []healthSample, recoveryTarget float64) (lastRecover
 		hadSpike = true
 		maxT := -1.0
 		peakIdx := -1
-		for i < n && samples[i].tempCPresent && samples[i].tempC > recoveryTarget {
-			if samples[i].tempC >= maxT {
-				maxT = samples[i].tempC
-				peakIdx = i
+		for i < n {
+			if !samples[i].tempCPresent {
+				i++
+				continue
 			}
-			i++
+			if samples[i].tempC >= recoveryTarget {
+				if samples[i].tempC >= maxT {
+					maxT = samples[i].tempC
+					peakIdx = i
+				}
+				i++
+			} else {
+				break
+			}
 		}
 		if peakIdx < 0 {
 			continue
@@ -279,11 +298,20 @@ func findSpikeSegmentStart(samples []healthSample, recoveryTarget float64) time.
 			continue
 		}
 		if samples[i].tempC < recoveryTarget {
-			return samples[i+1].at
+			// Find the first sample after i that is present and above the target.
+			for j := i + 1; j < len(samples); j++ {
+				if samples[j].tempCPresent && samples[j].tempC >= recoveryTarget {
+					return samples[j].at
+				}
+			}
+			return time.Time{}
 		}
 	}
-	if samples[0].tempCPresent {
-		return samples[0].at
+	// All present samples are above the target; find the first present one.
+	for k := 0; k < len(samples); k++ {
+		if samples[k].tempCPresent && samples[k].tempC >= recoveryTarget {
+			return samples[k].at
+		}
 	}
 	return time.Time{}
 }
