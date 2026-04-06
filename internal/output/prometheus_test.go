@@ -107,58 +107,68 @@ func TestPrometheus_UpdateWithEmptyReadings(t *testing.T) {
 }
 
 func TestPrometheus_DeviceNameNotEmptyWhenUnset(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", "", reg, nil)
-	if err := p.Update(nil, nil); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
+	for _, tc := range []struct {
+		name       string
+		deviceName string
+	}{
+		{"empty", ""},
+		{"whitespace_only", "   "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			p := NewPrometheusWithRegistry("127.0.0.1", 9100, "0.1.0-dev", tc.deviceName, reg, nil)
+			if err := p.Update(nil, nil); err != nil {
+				t.Fatalf("Update: %v", err)
+			}
 
-	srv := httptest.NewServer(p.Handler())
-	defer srv.Close()
+			srv := httptest.NewServer(p.Handler())
+			defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/metrics")
-	if err != nil {
-		t.Fatalf("GET /metrics: %v", err)
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	metrics := string(b)
-	if strings.Contains(metrics, `device_name=""`) {
-		t.Errorf("keldron_agent_info must not use empty device_name; sample:\n%s", metrics)
-	}
-	want, err := os.Hostname()
-	want = strings.TrimSpace(want)
-	if err != nil || want == "" {
-		if !strings.Contains(metrics, `device_name="unknown"`) {
-			t.Errorf("expected device_name=unknown when hostname unavailable; got:\n%s", metrics)
-		}
-	} else if !strings.Contains(metrics, `device_name="`+want+`"`) {
-		t.Errorf("expected device_name label %q in keldron_agent_info", want)
-	}
+			resp, err := http.Get(srv.URL + "/metrics")
+			if err != nil {
+				t.Fatalf("GET /metrics: %v", err)
+			}
+			defer resp.Body.Close()
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+			metrics := string(b)
+			if strings.Contains(metrics, `device_name=""`) {
+				t.Errorf("keldron_agent_info must not use empty device_name; sample:\n%s", metrics)
+			}
+			want, err := os.Hostname()
+			want = strings.TrimSpace(want)
+			if err != nil || want == "" {
+				if !strings.Contains(metrics, `device_name="unknown"`) {
+					t.Errorf("expected device_name=unknown when hostname unavailable; got:\n%s", metrics)
+				}
+			} else if !strings.Contains(metrics, `device_name="`+want+`"`) {
+				t.Errorf("expected device_name label %q in keldron_agent_info", want)
+			}
 
-	// Also verify the /api/v1/status endpoint uses the same fallback.
-	resp2, err := http.Get(srv.URL + "/api/v1/status")
-	if err != nil {
-		t.Fatalf("GET /api/v1/status: %v", err)
-	}
-	defer resp2.Body.Close()
-	var status map[string]interface{}
-	if err := json.NewDecoder(resp2.Body).Decode(&status); err != nil {
-		t.Fatalf("decode status: %v", err)
-	}
-	dn, _ := status["device_name"].(string)
-	if dn == "" {
-		t.Errorf("status device_name must not be empty")
-	}
-	if err != nil || want == "" {
-		if dn != "unknown" {
-			t.Errorf("status device_name = %q, want \"unknown\" when hostname unavailable", dn)
-		}
-	} else if dn != want {
-		t.Errorf("status device_name = %q, want %q", dn, want)
+			// Also verify the /api/v1/status endpoint uses the same fallback.
+			resp2, err := http.Get(srv.URL + "/api/v1/status")
+			if err != nil {
+				t.Fatalf("GET /api/v1/status: %v", err)
+			}
+			defer resp2.Body.Close()
+			var status map[string]interface{}
+			if err := json.NewDecoder(resp2.Body).Decode(&status); err != nil {
+				t.Fatalf("decode status: %v", err)
+			}
+			dn, _ := status["device_name"].(string)
+			if dn == "" {
+				t.Errorf("status device_name must not be empty")
+			}
+			if err != nil || want == "" {
+				if dn != "unknown" {
+					t.Errorf("status device_name = %q, want \"unknown\" when hostname unavailable", dn)
+				}
+			} else if dn != want {
+				t.Errorf("status device_name = %q, want %q", dn, want)
+			}
+		})
 	}
 }
 
