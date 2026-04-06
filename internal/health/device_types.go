@@ -65,7 +65,7 @@ type HealthSummary struct {
 	WarmingUp       *bool    `json:"warming_up,omitempty"`
 	HeadroomUsedPct *float64 `json:"headroom_used_pct,omitempty"`
 	TDRRating       string   `json:"tdr_rating,omitempty"`
-	StdDevCelsius   *float64 `json:"stability_celsius,omitempty"`
+	StdDevCelsius   *float64 `json:"std_dev_celsius,omitempty"`
 	PerfPerWatt     *float64 `json:"perf_per_watt,omitempty"`
 }
 

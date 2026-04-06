@@ -223,7 +223,8 @@ func scanRecoveries(samples []healthSample, recoveryTarget float64) (lastRecover
 	i := 0
 	n := len(samples)
 	for i < n {
-		for i < n && samples[i].tempC < recoveryTarget {
+		// Skip samples below recovery target or without temperature.
+		for i < n && (!samples[i].tempCPresent || samples[i].tempC < recoveryTarget) {
 			i++
 		}
 		if i >= n {
@@ -232,21 +233,22 @@ func scanRecoveries(samples []healthSample, recoveryTarget float64) (lastRecover
 		hadSpike = true
 		maxT := -1.0
 		peakIdx := -1
-		segStart := i
-		for i < n && samples[i].tempC > recoveryTarget {
+		for i < n && samples[i].tempCPresent && samples[i].tempC > recoveryTarget {
 			if samples[i].tempC >= maxT {
 				maxT = samples[i].tempC
 				peakIdx = i
 			}
 			i++
 		}
-		_ = segStart
 		if peakIdx < 0 {
 			continue
 		}
 		peakTime := samples[peakIdx].at
 		peakC := samples[peakIdx].tempC
 		for k := peakIdx + 1; k < n; k++ {
+			if !samples[k].tempCPresent {
+				continue
+			}
 			if samples[k].tempC < recoveryTarget {
 				sec := int(samples[k].at.Sub(peakTime).Seconds())
 				if sec < 0 {
@@ -269,15 +271,21 @@ func findSpikeSegmentStart(samples []healthSample, recoveryTarget float64) time.
 		return time.Time{}
 	}
 	last := samples[len(samples)-1]
-	if last.tempC < recoveryTarget {
+	if !last.tempCPresent || last.tempC < recoveryTarget {
 		return time.Time{}
 	}
 	for i := len(samples) - 2; i >= 0; i-- {
+		if !samples[i].tempCPresent {
+			continue
+		}
 		if samples[i].tempC < recoveryTarget {
 			return samples[i+1].at
 		}
 	}
-	return samples[0].at
+	if samples[0].tempCPresent {
+		return samples[0].at
+	}
+	return time.Time{}
 }
 
 func computeThermalRecovery(samples []healthSample, throttleLimit float64, spikeSegmentStart time.Time, now time.Time, warmingUp bool) *TREResult {
