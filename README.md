@@ -219,7 +219,7 @@ Full config reference: [configs/keldron-agent.example.yaml](configs/keldron-agen
 | `keldron_risk_power` | gauge | Power risk score |
 | `keldron_risk_volatility` | gauge | Volatility risk score |
 | `keldron_risk_memory` | gauge | Memory-related risk score |
-| `keldron_risk_severity` | gauge | 0=normal, 1=warning, 2=critical |
+| `keldron_risk_severity` | gauge | 0=normal, 1=active, 2=elevated, 3=warning, 4=critical |
 | `keldron_risk_warming_up` | gauge | 1 if device warming up, 0 otherwise |
 | `keldron_gpu_memory_pressure_ratio` | gauge | GPU memory used/total ratio |
 | `keldron_gpu_clock_efficiency` | gauge | GPU clock efficiency ratio |
@@ -253,7 +253,17 @@ To report a security issue, email [ransom@keldron.ai](mailto:ransom@keldron.ai).
 
 ## Grafana Dashboard
 
-Keldron exposes Prometheus metrics at `/metrics` — import them into any Grafana instance. Example dashboard JSON coming in v0.2.0.
+A pre-built Grafana dashboard and Prometheus config live in [`examples/`](examples/).
+
+Quick start:
+
+1. Start the agent: `./keldron-agent --local`
+2. Start Prometheus + Grafana: `cd examples && docker compose -f docker-compose.grafana.yml up`
+3. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin / keldron)
+4. Add a Prometheus data source: **URL** `http://prometheus:9090`
+5. Import [`examples/grafana-dashboard.json`](examples/grafana-dashboard.json) (**Dashboards → Import**)
+
+Keldron also exposes metrics at `/metrics` on the agent for any Grafana or Prometheus setup you already run.
 
 ## Upgrade Path
 
