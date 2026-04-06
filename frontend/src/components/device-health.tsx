@@ -1,7 +1,18 @@
 import { HelpCircle, Lock } from "lucide-react"
 import { useState } from "react"
 
-type Rating = "normal" | "excellent" | "stable" | "compressed" | "slow" | "elevated" | "critical" | "poor" | "unstable"
+type Rating =
+  | "normal"
+  | "excellent"
+  | "stable"
+  | "compressed"
+  | "slow"
+  | "elevated"
+  | "critical"
+  | "poor"
+  | "unstable"
+  | "good"
+  | "fair"
 
 interface HealthMetric {
   type: "thermal" | "recovery" | "efficiency" | "stability"
@@ -18,15 +29,15 @@ interface DeviceHealthProps {
 }
 
 const tooltips: Record<string, string> = {
-  thermal: "Gap between idle and peak temperature. Wider is healthier.",
-  recovery: "Time to cool down after a heavy workload ends.",
-  efficiency: "GPU utilization per watt of power consumed.",
-  stability: "Temperature consistency under sustained load. Lower is better.",
+  thermal: "How close to the thermal ceiling — lower is better.",
+  recovery: "How quickly temperature drops below the mid-envelope threshold after a spike.",
+  efficiency: "GPU utilization per watt of power consumed (30-minute window).",
+  stability: "Temperature variability over the last 30 minutes. Lower is better.",
 }
 
 const labels: Record<string, string> = {
   thermal: "Thermal Range",
-  recovery: "Recovery",
+  recovery: "Thermal Recovery",
   efficiency: "Efficiency",
   stability: "Stability",
 }
@@ -36,10 +47,12 @@ function getRatingColor(rating: Rating): string {
     case "normal":
     case "excellent":
     case "stable":
+    case "good":
       return "#22C55E"
     case "compressed":
     case "slow":
     case "elevated":
+    case "fair":
       return "#F59E0B"
     case "critical":
     case "poor":
@@ -55,11 +68,6 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
 
   // Recovery, Efficiency, and Stability are hidden when not available
   if (!metric.available && metric.type !== "thermal") {
-    return null
-  }
-
-  // Stability only shows when under sustained load
-  if (metric.type === "stability" && !metric.underSustainedLoad) {
     return null
   }
 
@@ -146,7 +154,6 @@ function HealthMetricRow({ metric }: { metric: HealthMetric }) {
 export function DeviceHealth({ metrics, variant = "card" }: DeviceHealthProps) {
   const visibleMetrics = metrics.filter((m) => {
     if (!m.available && m.type !== "thermal") return false
-    if (m.type === "stability" && !m.underSustainedLoad) return false
     return true
   })
 
